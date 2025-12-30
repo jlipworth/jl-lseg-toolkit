@@ -1,0 +1,37 @@
+# Pre-commit hooks for code quality
+# Install with: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+      # Run the formatter
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-pytz, pandas-stubs]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Check for merge conflict markers
+      - id: check-merge-conflict
+      # Check YAML syntax
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags
+      # Check JSON syntax
+      - id: check-json
+      # Trim trailing whitespace
+      - id: trailing-whitespace
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+      # Check for large files (>500KB)
+      - id: check-added-large-files
+        args: [--maxkb=500]

@@ -1,0 +1,56 @@
+# .woodpecker/test.yml
+# Main test pipeline - runs on push and pull requests
+
+when:
+  event: [push, pull_request, manual]
+  branch: master
+
+steps:
+  - name: lint
+    image: jlipworth/jl-lseg-toolkit-ci:latest
+    commands:
+      - uv sync --frozen
+      - uv run ruff check src/ tests/
+      - uv run ruff format --check src/ tests/
+
+  - name: typecheck
+    image: jlipworth/jl-lseg-toolkit-ci:latest
+    commands:
+      - uv sync --frozen
+      - uv run mypy src/
+
+  - name: test
+    image: jlipworth/jl-lseg-toolkit-ci:latest
+    commands:
+      - uv sync --frozen
+      - uv run pytest tests/ --no-cov -v
+
+  - name: notify-success
+    image: appleboy/drone-discord
+    depends_on: [lint, typecheck, test]
+    when:
+      - status: success
+    settings:
+      webhook_id:
+        from_secret: discord_id
+      webhook_token:
+        from_secret: discord_token
+      message: >
+        Build succeeded for {{repo.name}}
+        Branch: {{commit.branch}}
+        {{build.link}}
+
+  - name: notify-failure
+    image: appleboy/drone-discord
+    depends_on: [lint, typecheck, test]
+    when:
+      - status: failure
+    settings:
+      webhook_id:
+        from_secret: discord_id
+      webhook_token:
+        from_secret: discord_token
+      message: >
+        Build failed for {{repo.name}}
+        Branch: {{commit.branch}}
+        {{build.link}}

@@ -1,0 +1,92 @@
+# Office temporary files
+~$*.xlsx
+~$*.xls
+~$*.doc*
+~$*.ppt*
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows system files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux system files
+*~
+.directory
+.Trash-*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# uv
+# Note: uv.lock IS committed for reproducible installations
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Language server configs (local environment paths)
+pyrightconfig.json
+
+# Environment variables
+.env
+.env.local
+
+# LSEG credentials (local project config)
+.lseg-config.json
+
+# Exports directory (generated reports)
+exports/
+
+# Development & Discovery
+# All exploration scripts, test files, session notes, field discovery docs
+# Anything used during development/testing should go here
+dev_scripts/

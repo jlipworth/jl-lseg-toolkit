@@ -1,0 +1,33 @@
+# .woodpecker/renovate.yml
+# Renovate bot - scans GitHub repo and creates PRs for dependency updates
+# Runs on cron schedule only (configure in Woodpecker: weekly on Mondays)
+
+when:
+  event: cron
+
+steps:
+  - name: renovate
+    image: renovate/renovate:latest
+    environment:
+      RENOVATE_TOKEN:
+        from_secret: github_pat
+      RENOVATE_PLATFORM: github
+      RENOVATE_REPOSITORIES: jlipworth/jl-lseg-toolkit
+      RENOVATE_GIT_AUTHOR: "Renovate Bot <renovate@noreply.github.com>"
+      LOG_LEVEL: info
+    commands:
+      - renovate
+
+  - name: notify-renovate
+    image: appleboy/drone-discord
+    depends_on:
+      - renovate
+    settings:
+      webhook_id:
+        from_secret: discord_id
+      webhook_token:
+        from_secret: discord_token
+      message: >
+        Renovate completed for {{repo.name}}
+        Check for new dependency update PRs
+        {{build.link}}

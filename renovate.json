@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "description": "Renovate configuration for jl-lseg-toolkit",
+  "labels": ["dependencies", "renovate"],
+  "assignees": ["@jlipworth"],
+  "timezone": "America/New_York",
+
+  "schedule": ["before 6am on monday"],
+
+  "packageRules": [
+    {
+      "description": "Group dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "dev dependencies"
+    },
+    {
+      "description": "All updates require manual review",
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "automerge": false
+    }
+  ],
+
+  "enabledManagers": ["pep621"],
+
+  "prConcurrentLimit": 5,
+  "prCreation": "not-pending",
+  "prHourlyLimit": 2,
+
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  },
+
+  "dependencyDashboard": true,
+  "dependencyDashboardAutoclose": true,
+  "dependencyDashboardTitle": "Renovate Dependency Dashboard"
+}

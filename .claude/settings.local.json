@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source ~/.zshrc)",
+      "Bash(uv sync:*)",
+      "Bash(uv run lseg-earnings:*)",
+      "Bash(uv run lseg-screener:*)",
+      "Bash(uv run lseg-setup:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run pre-commit run:*)",
+      "Bash(uv run python:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv lock:*)",
+      "Bash(tee:*)",
+      "Bash(cd:*)",
+      "Bash(curl -v --connect-timeout 5 http://172.22.16.1:9000)",
+      "Bash(pkill:*)",
+      "Bash(if pgrep -f lseg_tunnel.py)",
+      "Bash(then)",
+      "Bash(pgrep:*)",
+      "Bash(else)",
+      "Bash(fi)",
+      "WebFetch(domain:pershingsquareholdings.com)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(du -sh:*)",
+      "Bash(xargs -I {} bash -c 'echo \"\"\"\"{}:\"\"\"\"; du -sh {} 2>/dev/null || echo \"\"\"\"  0\"\"\"\"')",
+      "Bash(find:*)",
+      "Bash(pytest:*)",
+      "Bash(cat:*)",
+      "Bash(git -C /Users/jlipworth/Nextcloud/Documents/Refinitiv Projects status --short)",
+      "Bash(git -C /Users/jlipworth/Nextcloud/Documents/Refinitiv Projects log --pretty=format:\"%h %s\" --follow .claude/settings.local.json)",
+      "Bash(git -C /Users/jlipworth/Nextcloud/Documents/Refinitiv Projects ls-files --others --ignored --exclude-standard)",
+      "Bash(git -C /Users/jlipworth/Nextcloud/Documents/Refinitiv\\\\ Projects check-ignore:*)",
+      "Bash(xargs ls:*)",
+      "Bash(paste:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
