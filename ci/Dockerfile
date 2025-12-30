@@ -17,11 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 RUN pip install --no-cache-dir uv
 
-# Pre-cache all dependency wheels (but don't create a venv)
-# This populates /root/.cache/uv so `uv sync` is fast
+# Pre-cache test dependency wheels (but don't create a venv)
+# This populates /root/.cache/uv so `uv sync --group test` is fast
 WORKDIR /tmp/cache-build
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project && rm -rf .venv
+RUN uv sync --frozen --group test --no-install-project && rm -rf .venv
 
 # Clean up temp dir
 WORKDIR /

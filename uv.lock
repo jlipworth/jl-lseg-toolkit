@@ -694,6 +694,28 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-timeout" },
+    { name = "ruff" },
+    { name = "types-pytz" },
+]
+notebook = [
+    { name = "ipykernel" },
+    { name = "ipython" },
+    { name = "ipywidgets" },
+    { name = "jupyter" },
+    { name = "jupyterlab-widgets" },
+    { name = "kaleido" },
+    { name = "nbformat" },
+    { name = "notebook" },
+    { name = "plotly" },
+]
+test = [
+    { name = "mypy" },
+    { name = "pandas-stubs" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-timeout" },
     { name = "ruff" },
     { name = "types-pytz" },
 ]
@@ -726,6 +748,28 @@ dev = [
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-timeout", specifier = ">=2.0.0" },
+    { name = "ruff", specifier = ">=0.1.0" },
+    { name = "types-pytz", specifier = ">=2025.2.0.20250809" },
+]
+notebook = [
+    { name = "ipykernel", specifier = ">=6.29.0" },
+    { name = "ipython", specifier = ">=8.12.0" },
+    { name = "ipywidgets", specifier = ">=8.1.8" },
+    { name = "jupyter", specifier = ">=1.0.0" },
+    { name = "jupyterlab-widgets", specifier = ">=3.0.16" },
+    { name = "kaleido", specifier = ">=1.1.0" },
+    { name = "nbformat", specifier = ">=5.10.4" },
+    { name = "notebook", specifier = ">=7.0.0" },
+    { name = "plotly", specifier = ">=6.3.1" },
+]
+test = [
+    { name = "mypy", specifier = ">=1.7.0" },
+    { name = "pandas-stubs", specifier = ">=2.3.2.250926" },
+    { name = "pre-commit", specifier = ">=4.3.0" },
+    { name = "pytest", specifier = ">=7.4.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-timeout", specifier = ">=2.0.0" },
     { name = "ruff", specifier = ">=0.1.0" },
     { name = "types-pytz", specifier = ">=2025.2.0.20250809" },
 ]

@@ -9,20 +9,20 @@ steps:
   - name: lint
     image: jlipworth/jl-lseg-toolkit-ci:latest
     commands:
-      - uv sync --frozen
+      - uv sync --frozen --group test
       - uv run ruff check src/ tests/
       - uv run ruff format --check src/ tests/
 
   - name: typecheck
     image: jlipworth/jl-lseg-toolkit-ci:latest
     commands:
-      - uv sync --frozen
+      - uv sync --frozen --group test
       - uv run mypy src/
 
   - name: test
     image: jlipworth/jl-lseg-toolkit-ci:latest
     commands:
-      - uv sync --frozen
+      - uv sync --frozen --group test
       - uv run pytest tests/ -m "not integration" --no-cov -v
 
   - name: notify-success

@@ -99,7 +99,7 @@ class EquityScreenerConfig:
             if value_m is None:
                 return "No restriction"
             if value_m >= 1000:
-                return f"${value_m/1000:.1f}B".rstrip("0").rstrip(".")
+                return f"${value_m / 1000:.1f}B".rstrip("0").rstrip(".")
             return f"${value_m:.0f}M"
 
         result = {"Screen Date": self.screen_date, "Output Directory": self.output_dir}

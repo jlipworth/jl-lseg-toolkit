@@ -52,23 +52,30 @@ lseg-screener = "lseg_toolkit.equity_screener.cli:main"
 lseg-setup = "lseg_toolkit.setup_app_key:main"
 
 [dependency-groups]
-dev = [
+test = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.0.0",
     "ruff>=0.1.0",
     "mypy>=1.7.0",
+    "pre-commit>=4.3.0",
+    "types-pytz>=2025.2.0.20250809",
+    "pandas-stubs>=2.3.2.250926",
+]
+notebook = [
     "ipython>=8.12.0",
     "jupyter>=1.0.0",
     "notebook>=7.0.0",
     "ipykernel>=6.29.0",
-    "pre-commit>=4.3.0",
-    "types-pytz>=2025.2.0.20250809",
-    "pandas-stubs>=2.3.2.250926",
     "plotly>=6.3.1",
     "nbformat>=5.10.4",
     "kaleido>=1.1.0",
     "jupyterlab-widgets>=3.0.16",
     "ipywidgets>=8.1.8",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "notebook" },
 ]
 
 [build-system]
