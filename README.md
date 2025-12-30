@@ -6,6 +6,7 @@ A Python toolkit for extracting and analyzing financial data from the LSEG (Lond
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI version](https://img.shields.io/pypi/v/jl-lseg-toolkit.svg)](https://pypi.org/project/jl-lseg-toolkit/)
 [![CI](https://woodpecker01.crapmaster.org/api/badges/jlipworth/jl-lseg-toolkit/status.svg)](https://woodpecker01.crapmaster.org/jlipworth/jl-lseg-toolkit)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 > **Requires:** LSEG Workspace Desktop running with an active subscription.
 
@@ -281,6 +282,8 @@ LsegError (base)
 
 ## License
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<a href="https://opensource.org/licenses/MIT">
+  <img src="https://opensource.org/wp-content/themes/flavor/library/images/logo-mark.png" alt="OSI Approved" width="100">
+</a>
 
 MIT License - Copyright (c) 2025 Jonathan Lipworth. See [LICENSE](LICENSE) for details.

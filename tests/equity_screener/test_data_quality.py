@@ -3,11 +3,15 @@ Test data quality for equity screener - validates all fields are populated corre
 
 Tests that major, well-covered companies have valid (non-NaN, non-zero) values
 for key financial metrics.
+
+These tests require LSEG Workspace Desktop running.
 """
 
 import lseg.data as rd
 import pandas as pd
 import pytest
+
+pytestmark = pytest.mark.integration  # Skip in CI
 
 
 @pytest.fixture(scope="module")

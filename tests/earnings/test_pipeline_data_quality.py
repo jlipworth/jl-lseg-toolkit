@@ -3,6 +3,8 @@ Test data quality for earnings pipeline - validates end-to-end pipeline executio
 
 Tests that the earnings pipeline correctly fetches and processes all data for major companies.
 Uses the ACTUAL pipeline methods to ensure regressions are caught.
+
+These tests require LSEG Workspace Desktop running.
 """
 
 from datetime import datetime, timedelta
@@ -10,6 +12,8 @@ from datetime import datetime, timedelta
 import lseg.data as rd
 import pandas as pd
 import pytest
+
+pytestmark = pytest.mark.integration  # Skip in CI
 
 
 @pytest.fixture(scope="module")

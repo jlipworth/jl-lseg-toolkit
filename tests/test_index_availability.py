@@ -3,6 +3,8 @@ Test that all listed indices are actually available via LSEG API.
 
 This test verifies each index in the available_indices list can be queried
 successfully through the LSEG API.
+
+These tests require LSEG Workspace Desktop running.
 """
 
 import sys
@@ -13,7 +15,9 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lseg_toolkit.client import LsegClient
+from lseg_toolkit.client import LsegClient  # noqa: E402
+
+pytestmark = pytest.mark.integration  # Skip in CI
 
 
 class TestIndexAvailability:

@@ -16,8 +16,10 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lseg_toolkit.client import LsegClient
-from lseg_toolkit.exceptions import DataRetrievalError
+from lseg_toolkit.client import LsegClient  # noqa: E402
+from lseg_toolkit.exceptions import DataRetrievalError  # noqa: E402
+
+pytestmark = pytest.mark.integration  # Skip in CI
 
 
 class TestEarningsData:
