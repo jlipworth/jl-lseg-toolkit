@@ -118,7 +118,6 @@ select = [
 ignore = [
     "E501",  # Line too long (let formatter handle it)
     "B904",  # Exception chains (not always necessary)
-    "UP038", # isinstance with tuple (readable as-is)
 ]
 
 [tool.pylsp-mypy]

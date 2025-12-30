@@ -109,16 +109,16 @@ class TestEarningsPipelineDataQuality:
 
             # Check no NaN values
             missing_count = pipeline_data[field].isna().sum()
-            assert (
-                missing_count == 0
-            ), f"{field}: {missing_count} missing values (expected 0)"
+            assert missing_count == 0, (
+                f"{field}: {missing_count} missing values (expected 0)"
+            )
 
             # Check no zero values for market cap and price
             if field in ["Company Market Cap", "Price Close"]:
                 zero_count = (pipeline_data[field] == 0).sum()
-                assert (
-                    zero_count == 0
-                ), f"{field}: {zero_count} zero values (expected 0)"
+                assert zero_count == 0, (
+                    f"{field}: {zero_count} zero values (expected 0)"
+                )
 
     def test_financial_metrics_for_non_financials(self, pipeline_data, test_companies):
         """Test that financial metrics are populated for non-financial companies."""
@@ -177,12 +177,12 @@ class TestEarningsPipelineDataQuality:
             assert pd.notna(ev_ebitda), f"{company_name} ({ric}): EV/EBITDA NTM is NaN"
 
             # Check positive and reasonable
-            assert (
-                ev_ebitda > 0
-            ), f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (should be positive)"
-            assert (
-                ev_ebitda < 200
-            ), f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (unusually high)"
+            assert ev_ebitda > 0, (
+                f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (should be positive)"
+            )
+            assert ev_ebitda < 200, (
+                f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (unusually high)"
+            )
 
     def test_financial_companies_data_present(self, pipeline_data, test_companies):
         """

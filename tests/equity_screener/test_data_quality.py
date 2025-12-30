@@ -78,9 +78,9 @@ class TestEquityScreenerDataQuality:
         """Test that data was fetched for all test companies."""
         expected_count = len(test_companies)
         actual_count = len(screener_data)
-        assert (
-            actual_count == expected_count
-        ), f"Expected {expected_count} companies, got {actual_count}"
+        assert actual_count == expected_count, (
+            f"Expected {expected_count} companies, got {actual_count}"
+        )
 
     def test_basic_fields_populated(self, screener_data):
         """Test that basic company fields are populated for all companies."""
@@ -97,16 +97,16 @@ class TestEquityScreenerDataQuality:
 
             # Check no NaN values
             missing_count = screener_data[field].isna().sum()
-            assert (
-                missing_count == 0
-            ), f"{field}: {missing_count} missing values (expected 0)"
+            assert missing_count == 0, (
+                f"{field}: {missing_count} missing values (expected 0)"
+            )
 
             # Check no zero values for market cap and price
             if field in ["Mkt Cap ($M)", "Share Price"]:
                 zero_count = (screener_data[field] == 0).sum()
-                assert (
-                    zero_count == 0
-                ), f"{field}: {zero_count} zero values (expected 0)"
+                assert zero_count == 0, (
+                    f"{field}: {zero_count} zero values (expected 0)"
+                )
 
     def test_valuation_ratios_for_non_financials(self, screener_data, test_companies):
         """Test that valuation ratios are populated for non-financial companies."""
@@ -157,9 +157,9 @@ class TestEquityScreenerDataQuality:
         ]
         non_financial_df = screener_data[screener_data["RIC"].isin(non_financial_rics)]
 
-        assert (
-            "EV/EBITDA NTM" in non_financial_df.columns
-        ), "EV/EBITDA NTM not calculated"
+        assert "EV/EBITDA NTM" in non_financial_df.columns, (
+            "EV/EBITDA NTM not calculated"
+        )
 
         # Check each non-financial company
         for ric, _, _ in test_companies:
@@ -176,12 +176,12 @@ class TestEquityScreenerDataQuality:
             assert pd.notna(ev_ebitda), f"{company_name} ({ric}): EV/EBITDA NTM is NaN"
 
             # Check positive and reasonable (typically 5-100x)
-            assert (
-                ev_ebitda > 0
-            ), f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (should be positive)"
-            assert (
-                ev_ebitda < 200
-            ), f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (unusually high, check data)"
+            assert ev_ebitda > 0, (
+                f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (should be positive)"
+            )
+            assert ev_ebitda < 200, (
+                f"{company_name} ({ric}): EV/EBITDA NTM is {ev_ebitda} (unusually high, check data)"
+            )
 
     def test_financial_companies_show_na(self, screener_data, test_companies):
         """Test that financial companies have N/A for debt-related metrics."""
@@ -241,9 +241,9 @@ class TestEquityScreenerDataQuality:
 
             # Should have some valid values for non-financials
             valid_count = non_financial_df[metric].notna().sum()
-            assert (
-                valid_count > 0
-            ), f"{metric}: No valid values for non-financial companies"
+            assert valid_count > 0, (
+                f"{metric}: No valid values for non-financial companies"
+            )
 
     def test_returns_populated(self, screener_data):
         """Test that return data is populated for all companies."""
