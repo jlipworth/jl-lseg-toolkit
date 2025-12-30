@@ -1,15 +1,13 @@
 # ci/Dockerfile
 # Base image for jl-lseg-toolkit CI testing
-# Contains Python 3.12, uv, and project dependencies pre-installed
+# Contains Python 3.13, uv, and pre-cached wheels for fast installs
 #
 # Build and push using: ./ci/build-image.sh --push
 # Or manually: docker build -t jlipworth/jl-lseg-toolkit-ci:latest -f ci/Dockerfile .
 
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_LINK_MODE=copy
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,14 +17,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 RUN pip install --no-cache-dir uv
 
-# Set working directory
-WORKDIR /app
-
-# Copy dependency files first (for caching)
+# Pre-cache all dependency wheels (but don't create a venv)
+# This populates /root/.cache/uv so `uv sync` is fast
+WORKDIR /tmp/cache-build
 COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project && rm -rf .venv
 
-# Install dependencies (cached layer) - dev dependencies included for testing
-RUN uv sync --frozen --no-install-project
+# Clean up temp dir
+WORKDIR /
+RUN rm -rf /tmp/cache-build
 
 # Default command
 CMD ["bash"]

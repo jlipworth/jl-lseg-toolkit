@@ -9,7 +9,6 @@ steps:
   - name: lint
     image: jlipworth/jl-lseg-toolkit-ci:latest
     commands:
-      - rm -rf .venv /root/.cache/uv
       - uv sync --frozen
       - uv run ruff check src/ tests/
       - uv run ruff format --check src/ tests/
@@ -17,14 +16,12 @@ steps:
   - name: typecheck
     image: jlipworth/jl-lseg-toolkit-ci:latest
     commands:
-      - rm -rf .venv /root/.cache/uv
       - uv sync --frozen
       - uv run mypy src/
 
   - name: test
     image: jlipworth/jl-lseg-toolkit-ci:latest
     commands:
-      - rm -rf .venv /root/.cache/uv
       - uv sync --frozen
       - uv run pytest tests/ -m "not integration" --no-cov -v
 
