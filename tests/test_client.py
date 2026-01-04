@@ -1,5 +1,7 @@
 """Tests for LSEG client."""
 
+import pytest
+
 from lseg_toolkit.client import LsegClient
 
 
@@ -12,6 +14,7 @@ class TestLsegClient:
         assert client is not None
         assert not client._session_opened
 
+    @pytest.mark.integration
     def test_client_auto_open(self):
         """Test client with auto_open parameter."""
         # Note: This requires LSEG Workspace to be running

@@ -51,9 +51,9 @@ class EquityScreenerPipeline:
         Raises:
             RuntimeError: If screening or data fetching fails
         """
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("EQUITY SCREENER PIPELINE")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Display configuration
         print("Configuration:")
@@ -94,9 +94,9 @@ class EquityScreenerPipeline:
         output_path = self._export_to_excel(df)
         print(f"Export complete: {output_path}\n")
 
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
         print("SCREENING COMPLETE")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
         print(f"\nTotal stocks: {len(df)}")
         print(f"Sectors: {df['Sector'].nunique()}")
         print(f"Output file: {output_path}\n")

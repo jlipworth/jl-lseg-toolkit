@@ -3,6 +3,8 @@ Test that all listed indices are actually available via LSEG API.
 
 This test verifies each index in the available_indices list can be queried
 successfully through the LSEG API.
+
+These tests require LSEG Workspace Desktop running.
 """
 
 import sys
@@ -13,7 +15,9 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lseg_toolkit.client import LsegClient
+from lseg_toolkit.client import LsegClient  # noqa: E402
+
+pytestmark = pytest.mark.integration  # Skip in CI
 
 
 class TestIndexAvailability:
@@ -67,9 +71,9 @@ class TestIndexAvailability:
             assert len(rics) > 0, f"{index_code} returned empty list"
 
             # All entries should be strings
-            assert all(
-                isinstance(ric, str) for ric in rics
-            ), f"{index_code} contains non-string RICs"
+            assert all(isinstance(ric, str) for ric in rics), (
+                f"{index_code} contains non-string RICs"
+            )
 
             print(f"✓ {index_code}: {len(rics)} constituents")
 
@@ -89,9 +93,9 @@ class TestIndexAvailability:
             rics = client.get_index_constituents(index_code)
             count = len(rics)
 
-            assert (
-                min_expected <= count <= max_expected
-            ), f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
+            assert min_expected <= count <= max_expected, (
+                f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
+            )
 
             print(
                 f"✓ {index_code}: {count} constituents (expected {min_expected}-{max_expected})"
@@ -111,9 +115,9 @@ class TestIndexAvailability:
             rics = client.get_index_constituents(index_code)
             count = len(rics)
 
-            assert (
-                min_expected <= count <= max_expected
-            ), f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
+            assert min_expected <= count <= max_expected, (
+                f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
+            )
 
             print(
                 f"✓ {index_code}: {count} constituents (expected {min_expected}-{max_expected})"
@@ -131,9 +135,9 @@ class TestIndexAvailability:
             rics2 = client.get_index_constituents(f".{index_code}")
 
             # Should return same results
-            assert set(rics1) == set(
-                rics2
-            ), f"{index_code}: Different results with/without . prefix"
+            assert set(rics1) == set(rics2), (
+                f"{index_code}: Different results with/without . prefix"
+            )
 
             print(f"✓ {index_code}: Consistent with/without prefix")
 

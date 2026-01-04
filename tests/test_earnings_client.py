@@ -16,8 +16,10 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lseg_toolkit.client import LsegClient
-from lseg_toolkit.exceptions import DataRetrievalError
+from lseg_toolkit.client import LsegClient  # noqa: E402
+from lseg_toolkit.exceptions import DataRetrievalError  # noqa: E402
+
+pytestmark = pytest.mark.integration  # Skip in CI
 
 
 class TestEarningsData:
@@ -63,9 +65,9 @@ class TestEarningsData:
             assert col in df.columns, f"Missing column: {col}"
 
         # Should have at least one earnings event (may not be all 3 if outside earnings season)
-        assert (
-            len(df) > 0
-        ), f"No earnings found in date range {start_date} to {end_date}"
+        assert len(df) > 0, (
+            f"No earnings found in date range {start_date} to {end_date}"
+        )
 
         # All event types should be EarningsReleases
         if len(df) > 0:
@@ -119,9 +121,9 @@ class TestEarningsData:
             for time_val in times_with_values:
                 time_str = str(time_val)
                 # Should be time format or empty
-                assert (
-                    ":" in time_str or time_str == ""
-                ), f"Unexpected time format: {time_str}"
+                assert ":" in time_str or time_str == "", (
+                    f"Unexpected time format: {time_str}"
+                )
 
 
 class TestIndexConstituents:

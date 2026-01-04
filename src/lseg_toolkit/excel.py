@@ -100,7 +100,7 @@ class ExcelExporter:
         format_props = {
             "font_name": self.DEFAULT_FONT,
             "font_size": self.DEFAULT_FONT_SIZE,
-            "num_format": f'0.{self.DECIMAL_PLACES * "0"}',
+            "num_format": f"0.{self.DECIMAL_PLACES * '0'}",
         }
         format_props.update(kwargs)
         return self._workbook.add_format(format_props)
