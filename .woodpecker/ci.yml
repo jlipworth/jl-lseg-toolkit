@@ -9,27 +9,30 @@ steps:
   - name: lint
     image: jlipworth/jl-lseg-toolkit-ci:latest
     pull: true
+    environment:
+      UV_PROJECT_ENVIRONMENT: /tmp/venv
     commands:
-      - rm -rf .venv
       - uv sync --frozen --only-group test
-      - .venv/bin/ruff check src/ tests/
-      - .venv/bin/ruff format --check src/ tests/
+      - /tmp/venv/bin/ruff check src/ tests/
+      - /tmp/venv/bin/ruff format --check src/ tests/
 
   - name: typecheck
     image: jlipworth/jl-lseg-toolkit-ci:latest
     pull: true
+    environment:
+      UV_PROJECT_ENVIRONMENT: /tmp/venv
     commands:
-      - rm -rf .venv
       - uv sync --frozen --only-group test
-      - MYPYPATH=src .venv/bin/mypy src/
+      - MYPYPATH=src /tmp/venv/bin/mypy src/
 
   - name: test
     image: jlipworth/jl-lseg-toolkit-ci:latest
     pull: true
+    environment:
+      UV_PROJECT_ENVIRONMENT: /tmp/venv
     commands:
-      - rm -rf .venv
       - uv sync --frozen
-      - .venv/bin/pytest tests/ -m "not integration" --no-cov -v
+      - /tmp/venv/bin/pytest tests/ -m "not integration" --no-cov -v
 
   - name: notify-success
     image: appleboy/drone-discord
