@@ -1,4 +1,4 @@
-# .woodpecker/test.yml
+# .woodpecker/ci.yml
 # Main test pipeline - runs on push and pull requests
 
 when:
