@@ -52,3 +52,39 @@ class ConfigurationError(LsegError):
     - Invalid index code
     - Conflicting parameters
     """
+
+
+# =============================================================================
+# Timeseries Module Exceptions
+# =============================================================================
+
+
+class InstrumentNotFoundError(LsegError):
+    """Instrument not found or invalid.
+
+    Raised when:
+    - RIC not found in LSEG
+    - Symbol cannot be mapped to RIC
+    - Instrument data unavailable
+    """
+
+
+class StorageError(LsegError):
+    """Database or storage operation failed.
+
+    Raised when:
+    - SQLite connection fails
+    - Schema creation fails
+    - Read/write operations fail
+    - Parquet export fails
+    """
+
+
+class RollCalculationError(LsegError):
+    """Continuous contract roll calculation failed.
+
+    Raised when:
+    - Insufficient contract data for roll detection
+    - Missing prices at roll date
+    - Invalid roll configuration
+    """
