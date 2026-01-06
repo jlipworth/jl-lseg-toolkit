@@ -2,11 +2,18 @@
 
 Validation run: 2026-01-06
 
-## Summary
+## Summary (Updated 2026-01-06)
 
-- **Total RICs tested:** 43
-- **Working:** 25/43 (58%)
-- **Failed:** 18/43 (42%)
+**Phase 2 Validation Complete:**
+- **USD Treasury Yields:** 11/11 (100%) - all tenors with `=RRPS` pattern
+- **USD OIS Curve:** 14/14 (100%) - all tenors with bare `=` pattern
+- **SOFR Fixings:** 2/6 (33%) - daily and 30-day avg
+- **Treasury Repo:** 8/10 (80%) - ON through 6M
+- **USD FRAs:** 12/12 (100%) - all standard tenors
+- **USD Deposits:** 9/9 (100%) - ON through 1Y
+- **STIR Futures:** 6/14 (43%) - SRAc1, FFc1, FEIc1, SONc1
+
+**Total Working RICs:** 62+
 
 ## Working RICs by Asset Class
 
@@ -51,18 +58,77 @@ Validation run: 2026-01-06
 | `GBP1M=` | GBP/USD 1M fwd | ✓ |
 | `JPY1M=` | USD/JPY 1M fwd | ✓ |
 
-### OIS ✓ (1/9)
+### USD OIS Curve ✓ (14/14) - UPDATED 2026-01-06
 
-| RIC | Description | Daily | Notes |
-|-----|-------------|-------|-------|
-| `USD1MOIS=` | USD SOFR 1M OIS | ✓ | Only working OIS pattern |
+All tenors work with bare `USD{tenor}OIS=` pattern for both snapshot and history.
+
+| RIC | Description | Daily | Fields | Notes |
+|-----|-------------|-------|--------|-------|
+| `USD1MOIS=` | 1-Month OIS | ✓ | 7 | BID/ASK + meta |
+| `USD2MOIS=` | 2-Month OIS | ✓ | 7 | |
+| `USD3MOIS=` | 3-Month OIS | ✓ | 7 | |
+| `USD6MOIS=` | 6-Month OIS | ✓ | 7 | |
+| `USD9MOIS=` | 9-Month OIS | ✓ | 7 | |
+| `USD1YOIS=` | 1-Year OIS | ✓ | 7 | |
+| `USD2YOIS=` | 2-Year OIS | ✓ | 7 | |
+| `USD3YOIS=` | 3-Year OIS | ✓ | 7 | |
+| `USD5YOIS=` | 5-Year OIS | ✓ | 7 | |
+| `USD7YOIS=` | 7-Year OIS | ✓ | 7 | |
+| `USD10YOIS=` | 10-Year OIS | ✓ | 7 | |
+| `USD15YOIS=` | 15-Year OIS | ✓ | 7 | |
+| `USD20YOIS=` | 20-Year OIS | ✓ | 7 | |
+| `USD30YOIS=` | 30-Year OIS | ✓ | 7 | |
+
+**Available Fields:**
+- Rates: `BID`, `ASK`, `HST_CLOSE`, `PRIMACT_1`
+- Meta: `VALUE_TS1`, `VALUE_DT1`, `CF_NAME`, `DSPLY_NAME`, `CURRENCY`, `CF_CURR`
 
 **Not Working:**
-- `USDSOFR1M=`, `USDSOFR1Y=`, etc. - Wrong pattern
-- `EUR1MOIS=` - No data
-- `GBP1MOIS=ICAP` - Access denied
+- `=TREU`, `=ICAP` contributor suffixes - Access Denied
+- `USDSOFR{tenor}=` pattern - Record not found
 
-### Government Bond Yields ✓ (4/9)
+### SOFR Fixings ✓ (2/6)
+
+| RIC | Description | Daily | Fields |
+|-----|-------------|-------|--------|
+| `USDSOFR=` | Daily SOFR fixing | ✓ | 3 |
+| `SOFR1MAVG=` | 30-day compounded SOFR | ✓ | 3 |
+
+**Fields:** `PRIMACT_1`, `VALUE_DT1`, `VALUE_TS1`
+
+**Not Found:**
+- `SOFR90DAVG=`, `SOFR180DAVG=`, `USDSOFRAVE=`, `USSOFRFIX=`
+
+### US Treasury Yields ✓ (11/11) - UPDATED 2026-01-06
+
+All tenors work with `=RRPS` pattern for both snapshot and history.
+
+| RIC | Description | Daily | Fields | Notes |
+|-----|-------------|-------|--------|-------|
+| `US1MT=RRPS` | 1-Month T-Bill | ✓ | 10 | Full yield + risk metrics |
+| `US3MT=RRPS` | 3-Month T-Bill | ✓ | 10 | Full yield + risk metrics |
+| `US6MT=RRPS` | 6-Month T-Bill | ✓ | 10 | Full yield + risk metrics |
+| `US1YT=RRPS` | 1-Year | ✓ | 10 | Full yield + risk metrics |
+| `US2YT=RRPS` | 2-Year | ✓ | 10 | Full yield + risk metrics |
+| `US3YT=RRPS` | 3-Year | ✓ | 10 | Full yield + risk metrics |
+| `US5YT=RRPS` | 5-Year | ✓ | 10 | Full yield + risk metrics |
+| `US7YT=RRPS` | 7-Year | ✓ | 10 | Full yield + risk metrics |
+| `US10YT=RRPS` | 10-Year | ✓ | 10 | Full yield + risk metrics |
+| `US20YT=RRPS` | 20-Year | ✓ | 10 | Full yield + risk metrics |
+| `US30YT=RRPS` | 30-Year | ✓ | 10 | Full yield + risk metrics |
+
+**Available Fields (=RRPS pattern):**
+- Yields: `MID_YLD_1`, `SEC_YLD_1`
+- Prices: `BID`, `ASK`, `HIGH_1`, `LOW_1`, `OPEN_PRC`, `HST_CLOSE`, `PRIMACT_1`
+- Risk: `MOD_DURTN`, `BPV`, `DURATION`, `CONVEXITY`
+- Meta: `VALUE_TS1`, `VALUE_DT1`, `CF_NAME`, `DSPLY_NAME`, `CURRENCY`
+
+**Alternative Patterns:**
+- `=X` pattern (e.g., `US10YT=X`): Works for snapshot + history, fewer fields (no MID_YLD_1, no risk metrics)
+- `=RR` pattern: Works for snapshot only, no history
+- Bare `=` pattern: Not found
+
+### European Government Bond Yields ✓ (4/4)
 
 | RIC | Description | Daily | Notes |
 |-----|-------------|-------|-------|
@@ -71,8 +137,7 @@ Validation run: 2026-01-06
 | `DE2YT=RR` | German 2Y | ✓ | |
 | `GB10YT=RR` | UK 10Y Gilt | ✓ | |
 
-**Not Working (Permission Required):**
-- `US10YT=RR`, `US5YT=RR`, `US2YT=RR`, `US30YT=RR` - US Treasury yields
+**Not Tested:**
 - `JP10YT=RR` - Japan 10Y
 
 ## Key Findings
@@ -97,8 +162,9 @@ Current discrete contracts (e.g., `TYH5` for Mar 2025) may not be accessible for
 ### 5. OIS RIC Pattern
 Only `USD1MOIS=` works. Other patterns like `USDSOFR1M=` do not exist.
 
-### 6. US Treasury Yields Require Permissions
-`US10YT=RR` and related RICs return "UserNotPermission" errors.
+### 6. US Treasury Yields Work with =RRPS Pattern
+`US{tenor}T=RRPS` pattern works for all tenors (1M to 30Y) with full yield and risk metrics.
+The `=RR` pattern only works for snapshots, not historical data.
 
 ## Fields Discovered
 
@@ -128,5 +194,5 @@ Only `USD1MOIS=` works. Other patterns like `USDSOFR1M=` do not exist.
 1. **Focus on daily data only** - No intraday support
 2. **Use LSEG RIC roots** - Map CME symbols to LSEG
 3. **Skip expired contracts** - Not accessible via get_history
-4. **OIS limited** - Only USD1MOIS= pattern works
-5. **Use alternative for US yields** - Consider spot RICs or other patterns
+4. **OIS** - Need to validate full curve (currently only USD1MOIS= confirmed)
+5. **US Treasury Yields** - Use `=RRPS` pattern for all tenors (1M-30Y)

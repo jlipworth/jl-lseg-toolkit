@@ -57,7 +57,8 @@
       "WebFetch(domain:faculty.fiu.edu)",
       "WebFetch(domain:www.jpx.co.jp)",
       "Bash(/bin/ls:*)",
-      "Bash(uv pip install:*)"
+      "Bash(uv pip install:*)",
+      "Bash(cd /Users/jlipworth/Nextcloud/Documents/Refinitiv\\\\ Projects && timeout 90 uv run python dev_scripts/validate_fra_mm.py:*)"
     ],
     "deny": [],
     "ask": []
