@@ -322,6 +322,21 @@ Both pipelines follow a similar pattern:
 | `equity_screener/pipeline.py` | Orchestrates equity screening |
 | `equity_screener/config.py` | Configuration dataclass with validation |
 | `equity_screener/cli.py` | argparse CLI interface |
+| `timeseries/pipeline.py` | Orchestrates time series extraction |
+| `timeseries/config.py` | Configuration dataclass for time series |
+| `timeseries/cli.py` | argparse CLI interface (lseg-extract) |
+
+### Time Series Layer (`src/lseg_toolkit/timeseries/`)
+
+| Module | Purpose |
+|--------|---------|
+| `fetch.py` | LSEG data fetching for multiple asset classes |
+| `rolling.py` | Continuous contract construction and roll detection |
+| `storage.py` | SQLite database layer for time series persistence |
+| `export.py` | Parquet export for C++/Rust interoperability |
+| `constants.py` | CME↔LSEG symbol mappings and RIC patterns |
+| `enums.py` | Asset classes, granularity, roll methods |
+| `models/` | Dataclass models for instruments and time series |
 
 ### Utility Layer
 
@@ -464,6 +479,272 @@ Pipelines handle missing data gracefully:
 @pytest.mark.slow         # Takes > 10 seconds
 @pytest.mark.unit         # No external dependencies
 ```
+
+## Time Series Module Architecture
+
+### Overview
+
+The timeseries module provides functionality for extracting, storing, and exporting historical market data for bond futures, FX, OIS curves, Treasury yields, and FRAs. Unlike the earnings/screener modules which export to Excel, timeseries data is stored in SQLite and optionally exported to Parquet for high-performance consumption by C++/Rust applications.
+
+### Data Flow
+
+```mermaid
+flowchart TB
+    subgraph Input
+        Config[TimeSeriesConfig]
+        Symbols[Symbols: ZN, EURUSD, etc.]
+    end
+
+    subgraph Fetch["Fetch Layer"]
+        RIC[resolve_ric<br/>CME→LSEG mapping]
+        API[rd.get_history<br/>LSEG API]
+    end
+
+    subgraph Process["Processing Layer"]
+        Discrete[Discrete Contracts<br/>TYH5, TYM5, ...]
+        Roll[build_continuous<br/>Roll detection & stitching]
+        Continuous[Continuous Contract<br/>TYc1 ratio-adjusted]
+    end
+
+    subgraph Storage["Storage Layer"]
+        SQLite[(SQLite DB<br/>timeseries.db)]
+        Instruments[instruments table]
+        OHLCV[ohlcv_daily/intraday]
+        RollEvents[roll_events table]
+    end
+
+    subgraph Export["Export Layer"]
+        Parquet[Parquet Files<br/>C++/Rust compatible]
+        Metadata[metadata.json]
+    end
+
+    Config --> RIC
+    Symbols --> RIC
+    RIC --> API
+    API --> Discrete
+    Discrete --> Roll
+    Roll --> Continuous
+    Continuous --> Instruments
+    Continuous --> OHLCV
+    Roll --> RollEvents
+    OHLCV --> Parquet
+    Instruments --> Metadata
+    RollEvents --> Metadata
+```
+
+### Key Classes
+
+#### TimeSeriesConfig
+
+Configuration dataclass with validation:
+
+```python
+@dataclass
+class TimeSeriesConfig:
+    symbols: list[str]              # ['ZN', 'ZB', 'EURUSD']
+    asset_class: AssetClass | None  # Auto-detected if None
+    start_date: date                # Default: 1 year ago
+    end_date: date                  # Default: today
+    granularity: Granularity        # daily, hourly, 1min, etc.
+    continuous: bool                # Build continuous contracts?
+    continuous_type: ContinuousType # ratio_adjusted, difference_adjusted, unadjusted
+    roll_method: RollMethod         # volume_switch, fixed_days, expiry
+    db_path: str                    # SQLite database path
+    parquet_dir: str                # Parquet export directory
+    export_parquet: bool            # Export to Parquet?
+```
+
+**Validation:**
+- Date range must be valid (`start_date <= end_date`)
+- Intraday granularity limited to 90-day range
+- `roll_days_before >= 1` for FIXED_DAYS roll method
+
+#### TimeSeriesExtractionPipeline
+
+Orchestrates the full extraction workflow:
+
+1. **Asset Class Detection:** Auto-detect from symbol patterns if not specified
+2. **Data Fetching:** Route to appropriate fetch function based on asset class
+3. **Continuous Contract Building:** If enabled, stitch discrete contracts with roll events
+4. **Storage:** Save to SQLite with instrument metadata
+5. **Parquet Export:** Export OHLCV data and metadata for external consumption
+
+### Storage Schema (SQLite)
+
+**Core Tables:**
+
+- **`instruments`**: Master instrument registry
+  - `symbol`, `name`, `asset_class`, `lseg_ric`
+  - Indexed on `symbol` and `asset_class`
+
+- **`ohlcv_daily`**: Daily OHLCV data
+  - `instrument_id`, `date`, `open`, `high`, `low`, `close`, `volume`, `settle`
+  - `adjustment_factor`, `source_contract` (for continuous series)
+  - Primary key: `(instrument_id, date)`
+
+- **`ohlcv_intraday`**: Intraday OHLCV data (separate for performance)
+  - `instrument_id`, `timestamp`, `granularity`, OHLCV columns
+  - Primary key: `(instrument_id, timestamp, granularity)`
+
+- **`roll_events`**: Continuous contract roll history
+  - `continuous_id`, `roll_date`, `from_contract`, `to_contract`
+  - `from_price`, `to_price`, `price_gap`, `adjustment_factor`
+  - `roll_method` (how roll was detected)
+
+**Extension Tables:**
+
+- **`futures_contracts`**: Futures-specific metadata (expiry dates, tick size, point value)
+- **`fx_spots`**: FX pair details (base/quote currency, pip size)
+- **`ois_rates`**: OIS curve details (currency, tenor, reference rate)
+- **`govt_yields`**: Government yield details (country, tenor)
+
+### Continuous Contract Construction
+
+The `rolling.py` module implements several roll detection methods:
+
+**VOLUME_SWITCH** (default):
+- Roll when back month volume exceeds front month volume
+- Most common in industry practice
+
+**FIXED_DAYS**:
+- Roll N days before expiration
+- Predictable schedule, but may roll into illiquid contracts
+
+**EXPIRY**:
+- Roll on expiration day
+- Matches LSEG's default `c1` behavior
+
+**Price Adjustment Types:**
+
+1. **Ratio Adjusted** (recommended):
+   - Backward adjust prices by multiplying by roll ratio
+   - Preserves percentage returns
+   - Formula: `adj_price = raw_price * (to_price / from_price)`
+
+2. **Difference Adjusted**:
+   - Backward adjust by adding roll gap
+   - Preserves absolute price moves
+   - Formula: `adj_price = raw_price + (to_price - from_price)`
+
+3. **Unadjusted**:
+   - No adjustment, just stitch contracts
+   - Shows actual price levels but creates gaps at rolls
+
+### Symbol Resolution (CME ↔ LSEG)
+
+The `constants.py` module maintains bidirectional mappings:
+
+**US Treasury Futures:**
+```python
+ZN → TY   # 10-Year T-Note
+ZB → US   # 30-Year T-Bond
+ZF → FV   # 5-Year T-Note
+ZT → TU   # 2-Year T-Note
+UB → UB   # Ultra 30-Year
+```
+
+**FX Spot RICs:**
+```python
+EURUSD → EUR=
+GBPUSD → GBP=
+USDJPY → JPY=
+```
+
+**OIS Curve:**
+```python
+1M, 3M, 1Y, 5Y, 10Y → USD{tenor}OIS=
+```
+
+**Treasury Yields:**
+```python
+1M, 3M, 2Y, 10Y, 30Y → US{tenor}T=RRPS
+```
+
+### Export Layer (Parquet)
+
+**Why Parquet?**
+- Columnar storage (efficient for time series analysis)
+- Strong typing (preserves date/time/numeric precision)
+- Cross-language compatibility (C++/Rust via Arrow)
+- Compression (smaller files than CSV)
+
+**Export Structure:**
+```
+data/parquet/
+├── metadata.json           # Instrument registry, date ranges, granularity
+├── ZN_daily.parquet        # 10Y futures continuous
+├── EURUSD_daily.parquet    # EUR/USD spot
+└── USD1YOIS_daily.parquet  # 1Y OIS rate
+```
+
+**metadata.json** contains:
+- Instrument details (symbol, RIC, asset class)
+- Date range coverage
+- Granularity
+- Roll events (for continuous contracts)
+
+### Supported Granularities
+
+| Granularity | LSEG Interval | Retention | Use Case |
+|-------------|---------------|-----------|----------|
+| `TICK` | tick | ~30 days | HFT research |
+| `MINUTE_1` | 1min | ~90 days | Intraday analysis |
+| `MINUTE_5` | 5min | ~90 days | Intraday analysis |
+| `MINUTE_10` | 10min | ~90 days | Intraday analysis |
+| `MINUTE_30` | 30min | ~90 days | Intraday analysis |
+| `HOURLY` | hourly | ~90 days | Intraday analysis |
+| `DAILY` | daily | Full history | Standard analysis |
+| `WEEKLY` | weekly | Full history | Long-term trends |
+| `MONTHLY` | monthly | Full history | Macro analysis |
+
+**Note:** 15-minute intervals are NOT supported by LSEG API.
+
+### Asset Class Support
+
+| Asset Class | Symbols | RIC Pattern | Fields |
+|-------------|---------|-------------|--------|
+| Bond Futures | ZN, ZB, FGBL | `TYc1`, `USc1` | OHLCV + settle + OI |
+| FX Spot | EURUSD, USDJPY | `EUR=`, `JPY=` | Bid/Ask/High/Low |
+| OIS Rates | 1M, 3M, 1Y, 5Y | `USD1MOIS=` | Close (rate) |
+| Treasury Yields | 2Y, 10Y, 30Y | `US10YT=RRPS` | Close (yield) |
+| FRAs | 1X4, 3X6 | `USD3X6F=` | Bid/Ask |
+
+### Error Handling
+
+The timeseries module uses custom exceptions from `lseg_toolkit.exceptions`:
+
+- **`DataRetrievalError`**: API fetch failures, invalid RICs
+- **`StorageError`**: SQLite operations (save/load failures)
+- **`InstrumentNotFoundError`**: Unknown symbol/RIC
+- **`ConfigurationError`**: Invalid config (date range, granularity mismatch)
+
+All extraction results are tracked in `ExtractionResult` dataclass:
+```python
+@dataclass
+class ExtractionResult:
+    symbol: str
+    rows_fetched: int
+    start_date: date | None
+    end_date: date | None
+    success: bool
+    error: str | None = None
+    roll_events: int = 0
+```
+
+### Performance Characteristics
+
+| Operation | Scale | Typical Time |
+|-----------|-------|--------------|
+| Fetch 1 year daily data | 1 symbol | 2-5 sec |
+| Fetch 1 year daily data | 5 symbols | 8-15 sec |
+| Build continuous contract | 1 symbol | 1-3 sec |
+| SQLite storage | 250 rows | <100 ms |
+| Parquet export | 1 year data | <500 ms |
+
+**Optimization:**
+- Batch fetches when possible (same granularity, date range)
+- Use SQLite transactions for bulk inserts
+- Separate intraday table reduces query overhead
 
 ## Future Considerations
 
