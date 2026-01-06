@@ -544,22 +544,134 @@ Reference document for supported instruments and roadmap.
 
 ---
 
-## Options
+## Options (RESEARCH NEEDED)
+
+Options data requires systematic validation of RIC patterns across exchanges.
 
 ### Equity Index Options
 
-| Instrument | LSEG RIC Pattern | Status | Notes |
-|------------|------------------|--------|-------|
-| SPX Options | `SPX{expiry}{C/P}{strike}` | 🔄 | Needs research |
-| VIX Options | `VIX{expiry}{C/P}{strike}` | 🔄 | Needs research |
-| NDX Options | `NDX{expiry}{C/P}{strike}` | 🔄 | Needs research |
+| Instrument | Exchange | LSEG RIC Pattern | Status | Notes |
+|------------|----------|------------------|--------|-------|
+| SPX Options | CBOE | `SPX{M}{Y}{C/P}{strike}` | ❓ | S&P 500 Index options |
+| VIX Options | CBOE | `VIX{M}{Y}{C/P}{strike}` | ❓ | VIX volatility options |
+| NDX Options | CBOE | `NDX{M}{Y}{C/P}{strike}` | ❓ | Nasdaq-100 Index options |
+| E-mini S&P Options | CME | `ES{M}{Y}{C/P}{strike}` | ❓ | Options on ES futures |
+| E-mini Nasdaq Options | CME | `NQ{M}{Y}{C/P}{strike}` | ❓ | Options on NQ futures |
+| Euro Stoxx 50 Options | Eurex | `OESX{M}{Y}{C/P}{strike}` | ❓ | Options on FESX futures |
 
-### Bond Futures Options
+### Bond Futures Options (CME/CBOT)
 
-| Instrument | LSEG RIC Pattern | Status | Notes |
-|------------|------------------|--------|-------|
-| 10Y T-Note Options | `TY{expiry}{C/P}{strike}` | 🔄 | Needs research |
-| Bund Options | `FGBL{expiry}{C/P}{strike}` | 🔄 | Needs research |
+| Instrument | Symbol | LSEG RIC Pattern | Status | Notes |
+|------------|--------|------------------|--------|-------|
+| 2Y T-Note Options | OZT | `TU{M}{Y}{C/P}{strike}` | ❓ | Options on ZT futures |
+| 5Y T-Note Options | OZF | `FV{M}{Y}{C/P}{strike}` | ❓ | Options on ZF futures |
+| 10Y T-Note Options | OZN | `TY{M}{Y}{C/P}{strike}` | ❓ | Options on ZN futures |
+| 30Y T-Bond Options | OZB | `US{M}{Y}{C/P}{strike}` | ❓ | Options on ZB futures |
+| Ultra 10Y Options | OTN | `TN{M}{Y}{C/P}{strike}` | ❓ | Options on TN futures |
+| Ultra 30Y Options | OUB | `UB{M}{Y}{C/P}{strike}` | ❓ | Options on UB futures |
+
+### European Bond Futures Options (Eurex)
+
+| Instrument | Symbol | LSEG RIC Pattern | Status | Notes |
+|------------|--------|------------------|--------|-------|
+| Bund Options | OGBL | `FGBL{M}{Y}{C/P}{strike}` | ❓ | Options on Bund futures |
+| Bobl Options | OGBM | `FGBM{M}{Y}{C/P}{strike}` | ❓ | Options on Bobl futures |
+| Schatz Options | OGBS | `FGBS{M}{Y}{C/P}{strike}` | ❓ | Options on Schatz futures |
+
+### STIR Futures Options (Short-Term Interest Rate)
+
+| Instrument | Exchange | LSEG RIC Pattern | Status | Notes |
+|------------|----------|------------------|--------|-------|
+| SOFR Options | CME | `SR3{M}{Y}{C/P}{strike}` | ❓ | Options on 3M SOFR futures |
+| Fed Funds Options | CBOT | `FF{M}{Y}{C/P}{strike}` | ❓ | Options on FF futures |
+| Euribor Options | Eurex/ICE | `FEI{M}{Y}{C/P}{strike}` | ❓ | Options on Euribor futures |
+| SONIA Options | ICE | `FSS{M}{Y}{C/P}{strike}` | ❓ | Options on SONIA futures |
+
+### FX Options
+
+| Pair | Exchange | LSEG RIC Pattern | Status | Notes |
+|------|----------|------------------|--------|-------|
+| EUR/USD Options | CME | `URO{M}{Y}{C/P}{strike}` | ❓ | Options on 6E futures |
+| GBP/USD Options | CME | `BP{M}{Y}{C/P}{strike}` | ❓ | Options on 6B futures |
+| JPY/USD Options | CME | `JY{M}{Y}{C/P}{strike}` | ❓ | Options on 6J futures |
+| EUR/USD OTC | OTC | `EUR{tenor}=` | ❓ | OTC FX options |
+
+### Swaptions (Options on Interest Rate Swaps)
+
+| Instrument | Description | LSEG RIC Pattern | Status | Notes |
+|------------|-------------|------------------|--------|-------|
+| USD Payer Swaption | Right to pay fixed | `USD{expiry}x{tenor}PAY=` | ❓ | e.g., 1Y into 10Y |
+| USD Receiver Swaption | Right to receive fixed | `USD{expiry}x{tenor}REC=` | ❓ | e.g., 1Y into 10Y |
+| EUR Payer Swaption | Right to pay fixed | `EUR{expiry}x{tenor}PAY=` | ❓ | Euro swaptions |
+| EUR Receiver Swaption | Right to receive fixed | `EUR{expiry}x{tenor}REC=` | ❓ | Euro swaptions |
+| Swaption Vol (ATM) | Implied volatility | `USD{expiry}x{tenor}SWPTNVOL=` | ❓ | ATM swaption vol |
+
+**Swaption Tenors to Research:**
+- Expiries: 1M, 3M, 6M, 1Y, 2Y, 5Y, 10Y
+- Underlying swaps: 2Y, 5Y, 10Y, 30Y
+- Standard grid: 1Yx10Y (1-year option into 10-year swap)
+
+### Swaption Volatility Surface
+
+| Data | LSEG RIC Pattern | Status | Notes |
+|------|------------------|--------|-------|
+| USD Swaption Vol Grid | `USDSWPTVOL{exp}x{tenor}=` | ❓ | ATM normal vol |
+| USD Swaption Cube | Vol surface + skew | ❓ | Requires 3D structure |
+| EUR Swaption Vol Grid | `EURSWPTVOL{exp}x{tenor}=` | ❓ | ATM normal vol |
+
+### Options on Swap Spreads
+
+| Instrument | Description | LSEG RIC Pattern | Status | Notes |
+|------------|-------------|------------------|--------|-------|
+| Swap Spread Options | Options on spread | ❓ | ❓ | OTC, may not have RICs |
+
+**Note**: Options on swap spreads are typically OTC instruments and may not have direct RIC coverage. These are often constructed synthetically from swaptions and Treasury futures options.
+
+### Commodity Options
+
+| Instrument | Exchange | LSEG RIC Pattern | Status | Notes |
+|------------|----------|------------------|--------|-------|
+| WTI Crude Options | NYMEX | `CL{M}{Y}{C/P}{strike}` | ❓ | Options on CL futures |
+| Brent Options | ICE | `LCO{M}{Y}{C/P}{strike}` | ❓ | Options on Brent futures |
+| Gold Options | COMEX | `GC{M}{Y}{C/P}{strike}` | ❓ | Options on GC futures |
+| Nat Gas Options | NYMEX | `NG{M}{Y}{C/P}{strike}` | ❓ | Options on NG futures |
+| Corn Options | CBOT | `C{M}{Y}{C/P}{strike}` | ❓ | Options on ZC futures |
+| Soybean Options | CBOT | `S{M}{Y}{C/P}{strike}` | ❓ | Options on ZS futures |
+
+### Options Chain RIC Patterns
+
+| Type | Pattern | Example | Notes |
+|------|---------|---------|-------|
+| All options for contract | `0#{root}{M}{Y}*=` | `0#TYH5*=` | All TY Mar 2025 options |
+| All calls | `0#{root}{M}{Y}C*=` | `0#TYH5C*=` | All TY Mar 2025 calls |
+| All puts | `0#{root}{M}{Y}P*=` | `0#TYH5P*=` | All TY Mar 2025 puts |
+| Option chain | `0#{root}=O` | `0#TYc1=O` | Front month options chain |
+
+### Options Fields to Research
+
+| Field | Description | Status |
+|-------|-------------|--------|
+| `TRDPRC_1` | Last traded price | ❓ |
+| `BID` / `ASK` | Bid/ask prices | ❓ |
+| `STRIKE_PRC` | Strike price | ❓ |
+| `EXPIRY_DATE` | Expiration date | ❓ |
+| `IMP_VOLT` | Implied volatility | ❓ |
+| `DELTA` | Delta | ❓ |
+| `GAMMA` | Gamma | ❓ |
+| `THETA` | Theta | ❓ |
+| `VEGA` | Vega | ❓ |
+| `RHO` | Rho | ❓ |
+| `OPINT_1` | Open interest | ❓ |
+| `ACVOL_UNS` | Volume | ❓ |
+
+### Options Validation Priority
+
+1. **Bond Futures Options** (CME) - TY, US options (for bond basis hedging)
+2. **STIR Futures Options** (CME) - SOFR options (rate vol exposure)
+3. **Swaptions** - USD swaption volatility surface
+4. **FX Options** - EUR/USD options (FX vol)
+5. **Equity Index Options** - SPX, VIX (vol products)
+6. **Commodity Options** - CL, GC (energy/metals)
 
 ---
 

@@ -114,9 +114,94 @@ USD_OIS_TENORS: list[str] = [
 
 
 # OIS RIC pattern: USD{tenor}OIS=
+# Validated: All tenors work with bare = pattern for both snapshot and history
+# Contributor suffixes (=TREU, =ICAP) return "Access Denied"
+# Alternative USDSOFR{tenor}= pattern does not exist
 def get_ois_ric(currency: str, tenor: str) -> str:
     """Get OIS RIC for currency and tenor."""
     return f"{currency}{tenor}OIS="
+
+
+# Validated fields for OIS rates
+USD_OIS_FIELDS: list[str] = [
+    "BID",
+    "ASK",
+    "HST_CLOSE",
+    "PRIMACT_1",  # Primary rate value
+]
+
+USD_OIS_META_FIELDS: list[str] = [
+    "VALUE_TS1",
+    "VALUE_DT1",
+    "CF_NAME",
+    "DSPLY_NAME",
+    "CURRENCY",
+    "CF_CURR",
+]
+
+# SOFR Fixing RICs (validated)
+SOFR_FIXING_RICS: dict[str, str] = {
+    "DAILY": "USDSOFR=",  # Daily SOFR fixing - WORKS
+    "30D_AVG": "SOFR1MAVG=",  # 30-day compounded SOFR - WORKS
+}
+
+SOFR_FIXING_FIELDS: list[str] = [
+    "PRIMACT_1",  # Fixing rate value
+    "VALUE_DT1",
+    "VALUE_TS1",
+]
+
+
+# =============================================================================
+# Treasury Repo Rates (Validated 2026-01-06)
+# =============================================================================
+
+# Validated: ON, 1W, 2W, 3W, 1M, 2M, 3M, 6M all work
+# Not available: 9M, 12M
+USD_REPO_RICS: dict[str, str] = {
+    "ON": "USONRP=",  # Overnight
+    "1W": "US1WRP=",  # 1 Week
+    "2W": "US2WRP=",  # 2 Week
+    "3W": "US3WRP=",  # 3 Week
+    "1M": "US1MRP=",  # 1 Month
+    "2M": "US2MRP=",  # 2 Month
+    "3M": "US3MRP=",  # 3 Month
+    "6M": "US6MRP=",  # 6 Month
+}
+
+USD_REPO_FIELDS: list[str] = [
+    "BID",
+    "ASK",
+    "PRIMACT_1",
+    "HST_CLOSE",
+    "VALUE_DT1",
+    "VALUE_TS1",
+    "CF_NAME",
+    "DSPLY_NAME",
+]
+
+
+def get_repo_ric(tenor: str) -> str:
+    """Get Treasury repo RIC for tenor."""
+    return USD_REPO_RICS.get(tenor, f"US{tenor}RP=")
+
+
+# =============================================================================
+# STIR Futures (Short-Term Interest Rate) - Validated 2026-01-06
+# =============================================================================
+
+STIR_FUTURES_RICS: dict[str, str] = {
+    # USD SOFR
+    "SOFR_3M": "SRAc1",  # 3-Month SOFR continuous front (CME SR3)
+    # Fed Funds
+    "FF": "FFc1",  # 30-Day Fed Funds continuous
+    "FF_CHAIN": "0#FF:",  # Fed Funds contract chain
+    # EUR Euribor
+    "EURIBOR_3M": "FEIc1",  # 3-Month Euribor continuous
+    "EURIBOR_CHAIN": "0#FEI:",  # Euribor contract chain
+    # GBP SONIA
+    "SONIA": "SONc1",  # SONIA continuous
+}
 
 
 # =============================================================================
@@ -141,9 +226,40 @@ UST_YIELD_TENORS: list[str] = [
 
 
 # Treasury yield RIC pattern: US{tenor}T=RRPS
+# Validated: All tenors work with =RRPS for both snapshot and history
+# Alternative =X works but has fewer fields (no MID_YLD_1, no risk metrics)
 def get_treasury_yield_ric(tenor: str) -> str:
     """Get US Treasury yield RIC for tenor."""
     return f"US{tenor}T=RRPS"
+
+
+# Validated fields for Treasury yields (=RRPS pattern)
+UST_YIELD_FIELDS: list[str] = [
+    "BID",
+    "ASK",
+    "HIGH_1",
+    "LOW_1",
+    "OPEN_PRC",
+    "HST_CLOSE",
+    "PRIMACT_1",
+    "MID_YLD_1",  # Primary yield field
+    "SEC_YLD_1",
+]
+
+UST_YIELD_RISK_FIELDS: list[str] = [
+    "MOD_DURTN",
+    "BPV",
+    "DURATION",
+    "CONVEXITY",
+]
+
+UST_YIELD_META_FIELDS: list[str] = [
+    "VALUE_TS1",
+    "VALUE_DT1",
+    "CF_NAME",
+    "DSPLY_NAME",
+    "CURRENCY",
+]
 
 
 # =============================================================================
