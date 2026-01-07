@@ -42,6 +42,8 @@ dependencies = [
     "httpx<0.27",
     # Parquet export for C++/Rust interop
     "pyarrow>=14.0.0",
+    # DuckDB for analytical storage
+    "duckdb>=1.0.0",
 ]
 
 [project.urls]
