@@ -26,11 +26,24 @@ Example:
 """
 
 from lseg_toolkit.timeseries import duckdb_storage, storage
+from lseg_toolkit.timeseries.cache import (
+    CacheConfig,
+    CacheError,
+    DataCache,
+    DateGap,
+    FetchResult,
+    FetchStatus,
+    InstrumentNotFoundError,
+    InstrumentRegistry,
+    detect_gaps,
+    get_registry,
+)
 from lseg_toolkit.timeseries.client import ClientConfig, LSEGDataClient, get_client
 from lseg_toolkit.timeseries.config import TimeSeriesConfig
 from lseg_toolkit.timeseries.enums import (
     AssetClass,
     ContinuousType,
+    DataShape,
     FuturesMonth,
     Granularity,
     RollMethod,
@@ -51,6 +64,17 @@ __all__ = [
     # Storage backends
     "storage",
     "duckdb_storage",
+    # Cache
+    "CacheConfig",
+    "CacheError",
+    "DataCache",
+    "DateGap",
+    "FetchResult",
+    "FetchStatus",
+    "InstrumentNotFoundError",
+    "InstrumentRegistry",
+    "detect_gaps",
+    "get_registry",
     # Client
     "ClientConfig",
     "LSEGDataClient",
@@ -60,6 +84,7 @@ __all__ = [
     # Enums
     "AssetClass",
     "ContinuousType",
+    "DataShape",
     "FuturesMonth",
     "Granularity",
     "RollMethod",

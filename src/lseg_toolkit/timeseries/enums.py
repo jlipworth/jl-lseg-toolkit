@@ -15,12 +15,26 @@ class AssetClass(str, Enum):
     FX_FORWARD = "fx_forward"
     FX_FUTURES = "fx_futures"
     OIS = "ois"
+    IRS = "irs"
     FRA = "fra"
     DEPOSIT = "deposit"
+    REPO = "repo"
     GOVT_YIELD = "govt_yield"
+    CORP_BOND = "corp_bond"
     COMMODITY = "commodity"
     EQUITY = "equity"
     CDS = "cds"
+    FIXING = "fixing"
+
+
+class DataShape(str, Enum):
+    """Data shape classification for routing to correct storage table."""
+
+    OHLCV = "ohlcv"  # Futures, equities, commodities, indices
+    QUOTE = "quote"  # FX spot, FX forwards
+    RATE = "rate"  # OIS, IRS, FRA, repo, deposits
+    BOND = "bond"  # Govt yields, corp bonds
+    FIXING = "fixing"  # SOFR, ESTR, SONIA, EURIBOR fixings
 
 
 class Granularity(str, Enum):

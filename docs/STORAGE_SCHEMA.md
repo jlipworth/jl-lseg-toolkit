@@ -1,125 +1,262 @@
-# DuckDB Storage Schema Design
+# DuckDB Storage Schema
 
-**Status**: DRAFT - Needs Review
+This document describes the storage schema for the `jl-lseg-toolkit` time series database.
 
 ## Overview
 
-Different asset classes have fundamentally different data shapes. This schema normalizes by **data shape** rather than asset class.
+The storage layer uses DuckDB for high-performance analytical queries and native Parquet export. The schema is organized around **data shapes** rather than asset classes, which normalizes storage by the fundamental structure of the data rather than the instrument type.
 
-## Data Shape Classification
+### Design Principles
 
-| Data Shape | Asset Classes | Example RICs |
-|------------|--------------|--------------|
-| **OHLCV** | Futures, Equities, ETFs, Commodities, Indices | TYc1, AAPL.O, CLc1, .SPX |
-| **Quote** | FX Spot, FX Forwards, OIS, IRS, FRA | EUR=, USD1YOIS=, USDIRS10Y= |
-| **Bond Quote** | Govt Yields (price + yield + analytics) | US10YT=RRPS, DE10YT=RR |
-| **Fixing** | Overnight rates (SOFR, ESTR, SONIA, EURIBOR) | USDSOFR=, EURIBOR3MD= |
+1. **Data Shape Normalization**: Different asset classes share the same table if they have the same data structure
+2. **Unified Timeseries**: Daily and intraday data share the same table with a `granularity` discriminator
+3. **Foreign Key Relationships**: All timeseries tables reference the central `instruments` table
+4. **Type-Specific Details**: Separate detail tables store asset-class-specific metadata
 
----
+## Entity Relationship Diagram
 
-## Open Questions
+```mermaid
+erDiagram
+    instruments {
+        INTEGER id PK
+        VARCHAR symbol UK
+        VARCHAR name
+        VARCHAR asset_class
+        VARCHAR data_shape
+        VARCHAR lseg_ric
+        VARCHAR exchange
+        VARCHAR currency
+        VARCHAR description
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
 
-### Q1: Govt Bond Data - Separate Table?
+    instrument_futures {
+        INTEGER instrument_id PK,FK
+        VARCHAR underlying
+        VARCHAR exchange
+        DATE expiry_date
+        VARCHAR contract_month
+        VARCHAR continuous_type
+        DOUBLE tick_size
+        DOUBLE point_value
+    }
 
-Govt bonds return rich data including:
-- **Price OHLC**: BID, ASK, MID_PRICE, OPEN_BID, BID_HIGH_1, BID_LOW_1
-- **Yield OHLC**: B_YLD_1, A_YLD_1, MID_YLD_1, HIGH_YLD, LOW_YLD, OPEN_YLD
-- **Analytics**: MOD_DURTN, CONVEXITY, BPV, ZSPREAD, OAS_BID, AST_SWPSPD
+    instrument_fx {
+        INTEGER instrument_id PK,FK
+        VARCHAR base_currency
+        VARCHAR quote_currency
+        DOUBLE pip_size
+        VARCHAR tenor
+    }
 
-Options:
-1. **Separate `bond_daily` table** - Store all bond-specific fields
-2. **Use `quote_daily` + analytics columns** - Add bond columns to quote table
-3. **Use `quote_daily` + separate `bond_analytics` table** - Normalize analytics
+    instrument_rate {
+        INTEGER instrument_id PK,FK
+        VARCHAR rate_type
+        VARCHAR currency
+        VARCHAR tenor
+        VARCHAR reference_rate
+        VARCHAR day_count
+        INTEGER paired_instrument_id FK
+    }
 
-**Recommendation**: Option 1 - bonds are unique enough to warrant their own table.
+    instrument_bond {
+        INTEGER instrument_id PK,FK
+        VARCHAR issuer_type
+        VARCHAR country
+        VARCHAR tenor
+        DOUBLE coupon_rate
+        DATE maturity_date
+        VARCHAR credit_rating
+        VARCHAR sector
+    }
 
-### Q2: Intraday Quote Table
+    instrument_fixing {
+        INTEGER instrument_id PK,FK
+        VARCHAR rate_name
+        VARCHAR tenor
+        VARCHAR fixing_time
+        VARCHAR administrator
+    }
 
-Should we have a separate `quote_intraday` table, or use `ohlcv_intraday` for everything?
+    timeseries_ohlcv {
+        INTEGER instrument_id PK,FK
+        TIMESTAMP ts PK
+        VARCHAR granularity PK
+        DOUBLE open
+        DOUBLE high
+        DOUBLE low
+        DOUBLE close
+        DOUBLE volume
+        DOUBLE settle
+        DOUBLE open_interest
+        DOUBLE vwap
+        VARCHAR source_contract
+        DOUBLE adjustment_factor
+    }
 
-Options:
-1. **Separate tables** - `ohlcv_intraday` + `quote_intraday` (type safety)
-2. **Single table** - All intraday in one table with NULLs
+    timeseries_quote {
+        INTEGER instrument_id PK,FK
+        TIMESTAMP ts PK
+        VARCHAR granularity PK
+        DOUBLE bid
+        DOUBLE ask
+        DOUBLE mid
+        DOUBLE open_bid
+        DOUBLE bid_high
+        DOUBLE bid_low
+        DOUBLE open_ask
+        DOUBLE ask_high
+        DOUBLE ask_low
+        DOUBLE forward_points
+    }
 
-**Recommendation**: Option 1 for consistency with daily tables.
+    timeseries_rate {
+        INTEGER instrument_id PK,FK
+        TIMESTAMP ts PK
+        VARCHAR granularity PK
+        DOUBLE rate
+        DOUBLE bid
+        DOUBLE ask
+        DOUBLE rate_2
+        DOUBLE spread
+        VARCHAR reference_rate
+        VARCHAR side
+    }
 
-### Q3: Regional FX Session Data
+    timeseries_bond {
+        INTEGER instrument_id PK,FK
+        TIMESTAMP ts PK
+        VARCHAR granularity PK
+        DOUBLE price
+        DOUBLE bid
+        DOUBLE ask
+        DOUBLE yield
+        DOUBLE yield_bid
+        DOUBLE yield_ask
+        DOUBLE yield_high
+        DOUBLE yield_low
+        DOUBLE duration
+        DOUBLE mod_duration
+        DOUBLE convexity
+        DOUBLE dv01
+        DOUBLE credit_spread
+        DOUBLE z_spread
+        DOUBLE oas
+    }
 
-LSEG returns Asia/Europe/America session OHLC for FX:
-- ASIAOP_BID, ASIAHI_BID, ASIALO_BID, ASIACL_BID
-- EUROP_BID, EURHI_BID, EURLO_BID, EURCL_BID
-- AMEROP_BID, AMERHI_BID, AMERLO_BID, AMERCL_BID
+    timeseries_fixing {
+        INTEGER instrument_id PK,FK
+        DATE date PK
+        DOUBLE value
+        DOUBLE volume
+    }
 
-Options:
-1. **Store regional data** - 12 extra columns per row
-2. **Skip regional data** - Just store daily bid/ask/mid
-3. **Separate table** - `fx_session_data` for regional breakdown
+    roll_events {
+        INTEGER id PK
+        INTEGER continuous_id FK
+        DATE roll_date
+        VARCHAR from_contract
+        VARCHAR to_contract
+        DOUBLE from_price
+        DOUBLE to_price
+        DOUBLE price_gap
+        DOUBLE adjustment_factor
+        VARCHAR roll_method
+        TIMESTAMP created_at
+    }
 
-**Recommendation**: Option 2 for now, can add later if needed.
+    extraction_log {
+        INTEGER id PK
+        INTEGER instrument_id FK
+        DATE start_date
+        DATE end_date
+        VARCHAR granularity
+        INTEGER rows_fetched
+        TIMESTAMP extracted_at
+    }
 
-### Q4: Value Date vs Trade Date
+    instruments ||--o| instrument_futures : "has"
+    instruments ||--o| instrument_fx : "has"
+    instruments ||--o| instrument_rate : "has"
+    instruments ||--o| instrument_bond : "has"
+    instruments ||--o| instrument_fixing : "has"
+    instruments ||--o{ timeseries_ohlcv : "has"
+    instruments ||--o{ timeseries_quote : "has"
+    instruments ||--o{ timeseries_rate : "has"
+    instruments ||--o{ timeseries_bond : "has"
+    instruments ||--o{ timeseries_fixing : "has"
+    instruments ||--o{ roll_events : "has"
+    instruments ||--o{ extraction_log : "has"
+    instrument_rate ||--o| instruments : "pairs_with"
+```
 
-For FX forwards and swaps, LSEG provides:
-- `VALUE_DT1` - Value date
-- `MATUR_DATE` - Maturity date
-- `START_DT` - Start date
+## Data Shapes
 
-Options:
-1. **Index by trade date only** - Derive settlement as needed
-2. **Store value/maturity dates** - Extra columns in detail tables
+The `data_shape` column in the `instruments` table determines which timeseries table stores data for each instrument.
 
-**Recommendation**: Store in detail tables, index by trade date.
+### Data Shape Classification
 
----
+| Data Shape | Description | Timeseries Table | Example Instruments |
+|------------|-------------|------------------|---------------------|
+| `ohlcv` | Exchange-traded with OHLCV bars | `timeseries_ohlcv` | TYc1, ESc1, CLc1, AAPL.O |
+| `quote` | Dealer-quoted bid/ask spreads | `timeseries_quote` | EUR=, GBP=, EUR1M= |
+| `rate` | Interest rate derivatives | `timeseries_rate` | USD1YOIS=, USDIRS10Y= |
+| `bond` | Bond prices and yields | `timeseries_bond` | US10YT=RRPS, DE10YT=RR |
+| `fixing` | Daily benchmark fixings | `timeseries_fixing` | USDSOFR=, ESTR=, SONIA= |
 
-### OHLCV Data (Exchange-Traded)
+### Asset Class to Data Shape Mapping
 
-Fields from LSEG:
-- `OPEN_PRC` → open
-- `HIGH_1` → high
-- `LOW_1` → low
-- `TRDPRC_1` → close (last trade price)
-- `SETTLE` → settle (official settlement, futures only)
-- `ACVOL_UNS` → volume
-- `OPINT_1` → open_interest (futures only)
-- `VWAP` → vwap
+The system automatically determines the correct data shape based on the asset class:
 
-### Quote Data (Dealer-Quoted)
+```python
+ASSET_CLASS_TO_DATA_SHAPE = {
+    # OHLCV (exchange-traded)
+    AssetClass.BOND_FUTURES: DataShape.OHLCV,
+    AssetClass.STIR_FUTURES: DataShape.OHLCV,
+    AssetClass.INDEX_FUTURES: DataShape.OHLCV,
+    AssetClass.FX_FUTURES: DataShape.OHLCV,
+    AssetClass.COMMODITY: DataShape.OHLCV,
+    AssetClass.EQUITY: DataShape.OHLCV,
 
-Fields from LSEG:
-- `BID` → bid
-- `ASK` → ask
-- `MID_PRICE` → mid
-- `OPEN_BID` → open_bid
-- `BID_HIGH_1` → bid_high
-- `BID_LOW_1` → bid_low
-- `OPEN_ASK` → open_ask
-- `ASK_HIGH_1` → ask_high
-- `ASK_LOW_1` → ask_low
+    # Quote (dealer-quoted)
+    AssetClass.FX_SPOT: DataShape.QUOTE,
+    AssetClass.FX_FORWARD: DataShape.QUOTE,
 
-### Fixing Data (Single Daily Value)
+    # Rate (IR derivatives)
+    AssetClass.OIS: DataShape.RATE,
+    AssetClass.IRS: DataShape.RATE,
+    AssetClass.FRA: DataShape.RATE,
+    AssetClass.DEPOSIT: DataShape.RATE,
+    AssetClass.REPO: DataShape.RATE,
+    AssetClass.CDS: DataShape.RATE,
 
-Fields from LSEG:
-- `FIXING_1` or `PRIMACT_1` → value
+    # Bond (govt/corp yields)
+    AssetClass.GOVT_YIELD: DataShape.BOND,
+    AssetClass.CORP_BOND: DataShape.BOND,
 
----
+    # Fixing (daily benchmark rates)
+    AssetClass.FIXING: DataShape.FIXING,
+}
+```
 
-## Schema Definition
+## Table Definitions
 
-### Instruments (Master Table)
+### Master Table: instruments
+
+The central registry for all financial instruments.
 
 ```sql
 CREATE TABLE instruments (
     id INTEGER PRIMARY KEY,
-    symbol VARCHAR NOT NULL UNIQUE,
-    name VARCHAR NOT NULL,
-    asset_class VARCHAR NOT NULL,
-    data_shape VARCHAR NOT NULL,  -- 'ohlcv', 'quote', 'fixing'
-    lseg_ric VARCHAR NOT NULL,
-    exchange VARCHAR,
-    currency VARCHAR,
-    description VARCHAR,
-    -- Metadata
+    symbol VARCHAR NOT NULL UNIQUE,      -- Internal symbol (e.g., 'EURUSD', 'TYc1')
+    name VARCHAR NOT NULL,               -- Human-readable name
+    asset_class VARCHAR NOT NULL,        -- Asset classification
+    data_shape VARCHAR NOT NULL,         -- Routes to correct timeseries table
+    lseg_ric VARCHAR NOT NULL,           -- LSEG RIC code (e.g., 'EUR=', 'TYc1')
+    exchange VARCHAR,                    -- Exchange code
+    currency VARCHAR,                    -- Quote currency
+    description VARCHAR,                 -- Full description
     created_at TIMESTAMP DEFAULT current_timestamp,
     updated_at TIMESTAMP DEFAULT current_timestamp
 );
@@ -129,160 +266,217 @@ CREATE INDEX idx_instruments_asset_class ON instruments(asset_class);
 CREATE INDEX idx_instruments_data_shape ON instruments(data_shape);
 ```
 
-**Asset Classes** (asset_class enum):
-- `bond_futures`, `index_futures`, `commodity_futures`, `stir_futures`
-- `equity`, `etf`
-- `fx_spot`, `fx_forward`, `fx_ndf`
-- `ois`, `irs`, `fra`, `money_market`
-- `govt_yield`
-- `overnight_fixing`
-- `index`
+**Asset Classes**: `bond_futures`, `stir_futures`, `index_futures`, `fx_futures`, `fx_spot`, `fx_forward`, `ois`, `irs`, `fra`, `deposit`, `repo`, `cds`, `govt_yield`, `corp_bond`, `commodity`, `equity`, `fixing`
 
-**Data Shapes** (data_shape enum):
-- `ohlcv` - exchange-traded instruments
-- `quote` - dealer-quoted instruments
-- `fixing` - daily benchmark fixings
+**Data Shapes**: `ohlcv`, `quote`, `rate`, `bond`, `fixing`
 
 ### Instrument Detail Tables
 
+#### instrument_futures
+
+Stores futures-specific contract details.
+
 ```sql
--- Futures contract details
-CREATE TABLE futures_details (
+CREATE TABLE instrument_futures (
     instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
-    underlying VARCHAR NOT NULL,
-    expiry_date DATE,
-    contract_month VARCHAR,      -- 'H5', 'M5', 'U5', 'Z5'
-    continuous_type VARCHAR,     -- 'discrete', 'front', 'back'
-    tick_size DOUBLE,
-    point_value DOUBLE,
-    exchange VARCHAR
-);
-
--- FX instrument details
-CREATE TABLE fx_details (
-    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
-    base_currency VARCHAR NOT NULL,
-    quote_currency VARCHAR NOT NULL,
-    pip_size DOUBLE DEFAULT 0.0001,
-    tenor VARCHAR               -- NULL for spot, '1W', '1M', etc for forwards
-);
-
--- Rate instrument details (OIS, IRS, FRA)
-CREATE TABLE rate_details (
-    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
-    currency VARCHAR NOT NULL,
-    tenor VARCHAR NOT NULL,
-    reference_rate VARCHAR,     -- 'SOFR', 'ESTR', 'SONIA', etc
-    day_count VARCHAR,          -- 'ACT/360', 'ACT/365', '30/360'
-    payment_frequency VARCHAR,  -- 'annual', 'semi-annual', 'quarterly'
-    start_tenor VARCHAR         -- For FRAs: '3M' in '3x6'
-);
-
--- Government yield details
-CREATE TABLE govt_yield_details (
-    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
-    country VARCHAR NOT NULL,   -- 'US', 'DE', 'GB', 'JP'
-    tenor VARCHAR NOT NULL,     -- '2Y', '10Y', '30Y'
-    bond_type VARCHAR           -- 'nominal', 'inflation_linked'
-);
-
--- Overnight fixing details
-CREATE TABLE fixing_details (
-    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
-    rate_name VARCHAR NOT NULL, -- 'SOFR', 'ESTR', 'SONIA', 'EURIBOR'
-    tenor VARCHAR,              -- NULL for overnight, '3M' for EURIBOR3M
-    fixing_time VARCHAR,        -- '08:00 NY', '11:00 London'
-    administrator VARCHAR       -- 'Fed', 'ECB', 'BoE'
+    underlying VARCHAR NOT NULL,         -- Underlying asset (e.g., 'US10Y', 'ES')
+    exchange VARCHAR,                    -- Exchange (CME, EUREX, etc.)
+    expiry_date DATE,                    -- Contract expiry date
+    contract_month VARCHAR,              -- Month code ('H5', 'M5', 'U5', 'Z5')
+    continuous_type VARCHAR DEFAULT 'discrete',  -- 'discrete', 'front', 'back'
+    tick_size DOUBLE,                    -- Minimum price increment
+    point_value DOUBLE                   -- Dollar value per point
 );
 ```
 
-### Time Series Tables
+#### instrument_fx
+
+Stores FX spot and forward details.
 
 ```sql
--- OHLCV data (futures, equities, commodities, indices)
-CREATE TABLE ohlcv_daily (
+CREATE TABLE instrument_fx (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    base_currency VARCHAR NOT NULL,      -- Base currency (e.g., 'EUR')
+    quote_currency VARCHAR NOT NULL,     -- Quote currency (e.g., 'USD')
+    pip_size DOUBLE DEFAULT 0.0001,      -- Pip size (0.01 for JPY pairs)
+    tenor VARCHAR                        -- NULL for spot, '1W', '1M' for forwards
+);
+```
+
+#### instrument_rate
+
+Stores interest rate derivative details.
+
+```sql
+CREATE TABLE instrument_rate (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    rate_type VARCHAR NOT NULL,          -- 'OIS', 'IRS', 'FRA', 'REPO', 'DEPOSIT'
+    currency VARCHAR NOT NULL,           -- Currency (USD, EUR, GBP, etc.)
+    tenor VARCHAR NOT NULL,              -- Tenor ('1Y', '10Y', '3x6')
+    reference_rate VARCHAR,              -- Reference rate ('SOFR', 'EURIBOR', 'SONIA')
+    day_count VARCHAR,                   -- Day count convention ('ACT/360', 'ACT/365')
+    paired_instrument_id INTEGER REFERENCES instruments(id)  -- For paired rates
+);
+```
+
+#### instrument_bond
+
+Stores government and corporate bond details.
+
+```sql
+CREATE TABLE instrument_bond (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    issuer_type VARCHAR NOT NULL,        -- 'GOVT', 'CORP', 'MUNI', 'AGENCY'
+    country VARCHAR,                     -- Country code ('US', 'DE', 'GB', 'JP')
+    tenor VARCHAR NOT NULL,              -- Tenor ('2Y', '10Y', '30Y')
+    coupon_rate DOUBLE,                  -- Coupon rate
+    maturity_date DATE,                  -- Maturity date
+    credit_rating VARCHAR,               -- Credit rating
+    sector VARCHAR                       -- Sector for corporate bonds
+);
+```
+
+#### instrument_fixing
+
+Stores overnight rate fixing details.
+
+```sql
+CREATE TABLE instrument_fixing (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    rate_name VARCHAR NOT NULL,          -- 'SOFR', 'ESTR', 'SONIA', 'EURIBOR'
+    tenor VARCHAR,                       -- NULL for overnight, '3M' for EURIBOR3M
+    fixing_time VARCHAR,                 -- Fixing time ('08:00 NY', '11:00 London')
+    administrator VARCHAR                -- Administrator ('Fed', 'ECB', 'BoE')
+);
+```
+
+### Timeseries Tables
+
+#### timeseries_ohlcv
+
+OHLCV data for exchange-traded instruments (futures, equities, commodities).
+
+```sql
+CREATE TABLE timeseries_ohlcv (
     instrument_id INTEGER NOT NULL REFERENCES instruments(id),
-    date DATE NOT NULL,
+    ts TIMESTAMP NOT NULL,               -- Timestamp (end of bar)
+    granularity VARCHAR NOT NULL,        -- 'minute', '5min', '30min', 'hourly', 'daily'
     open DOUBLE,
     high DOUBLE,
     low DOUBLE,
     close DOUBLE NOT NULL,
-    settle DOUBLE,              -- Futures settlement price
-    volume BIGINT,
-    open_interest BIGINT,
-    vwap DOUBLE,
-    -- For continuous contracts
-    adjustment_factor DOUBLE DEFAULT 1.0,
-    source_contract VARCHAR,
-    PRIMARY KEY (instrument_id, date)
+    volume DOUBLE,
+    settle DOUBLE,                       -- Settlement price (futures)
+    open_interest DOUBLE,                -- Open interest (futures)
+    vwap DOUBLE,                         -- Volume-weighted average price
+    source_contract VARCHAR,             -- Source contract for continuous series
+    adjustment_factor DOUBLE DEFAULT 1.0, -- Ratio adjustment for continuous series
+    PRIMARY KEY (instrument_id, ts, granularity)
 );
 
-CREATE INDEX idx_ohlcv_daily_date ON ohlcv_daily(instrument_id, date DESC);
+CREATE INDEX idx_timeseries_ohlcv_ts ON timeseries_ohlcv(instrument_id, ts DESC);
+```
 
--- Quote data (FX, OIS, IRS, FRA, govt yields)
-CREATE TABLE quote_daily (
+#### timeseries_quote
+
+Quote data for dealer-quoted instruments (FX spot, FX forwards).
+
+```sql
+CREATE TABLE timeseries_quote (
     instrument_id INTEGER NOT NULL REFERENCES instruments(id),
-    date DATE NOT NULL,
-    bid DOUBLE,
-    ask DOUBLE,
-    mid DOUBLE NOT NULL,
-    -- OHLC for bid side (common in FX/rates)
-    open_bid DOUBLE,
-    bid_high DOUBLE,
-    bid_low DOUBLE,
-    -- OHLC for ask side
-    open_ask DOUBLE,
-    ask_high DOUBLE,
-    ask_low DOUBLE,
-    PRIMARY KEY (instrument_id, date)
-);
-
-CREATE INDEX idx_quote_daily_date ON quote_daily(instrument_id, date DESC);
-
--- Fixing data (SOFR, ESTR, SONIA, EURIBOR)
-CREATE TABLE fixing_daily (
-    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
-    date DATE NOT NULL,         -- Fixing date (not publication date)
-    value DOUBLE NOT NULL,
-    volume DOUBLE,              -- For SOFR, transaction volume
-    PRIMARY KEY (instrument_id, date)
-);
-
-CREATE INDEX idx_fixing_daily_date ON fixing_daily(instrument_id, date DESC);
-
--- Intraday OHLCV (futures, equities, commodities)
-CREATE TABLE ohlcv_intraday (
-    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
-    timestamp TIMESTAMP NOT NULL,
-    granularity VARCHAR NOT NULL,  -- 'minute', '5min', '30min', 'hourly'
-    open DOUBLE,
-    high DOUBLE,
-    low DOUBLE,
-    close DOUBLE NOT NULL,
-    volume BIGINT,
-    PRIMARY KEY (instrument_id, timestamp, granularity)
-);
-
-CREATE INDEX idx_ohlcv_intraday_ts ON ohlcv_intraday(instrument_id, timestamp DESC);
-
--- Intraday quote data (FX, rates)
-CREATE TABLE quote_intraday (
-    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
-    timestamp TIMESTAMP NOT NULL,
+    ts TIMESTAMP NOT NULL,
     granularity VARCHAR NOT NULL,
     bid DOUBLE,
     ask DOUBLE,
-    mid DOUBLE NOT NULL,
-    PRIMARY KEY (instrument_id, timestamp, granularity)
+    mid DOUBLE,
+    open_bid DOUBLE,
+    bid_high DOUBLE,
+    bid_low DOUBLE,
+    open_ask DOUBLE,
+    ask_high DOUBLE,
+    ask_low DOUBLE,
+    forward_points DOUBLE,               -- Forward points (for FX forwards)
+    PRIMARY KEY (instrument_id, ts, granularity)
 );
 
-CREATE INDEX idx_quote_intraday_ts ON quote_intraday(instrument_id, timestamp DESC);
+CREATE INDEX idx_timeseries_quote_ts ON timeseries_quote(instrument_id, ts DESC);
+```
+
+#### timeseries_rate
+
+Rate data for interest rate derivatives (OIS, IRS, FRA, Repo, CDS).
+
+```sql
+CREATE TABLE timeseries_rate (
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
+    ts TIMESTAMP NOT NULL,
+    granularity VARCHAR NOT NULL,
+    rate DOUBLE NOT NULL,                -- Primary rate (fixed leg / repo rate)
+    bid DOUBLE,
+    ask DOUBLE,
+    rate_2 DOUBLE,                       -- Secondary rate (floating leg / reverse repo)
+    spread DOUBLE,                       -- Spread over reference
+    reference_rate VARCHAR,              -- Reference rate used
+    side VARCHAR,                        -- 'PAY_FIXED', 'RECEIVE_FIXED', 'REPO', 'REVERSE'
+    PRIMARY KEY (instrument_id, ts, granularity)
+);
+
+CREATE INDEX idx_timeseries_rate_ts ON timeseries_rate(instrument_id, ts DESC);
+```
+
+#### timeseries_bond
+
+Bond data with price, yield, and analytics.
+
+```sql
+CREATE TABLE timeseries_bond (
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
+    ts TIMESTAMP NOT NULL,
+    granularity VARCHAR NOT NULL,
+    price DOUBLE,                        -- Clean price
+    bid DOUBLE,
+    ask DOUBLE,
+    yield DOUBLE NOT NULL,               -- Yield to maturity
+    yield_bid DOUBLE,
+    yield_ask DOUBLE,
+    yield_high DOUBLE,
+    yield_low DOUBLE,
+    duration DOUBLE,                     -- Macaulay duration
+    mod_duration DOUBLE,                 -- Modified duration
+    convexity DOUBLE,
+    dv01 DOUBLE,                         -- Dollar value of 1bp
+    credit_spread DOUBLE,                -- Credit spread
+    z_spread DOUBLE,                     -- Z-spread
+    oas DOUBLE,                          -- Option-adjusted spread
+    PRIMARY KEY (instrument_id, ts, granularity)
+);
+
+CREATE INDEX idx_timeseries_bond_ts ON timeseries_bond(instrument_id, ts DESC);
+```
+
+#### timeseries_fixing
+
+Daily fixing rates (SOFR, ESTR, SONIA, EURIBOR).
+
+```sql
+CREATE TABLE timeseries_fixing (
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
+    date DATE NOT NULL,                  -- Fixing date (not publication date)
+    value DOUBLE NOT NULL,               -- Fixing value
+    volume DOUBLE,                       -- Transaction volume (SOFR)
+    PRIMARY KEY (instrument_id, date)
+);
+
+CREATE INDEX idx_timeseries_fixing_date ON timeseries_fixing(instrument_id, date DESC);
 ```
 
 ### Metadata Tables
 
+#### roll_events
+
+Tracks roll events for continuous futures contracts.
+
 ```sql
--- Roll events for continuous contracts
 CREATE TABLE roll_events (
     id INTEGER PRIMARY KEY,
     continuous_id INTEGER NOT NULL REFERENCES instruments(id),
@@ -297,138 +491,173 @@ CREATE TABLE roll_events (
     created_at TIMESTAMP DEFAULT current_timestamp
 );
 
--- Extraction progress tracking
-CREATE TABLE extraction_progress (
+CREATE INDEX idx_roll_events_continuous ON roll_events(continuous_id, roll_date DESC);
+```
+
+#### extraction_log
+
+Logs data extraction events for auditing.
+
+```sql
+CREATE TABLE extraction_log (
     id INTEGER PRIMARY KEY,
-    instrument_id INTEGER REFERENCES instruments(id),
-    granularity VARCHAR NOT NULL,
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    status VARCHAR DEFAULT 'pending',  -- pending, running, complete, failed
+    granularity VARCHAR NOT NULL,
+    rows_fetched INTEGER NOT NULL,
+    extracted_at TIMESTAMP DEFAULT current_timestamp
+);
+```
+
+#### extraction_progress
+
+Tracks batch extraction progress.
+
+```sql
+CREATE TABLE extraction_progress (
+    id INTEGER PRIMARY KEY,
+    asset_class VARCHAR NOT NULL,
+    instrument VARCHAR NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status VARCHAR DEFAULT 'pending',    -- 'pending', 'running', 'complete', 'failed'
     rows_fetched INTEGER,
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
     error_message VARCHAR
 );
 
--- Extraction log (historical record)
-CREATE TABLE extraction_log (
-    id INTEGER PRIMARY KEY,
-    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
-    granularity VARCHAR NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    rows_fetched INTEGER NOT NULL,
-    extracted_at TIMESTAMP DEFAULT current_timestamp
-);
+CREATE INDEX idx_progress ON extraction_progress(asset_class, instrument, status);
 ```
 
 ### Views
 
+#### data_coverage
+
+Summary view of data coverage across all instruments.
+
 ```sql
--- Data coverage summary
 CREATE VIEW data_coverage AS
 SELECT
     i.symbol,
     i.asset_class,
     i.data_shape,
     CASE i.data_shape
-        WHEN 'ohlcv' THEN (SELECT MIN(date) FROM ohlcv_daily WHERE instrument_id = i.id)
-        WHEN 'quote' THEN (SELECT MIN(date) FROM quote_daily WHERE instrument_id = i.id)
-        WHEN 'fixing' THEN (SELECT MIN(date) FROM fixing_daily WHERE instrument_id = i.id)
+        WHEN 'ohlcv' THEN (SELECT MIN(ts)::DATE FROM timeseries_ohlcv WHERE instrument_id = i.id)
+        WHEN 'quote' THEN (SELECT MIN(ts)::DATE FROM timeseries_quote WHERE instrument_id = i.id)
+        WHEN 'rate' THEN (SELECT MIN(ts)::DATE FROM timeseries_rate WHERE instrument_id = i.id)
+        WHEN 'bond' THEN (SELECT MIN(ts)::DATE FROM timeseries_bond WHERE instrument_id = i.id)
+        WHEN 'fixing' THEN (SELECT MIN(date) FROM timeseries_fixing WHERE instrument_id = i.id)
     END as earliest,
     CASE i.data_shape
-        WHEN 'ohlcv' THEN (SELECT MAX(date) FROM ohlcv_daily WHERE instrument_id = i.id)
-        WHEN 'quote' THEN (SELECT MAX(date) FROM quote_daily WHERE instrument_id = i.id)
-        WHEN 'fixing' THEN (SELECT MAX(date) FROM fixing_daily WHERE instrument_id = i.id)
+        WHEN 'ohlcv' THEN (SELECT MAX(ts)::DATE FROM timeseries_ohlcv WHERE instrument_id = i.id)
+        WHEN 'quote' THEN (SELECT MAX(ts)::DATE FROM timeseries_quote WHERE instrument_id = i.id)
+        WHEN 'rate' THEN (SELECT MAX(ts)::DATE FROM timeseries_rate WHERE instrument_id = i.id)
+        WHEN 'bond' THEN (SELECT MAX(ts)::DATE FROM timeseries_bond WHERE instrument_id = i.id)
+        WHEN 'fixing' THEN (SELECT MAX(date) FROM timeseries_fixing WHERE instrument_id = i.id)
     END as latest,
     CASE i.data_shape
-        WHEN 'ohlcv' THEN (SELECT COUNT(*) FROM ohlcv_daily WHERE instrument_id = i.id)
-        WHEN 'quote' THEN (SELECT COUNT(*) FROM quote_daily WHERE instrument_id = i.id)
-        WHEN 'fixing' THEN (SELECT COUNT(*) FROM fixing_daily WHERE instrument_id = i.id)
+        WHEN 'ohlcv' THEN (SELECT COUNT(*) FROM timeseries_ohlcv WHERE instrument_id = i.id)
+        WHEN 'quote' THEN (SELECT COUNT(*) FROM timeseries_quote WHERE instrument_id = i.id)
+        WHEN 'rate' THEN (SELECT COUNT(*) FROM timeseries_rate WHERE instrument_id = i.id)
+        WHEN 'bond' THEN (SELECT COUNT(*) FROM timeseries_bond WHERE instrument_id = i.id)
+        WHEN 'fixing' THEN (SELECT COUNT(*) FROM timeseries_fixing WHERE instrument_id = i.id)
     END as row_count
 FROM instruments i;
-
--- Full futures view (joins details)
-CREATE VIEW futures_full AS
-SELECT
-    i.*,
-    f.underlying,
-    f.expiry_date,
-    f.contract_month,
-    f.continuous_type,
-    f.tick_size,
-    f.point_value
-FROM instruments i
-JOIN futures_details f ON i.id = f.instrument_id;
-
--- Full rates view
-CREATE VIEW rates_full AS
-SELECT
-    i.*,
-    r.currency as rate_currency,
-    r.tenor,
-    r.reference_rate,
-    r.day_count,
-    r.payment_frequency
-FROM instruments i
-JOIN rate_details r ON i.id = r.instrument_id;
 ```
 
----
+## Data Shape Routing Logic
 
-## Date Convention
+When saving or loading timeseries data, the system routes to the correct table based on the `data_shape` column:
 
-### Primary Index: Trade Date (UTC)
+```python
+def get_data_shape(asset_class: AssetClass) -> DataShape:
+    """Get the data shape for an asset class."""
+    return ASSET_CLASS_TO_DATA_SHAPE.get(asset_class, DataShape.OHLCV)
 
-All data is indexed by **trade date** in UTC:
-- For exchange-traded: the exchange trading day
-- For FX/rates: the quote date
-- For fixings: the fixing date (not publication date)
+def get_timeseries_table(data_shape: DataShape) -> str:
+    """Get the timeseries table name for a data shape."""
+    return f"timeseries_{data_shape.value}"
+```
 
-### Settlement Date
+### Routing Flow
 
-Not stored as the primary index. Can be derived:
-- Equities: T+1 (US), T+2 (Europe)
-- FX Spot: T+2
-- Futures: varies by contract
+1. **On instrument creation**: The `data_shape` is automatically set based on `asset_class`
+2. **On data save**: Query the instrument's `data_shape` and route to the correct table
+3. **On data load**: Use the `data_shape` to determine which table to query
 
-### Value Date
+```
+                     +-------------------+
+                     |    instruments    |
+                     |   data_shape col  |
+                     +-------------------+
+                              |
+          +-------------------+-------------------+
+          |         |         |         |         |
+          v         v         v         v         v
+     +--------+ +-------+ +------+ +------+ +--------+
+     | ohlcv  | | quote | | rate | | bond | | fixing |
+     +--------+ +-------+ +------+ +------+ +--------+
+```
 
-For FX forwards and swaps, use the `MATUR_DATE` field if needed.
+## LSEG Field Mappings
 
----
-
-## Field Mapping: LSEG → Storage
-
-### OHLCV Instruments
-
-| LSEG Field | Storage Column | Notes |
-|------------|----------------|-------|
-| OPEN_PRC | open | |
-| HIGH_1 | high | |
-| LOW_1 | low | |
-| TRDPRC_1 | close | Last trade price |
-| SETTLE | settle | Futures only |
-| ACVOL_UNS | volume | |
-| OPINT_1 | open_interest | Futures only |
-| VWAP | vwap | |
-
-### Quote Instruments
+### OHLCV Fields
 
 | LSEG Field | Storage Column | Notes |
 |------------|----------------|-------|
-| BID | bid | |
-| ASK | ask | |
-| MID_PRICE | mid | Calculated if not present |
-| OPEN_BID | open_bid | |
-| BID_HIGH_1 | bid_high | |
-| BID_LOW_1 | bid_low | |
-| OPEN_ASK | open_ask | |
-| ASK_HIGH_1 | ask_high | |
-| ASK_LOW_1 | ask_low | |
+| OPEN_PRC | open | Opening price |
+| HIGH_1 | high | High price |
+| LOW_1 | low | Low price |
+| TRDPRC_1 | close | Last trade / close |
+| SETTLE | settle | Settlement price (futures) |
+| ACVOL_UNS | volume | Volume |
+| OPINT_1 | open_interest | Open interest (futures) |
+| VWAP | vwap | VWAP |
 
-### Fixing Instruments
+### Quote Fields
+
+| LSEG Field | Storage Column | Notes |
+|------------|----------------|-------|
+| BID | bid | Bid price |
+| ASK | ask | Ask price |
+| MID_PRICE | mid | Mid price (calculated if missing) |
+| OPEN_BID | open_bid | Opening bid |
+| BID_HIGH_1 | bid_high | High bid |
+| BID_LOW_1 | bid_low | Low bid |
+| OPEN_ASK | open_ask | Opening ask |
+| ASK_HIGH_1 | ask_high | High ask |
+| ASK_LOW_1 | ask_low | Low ask |
+
+### Rate Fields
+
+| LSEG Field | Storage Column | Notes |
+|------------|----------------|-------|
+| BID | bid / rate | Bid rate (swap rate for payer) |
+| ASK | ask | Ask rate (swap rate for receiver) |
+| MID_PRICE | rate | Mid rate |
+| GV1_RATE | rate_2 | Secondary rate |
+
+### Bond Fields
+
+| LSEG Field | Storage Column | Notes |
+|------------|----------------|-------|
+| BID | bid | Bid price |
+| ASK | ask | Ask price |
+| MID_PRICE | price | Mid price |
+| B_YLD_1 | yield_bid | Bid yield |
+| A_YLD_1 | yield_ask | Ask yield |
+| MID_YLD_1 | yield | Mid yield |
+| HIGH_YLD | yield_high | High yield |
+| LOW_YLD | yield_low | Low yield |
+| MOD_DURTN | mod_duration | Modified duration |
+| CONVEXITY | convexity | Convexity |
+| BPV | dv01 | Basis point value |
+| ZSPREAD | z_spread | Z-spread |
+| OAS_BID | oas | Option-adjusted spread |
+
+### Fixing Fields
 
 | LSEG Field | Storage Column | Notes |
 |------------|----------------|-------|
@@ -436,9 +665,224 @@ For FX forwards and swaps, use the `MATUR_DATE` field if needed.
 | PRIMACT_1 | value | Alternative field |
 | ACVOL_UNS | volume | Transaction volume (SOFR) |
 
----
+## Example Queries
+
+### Query OHLCV Data (Futures)
+
+```sql
+-- Get daily OHLCV for a futures contract
+SELECT
+    i.symbol,
+    t.ts::DATE as date,
+    t.open,
+    t.high,
+    t.low,
+    t.close,
+    t.settle,
+    t.volume,
+    t.open_interest
+FROM timeseries_ohlcv t
+JOIN instruments i ON i.id = t.instrument_id
+WHERE i.symbol = 'TYc1'
+  AND t.granularity = 'daily'
+  AND t.ts >= '2024-01-01'
+ORDER BY t.ts;
+```
+
+### Query Quote Data (FX)
+
+```sql
+-- Get FX spot quotes with bid-ask spread
+SELECT
+    i.symbol,
+    t.ts::DATE as date,
+    t.bid,
+    t.ask,
+    t.mid,
+    (t.ask - t.bid) * 10000 as spread_pips
+FROM timeseries_quote t
+JOIN instruments i ON i.id = t.instrument_id
+JOIN instrument_fx fx ON fx.instrument_id = i.id
+WHERE fx.base_currency = 'EUR'
+  AND fx.quote_currency = 'USD'
+  AND t.granularity = 'daily'
+ORDER BY t.ts DESC
+LIMIT 30;
+```
+
+### Query Rate Data (OIS Curve)
+
+```sql
+-- Get USD OIS curve for a specific date
+SELECT
+    r.tenor,
+    t.rate * 100 as rate_pct,
+    t.bid * 100 as bid_pct,
+    t.ask * 100 as ask_pct
+FROM timeseries_rate t
+JOIN instruments i ON i.id = t.instrument_id
+JOIN instrument_rate r ON r.instrument_id = i.id
+WHERE r.rate_type = 'OIS'
+  AND r.currency = 'USD'
+  AND t.ts::DATE = '2025-01-06'
+  AND t.granularity = 'daily'
+ORDER BY
+    CASE r.tenor
+        WHEN '1M' THEN 1
+        WHEN '3M' THEN 2
+        WHEN '6M' THEN 3
+        WHEN '1Y' THEN 4
+        WHEN '2Y' THEN 5
+        WHEN '5Y' THEN 6
+        WHEN '10Y' THEN 7
+        WHEN '30Y' THEN 8
+    END;
+```
+
+### Query Bond Data (Yield Curve)
+
+```sql
+-- Get US Treasury yield curve
+SELECT
+    b.tenor,
+    t.yield * 100 as yield_pct,
+    t.mod_duration,
+    t.convexity
+FROM timeseries_bond t
+JOIN instruments i ON i.id = t.instrument_id
+JOIN instrument_bond b ON b.instrument_id = i.id
+WHERE b.issuer_type = 'GOVT'
+  AND b.country = 'US'
+  AND t.ts::DATE = CURRENT_DATE
+  AND t.granularity = 'daily'
+ORDER BY
+    CASE b.tenor
+        WHEN '2Y' THEN 1
+        WHEN '5Y' THEN 2
+        WHEN '10Y' THEN 3
+        WHEN '30Y' THEN 4
+    END;
+```
+
+### Query Fixing Data (SOFR)
+
+```sql
+-- Get SOFR fixings for the last 30 days
+SELECT
+    f.date,
+    t.value * 100 as rate_pct,
+    t.volume
+FROM timeseries_fixing t
+JOIN instruments i ON i.id = t.instrument_id
+JOIN instrument_fixing f ON f.instrument_id = i.id
+WHERE f.rate_name = 'SOFR'
+ORDER BY t.date DESC
+LIMIT 30;
+```
+
+### Cross-Asset Query (Futures vs Spot)
+
+```sql
+-- Compare 10Y futures price to spot yield
+SELECT
+    ohlcv.ts::DATE as date,
+    ohlcv.close as futures_price,
+    bond.yield * 100 as spot_yield
+FROM timeseries_ohlcv ohlcv
+JOIN instruments i_fut ON i_fut.id = ohlcv.instrument_id
+JOIN timeseries_bond bond ON bond.ts::DATE = ohlcv.ts::DATE
+JOIN instruments i_bond ON i_bond.id = bond.instrument_id
+WHERE i_fut.symbol = 'TYc1'
+  AND i_bond.symbol = 'US10YT'
+  AND ohlcv.granularity = 'daily'
+  AND bond.granularity = 'daily'
+ORDER BY date DESC
+LIMIT 30;
+```
+
+### Data Coverage Query
+
+```sql
+-- Get data coverage summary
+SELECT
+    symbol,
+    asset_class,
+    data_shape,
+    earliest,
+    latest,
+    row_count,
+    latest - earliest as days_covered
+FROM data_coverage
+WHERE row_count > 0
+ORDER BY asset_class, symbol;
+```
+
+## Migration from Legacy Schema
+
+### Legacy Tables (Deprecated)
+
+The following tables are maintained for backwards compatibility but should not be used for new data:
+
+- `ohlcv_daily` - Use `timeseries_ohlcv` with `granularity = 'daily'`
+- `ohlcv_intraday` - Use `timeseries_ohlcv` with appropriate granularity
+- `futures_contracts` - Use `instrument_futures`
+- `fx_spots` - Use `instrument_fx`
+- `ois_rates` - Use `instrument_rate`
+- `govt_yields` - Use `instrument_bond`
+
+### Migration Steps
+
+1. **Migrate Instruments**: Add `data_shape` column based on `asset_class`
+
+```sql
+UPDATE instruments
+SET data_shape = CASE
+    WHEN asset_class IN ('bond_futures', 'stir_futures', 'index_futures',
+                         'fx_futures', 'commodity', 'equity') THEN 'ohlcv'
+    WHEN asset_class IN ('fx_spot', 'fx_forward') THEN 'quote'
+    WHEN asset_class IN ('ois', 'irs', 'fra', 'deposit', 'repo', 'cds') THEN 'rate'
+    WHEN asset_class IN ('govt_yield', 'corp_bond') THEN 'bond'
+    WHEN asset_class = 'fixing' THEN 'fixing'
+    ELSE 'ohlcv'
+END;
+```
+
+2. **Migrate OHLCV Data**: Copy from legacy tables to unified table
+
+```sql
+INSERT INTO timeseries_ohlcv (
+    instrument_id, ts, granularity, open, high, low, close,
+    volume, settle, open_interest, source_contract, adjustment_factor
+)
+SELECT
+    instrument_id,
+    date::TIMESTAMP as ts,
+    'daily' as granularity,
+    open, high, low, close,
+    volume, settle, open_interest,
+    source_contract, adjustment_factor
+FROM ohlcv_daily
+ON CONFLICT (instrument_id, ts, granularity) DO NOTHING;
+```
+
+3. **Migrate Detail Tables**: Copy to new naming convention
+
+```sql
+INSERT INTO instrument_futures (
+    instrument_id, underlying, exchange, expiry_date,
+    contract_month, continuous_type, tick_size, point_value
+)
+SELECT
+    instrument_id, underlying, NULL as exchange, expiry_date,
+    expiry_month || expiry_year as contract_month,
+    continuous_type, tick_size, point_value
+FROM futures_contracts
+ON CONFLICT (instrument_id) DO NOTHING;
+```
 
 ## Parquet Export Structure
+
+For Parquet exports, data is organized by data shape and asset class:
 
 ```
 data/parquet/
@@ -455,59 +899,51 @@ data/parquet/
 ├── quote/
 │   ├── fx_spot/
 │   │   └── EURUSD/
+│   └── fx_forward/
+│       └── EURUSD_1M/
+├── rate/
 │   ├── ois/
 │   │   └── USD/
 │   │       ├── 1Y.parquet
 │   │       └── 10Y.parquet
 │   └── irs/
 │       └── USD/
+├── bond/
+│   └── govt/
+│       └── US/
+│           ├── 2Y.parquet
+│           ├── 10Y.parquet
+│           └── 30Y.parquet
 └── fixing/
     ├── SOFR.parquet
     ├── ESTR.parquet
-    └── EURIBOR3M.parquet
+    └── SONIA.parquet
 ```
 
----
+## Date Conventions
 
-## Query Examples
+### Primary Index: Timestamp / Trade Date (UTC)
 
-### Cross-Asset Queries
+All timeseries data is indexed by timestamp in UTC:
 
-```sql
--- Get all USD rates data for a date
-SELECT
-    i.symbol,
-    q.date,
-    q.mid
-FROM quote_daily q
-JOIN instruments i ON i.id = q.instrument_id
-JOIN rate_details r ON r.instrument_id = i.id
-WHERE r.currency = 'USD'
-  AND q.date = '2025-01-06'
-ORDER BY r.tenor;
+- **OHLCV/Quote/Rate/Bond**: `ts` column (TIMESTAMP) - end of bar/quote time
+- **Fixing**: `date` column (DATE) - fixing date (not publication date)
 
--- Get futures vs spot comparison
-SELECT
-    f.date,
-    f.close as futures_price,
-    s.mid as spot_price,
-    f.close - s.mid as basis
-FROM ohlcv_daily f
-JOIN quote_daily s ON s.date = f.date
-WHERE f.instrument_id = (SELECT id FROM instruments WHERE symbol = 'TYc1')
-  AND s.instrument_id = (SELECT id FROM instruments WHERE symbol = 'US10YT')
-ORDER BY f.date;
-```
+### Granularity Values
 
-### Time Series Retrieval
+| Value | Description |
+|-------|-------------|
+| `tick` | Tick-by-tick data |
+| `1min` | 1-minute bars |
+| `5min` | 5-minute bars |
+| `10min` | 10-minute bars |
+| `30min` | 30-minute bars |
+| `hourly` | Hourly bars |
+| `daily` | Daily bars |
+| `weekly` | Weekly bars |
+| `monthly` | Monthly bars |
 
-```sql
--- Get daily data with proper shape routing
-SELECT * FROM ohlcv_daily
-WHERE instrument_id = ?
-  AND date BETWEEN ? AND ?
-ORDER BY date;
+### Settlement vs Trade Date
 
--- Or use helper function (in application code)
--- get_timeseries(symbol, start, end) routes to correct table
-```
+- Settlement dates are not stored directly
+- Derive as needed: Equities T+1 (US), FX Spot T+2, Futures vary by contract
