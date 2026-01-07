@@ -8,57 +8,14 @@
 - [x] **Timezone Documentation** - Confirmed all LSEG timestamps are UTC
 - [x] **Comprehensive Intraday Support Table** - Updated INSTRUMENTS.md with 30+ asset class breakdown
 - [x] **RIC Pattern Discovery** - Found `=RRPS` for US yields intraday, `EUREST{tenor}=` for EUR OIS
+- [x] **Storage Schema Redesign (RUNBOOK 23)** - Implemented multi-table schema by data shape
+- [x] **Async Cache Layer (RUNBOOK 24)** - Implemented DataCache with sync/async APIs
 
 ---
 
 ## In Progress
 
-### Storage Schema Redesign (RUNBOOK 23)
-
-**Status**: Schema design drafted, needs implementation
-
-**Problem**: Current `ohlcv_daily` table tries to store all data types, but:
-- Rates (OIS, IRS) have bid/ask/mid, not OHLCV
-- Govt yields have price + yield + analytics
-- Fixings (SOFR, EURIBOR) are single daily values
-
-**Proposed Solution**: Normalize by data shape:
-- `ohlcv_daily` - Futures, equities, commodities
-- `quote_daily` - FX, OIS, IRS, FRA (bid/ask/mid)
-- `bond_daily` - Govt yields (price + yield + analytics)
-- `fixing_daily` - SOFR, ESTR, SONIA, EURIBOR
-
-**Open Questions** (see `docs/STORAGE_SCHEMA.md`):
-1. Separate table for govt bonds or extend quote_daily?
-2. Separate intraday tables per data shape?
-3. Store regional FX session data (Asia/EUR/AMER)?
-4. Value date vs trade date indexing?
-
-**Files**:
-- `docs/STORAGE_SCHEMA.md` - Draft schema design
-- `src/lseg_toolkit/timeseries/duckdb_storage.py` - Needs update
-
----
-
-## Pending
-
-### RUNBOOK 24: Async Cache Layer
-
-**Priority**: HIGH
-
-**Objective**: Cache-first architecture for data retrieval
-
-```python
-# Desired API
-cache = DataCache(db_path="data/timeseries.duckdb")
-df = cache.get_or_fetch(ric="TYc1", start="2024-01-01", end="2024-12-31")
-```
-
-**Features**:
-- Check local DB before hitting LSEG API
-- Gap detection (find missing date ranges)
-- Async/parallel fetching for multiple RICs
-- Progress tracking for batch extraction
+(No items currently in progress)
 
 ---
 
@@ -106,24 +63,18 @@ Need to research chain discovery and Greeks fields.
 
 ## Technical Debt
 
-### 1. Plan File Cleanup
-
-The plan file at `~/.claude/plans/majestic-exploring-quilt.md` is stale:
-- Many runbooks marked "Not Started" are actually complete
-- Should archive or delete after this session
-
-### 2. Code Updates Needed
+### 1. Code Updates Needed
 
 | File | Change Needed |
 |------|---------------|
-| `duckdb_storage.py` | Implement new schema (quote_daily, bond_daily, fixing_daily) |
 | `fetch.py` | Add field mappings for different data shapes |
 | `constants.py` | Add LSEG→storage field mappings |
 
-### 3. Missing Tests
+### 2. Missing Tests
 
 - No tests for intraday data fetching
-- No tests for DuckDB storage
+- ~~No tests for DuckDB storage~~ (added in test_duckdb_storage.py)
+- ~~No tests for cache layer~~ (added in test_cache.py - 33 tests)
 - No integration tests with LSEG API
 
 ---
@@ -137,6 +88,31 @@ The plan file at `~/.claude/plans/majestic-exploring-quilt.md` is stale:
 3. **EUR OIS**: Use `EUREST{tenor}=` pattern (not `EUR{tenor}OIS=`)
 4. **All timestamps are UTC** - verified against exchange hours
 5. **Query limit**: 50,000 bars max per request
+
+### RUNBOOK 24 Implementation
+
+Implemented `DataCache` in `src/lseg_toolkit/timeseries/cache.py`:
+
+```python
+from lseg_toolkit.timeseries import DataCache, CacheConfig
+
+# Sync usage
+cache = DataCache()
+df = cache.get_or_fetch("TYc1", start="2024-01-01", end="2024-12-31")
+
+# Async usage
+results = await cache.async_get_or_fetch_many(
+    ["TYc1", "USc1", "FVc1"],
+    start="2024-01-01",
+    end="2024-12-31"
+)
+```
+
+Key features:
+- **InstrumentRegistry**: Validates RICs against known set from constants.py
+- **Granularity-aware gap detection**: Daily data doesn't satisfy 5min requests
+- **Async/await**: Parallel fetching with semaphore rate limiting
+- **Progress tracking**: Callback support for batch operations
 
 ### Data Shape Classification
 
