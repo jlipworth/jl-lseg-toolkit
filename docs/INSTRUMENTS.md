@@ -336,7 +336,7 @@ For US equities, intraday data includes pre-market and after-hours trading:
 
 ---
 
-## Stock Index Futures (Validated 2026-01-06)
+## Stock Index Futures (Validated 2026-01-07)
 
 ### US Indices
 
@@ -346,14 +346,23 @@ For US equities, intraday data includes pre-market and after-hours trading:
 | E-mini Nasdaq-100 | NQ | `NQc1` | ✅ | ✅ | ✅ | CME, 255 rows |
 | E-mini Russell 2000 | RTY | `RTYc1` | ✅ | ✅ | ✅ | CME, 255 rows |
 | E-mini Dow | YM | `YMc1` | ✅ | ✅ | ✅ | CBOT, 255 rows |
+| VIX Futures | VX | `VXc1` | ✅ | ✅ | ✅ | CFE, 250 rows |
+
+### Canadian Indices
+
+| Instrument | Symbol | LSEG RIC | Status | Daily | Intraday | Notes |
+|------------|--------|----------|--------|-------|----------|-------|
+| S&P/TSX 60 | SXF | `SXFc1` | ✅ | ✅ | ✅ | TMX, 251 rows |
 
 ### European Indices
 
 | Instrument | Symbol | LSEG RIC | Status | Daily | Intraday | Notes |
 |------------|--------|----------|--------|-------|----------|-------|
 | Euro Stoxx 50 | FESX | `STXEc1` | ✅ | ✅ | ✅ | Eurex, 262 rows |
+| STOXX Europe 600 | FXXP | `FXXPc1` | ✅ | ✅ | ✅ | Eurex, 253 rows |
 | DAX | FDAX | `FDXc1` | ✅ | ✅ | ✅ | Eurex, 262 rows |
 | FTSE 100 | Z | `FFIc1` | ✅ | ✅ | ✅ | ICE, 260 rows |
+| FTSE MIB | FMIB | `FMIBc1` | ✅ | ✅ | ✅ | Eurex, 237 rows |
 | CAC 40 | FCE | `FCEc1` | ✅ | ✅ | ✅ | Euronext, 262 rows |
 | SMI (Swiss) | FSMI | `FSMIc1` | ✅ | ✅ | ✅ | Eurex, 254 rows |
 | AEX (Dutch) | FTI | `AEXc1` | ✅ | ✅ | ✅ | Euronext, 262 rows |
@@ -368,6 +377,127 @@ For US equities, intraday data includes pre-market and after-hours trading:
 | Hang Seng China Enterprises | HCEI | `HCEIc1` | ✅ | ✅ | ✅ | HKEX, 247 rows |
 | KOSPI 200 | KS | `KSc1` | ✅ | ✅ | ✅ | KRX, 247 rows |
 | TAIEX (Taiwan) | TX | `TXc1` | ✅ | ✅ | ✅ | TAIFEX, 249 rows |
+| ASX 200 Mini | YAP | `YAPc1` | ✅ | ✅ | ✅ | ASX, 255 rows |
+| SGX Nifty 50 | SSN | `SSNc1` | ✅ | ✅ | ✅ | SGX, 243 rows |
+
+### Latin American Indices
+
+| Instrument | Symbol | LSEG RIC | Status | Daily | Intraday | Notes |
+|------------|--------|----------|--------|-------|----------|-------|
+| Bovespa | IND | `INDc1` | ✅ | ✅ | ✅ | B3, 250 rows |
+| Mini Bovespa | WSP | `WSPc1` | ✅ | ✅ | ✅ | B3, 250 rows |
+| IPC Mexico | IPC | `IPCc1` | ✅ | ✅ | ✅ | BMV, 251 rows |
+
+### Missing Futures
+
+No futures found for:
+- IBEX 35 (Spain) - no LSEG RIC found
+- TOPIX (Japan) - no continuous contract found
+- CSI 300 (China) - requires China data package
+- S&P MidCap 400 - no LSEG RIC found
+
+---
+
+## Equity Indices (Spot) (Validated 2026-01-07)
+
+**34/36 indices validated for daily data, 35/36 for intraday**
+
+### US Indices
+
+| Index | LSEG RIC | Status | Daily | Intraday | Last Value |
+|-------|----------|--------|-------|----------|------------|
+| S&P 500 | `.SPX` | ✅ | ✅ | ✅ | 6944.82 |
+| Nasdaq 100 | `.NDX` | ✅ | ✅ | ✅ | 25639.71 |
+| Dow Jones Industrial | `.DJI` | ✅ | ✅ | ✅ | 49462.08 |
+| Russell 2000 | `.RUT` | ✅ | ✅ | ✅ | 2582.90 |
+| Russell 1000 | `.RUI` | ✅ | ✅ | ✅ | 3793.33 |
+| Russell 3000 | `.RUA` | ✅ | ✅ | ✅ | 3949.82 |
+| Nasdaq Composite | `.IXIC` | ✅ | ✅ | ✅ | 23547.17 |
+| CBOE VIX | `.VIX` | ✅ | ✅ | ✅ | 14.75 |
+| Nasdaq Volatility | `.VXN` | ❌ | ❌ | ❌ | No data |
+| S&P MidCap 400 | `.SP400` | ✅ | ✅ | ✅ | 3443.43 |
+
+### Canadian Indices
+
+| Index | LSEG RIC | Status | Daily | Intraday | Last Value |
+|-------|----------|--------|-------|----------|------------|
+| S&P/TSX Composite (old) | `.SPTSE` | ✅ | ✅ | ✅ | 1895.85 |
+| S&P/TSX Composite | `.GSPTSE` | ✅ | ✅ | ✅ | 32407.02 |
+
+### European Indices
+
+| Index | LSEG RIC | Status | Daily | Intraday | Last Value |
+|-------|----------|--------|-------|----------|------------|
+| FTSE 100 | `.FTSE` | ✅ | ✅ | ✅ | 10048.21 |
+| DAX | `.GDAXI` | ✅ | ✅ | ✅ | 25122.26 |
+| CAC 40 | `.FCHI` | ✅ | ✅ | ✅ | 8233.92 |
+| FTSE MIB | `.FTMIB` | ✅ | ✅ | ✅ | 45558.68 |
+| AEX | `.AEX` | ✅ | ✅ | ✅ | 979.15 |
+| IBEX 35 | `.IBEX` | ✅ | ✅ | ✅ | 17596.40 |
+| STOXX Europe 600 | `.STOXX` | ✅ | ✅ | ✅ | 604.99 |
+| Euro STOXX 50 | `.STOXX50E` | ✅ | ✅ | ✅ | 5923.57 |
+
+### Asian Indices
+
+| Index | LSEG RIC | Status | Daily | Intraday | Last Value |
+|-------|----------|--------|-------|----------|------------|
+| Nikkei 225 | `.N225` | ✅ | ✅ | ✅ | 51961.98 |
+| TOPIX | `.TOPX` | ✅ | ✅ | ✅ | 3511.34 |
+| CSI 300 | `.CSI000300` | ✅ | ✅ | ✅ | 4776.67 |
+| Hang Seng | `.HSI` | ✅ | ✅ | ✅ | 26458.95 |
+| KOSPI | `.KS11` | ✅ | ✅ | ✅ | 4551.06 |
+| ASX 200 | `.AXJO` | ✅ | ✅ | ✅ | 8695.60 |
+
+### Latin American Indices
+
+| Index | LSEG RIC | Status | Daily | Intraday | Last Value |
+|-------|----------|--------|-------|----------|------------|
+| Bovespa | `.BVSP` | ✅ | ✅ | ✅ | 163663.88 |
+| IPC Mexico | `.MXX` | ✅ | ✅ | ✅ | 65022.24 |
+| S&P IPSA Chile | `.SPIPSA` | ✅ | ✅ | ✅ | 10927.79 |
+| MERVAL Argentina | `.MERV` | ✅ | ✅ | ✅ | 3112376.81 |
+| IBC Venezuela | `.IBC` | ✅ | ✅ | ✅ | 3896.77 |
+| COLCAP Colombia | `.COLCAP` | ✅ | ✅ | ✅ | 2175.89 |
+
+### Other Global Indices
+
+| Index | LSEG RIC | Status | Daily | Intraday | Last Value |
+|-------|----------|--------|-------|----------|------------|
+| Nifty 50 | `.NSEI` | ✅ | ✅ | ✅ | 26140.75 |
+| PSI Portugal | `.SPBL25PT` | ⚠️ | ❌ | ✅ | Intraday only |
+| S&P Emerging Markets | `.SPCY` | ✅ | ✅ | ✅ | 1523.02 |
+| MSCI World USD | `.dMIWD00000PUS` | ✅ | ✅ | ✅ | 1035.15 |
+
+### Volatility Indices (VIX Family)
+
+**8/18 volatility indices validated**
+
+| Index | LSEG RIC | Status | Last Value | Notes |
+|-------|----------|--------|------------|-------|
+| CBOE VIX (S&P 500) | `.VIX` | ✅ | 14.75 | Primary VIX |
+| VXD (Dow Jones) | `.VXD` | ✅ | 14.42 | DJIA volatility |
+| VVIX (VIX of VIX) | `.VVIX` | ✅ | 89.01 | VIX volatility |
+| VIX 9-Day | `.VIX9D` | ✅ | 12.13 | Short-term VIX |
+| VIX 3-Month | `.VIX3M` | ✅ | 18.15 | |
+| VIX 6-Month | `.VIX6M` | ✅ | 20.78 | |
+| VIX 1-Year | `.VIX1Y` | ✅ | 22.38 | |
+| VSTOXX | `.V2TX` | ✅ | 15.35 | European VIX |
+| VXN (Nasdaq 100) | `.VXN` | ❌ | - | No data |
+| RVX (Russell 2000) | `.RVX` | ❌ | - | No data |
+| CBOE SKEW | `.SKEW` | ❌ | - | No data |
+| Oil VIX | `.OVX` | ❌ | - | No data |
+| Gold VIX | `.GVZ` | ❌ | - | No data |
+| Euro VIX | `.EVZ` | ❌ | - | No data |
+| Treasury VIX | `.TYVIX` | ❌ | - | No data |
+| VDAX-NEW | `.V1X` | ❌ | - | No data |
+| VFTSE | `.VFTSE` | ❌ | - | No data |
+
+### Notes
+
+- Several CBOE volatility indices (VXN, RVX, OVX, GVZ) return no data - may require additional permissions
+- `.SPBL25PT` (Portugal PSI) has intraday but no daily - use `.PSI20` instead
+- For index futures, see the Stock Index Futures section above
+- For VIX futures, use `VXc1` (continuous front month)
 
 ---
 
