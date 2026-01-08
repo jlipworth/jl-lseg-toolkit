@@ -259,15 +259,15 @@ ASSET_CLASS_TO_DATA_SHAPE = {
     AssetClass.STIR_FUTURES: DataShape.OHLCV,
     AssetClass.INDEX_FUTURES: DataShape.OHLCV,
     AssetClass.FX_FUTURES: DataShape.OHLCV,
-    AssetClass.COMMODITY_FUTURES: DataShape.OHLCV,
-    AssetClass.COMMODITY: DataShape.OHLCV,
+    AssetClass.COMMODITY_FUTURES: DataShape.OHLCV,  # CLc1, GCc1, NGc1
     AssetClass.EQUITY: DataShape.OHLCV,
-    AssetClass.ETF: DataShape.OHLCV,
-    AssetClass.EQUITY_INDEX: DataShape.OHLCV,
+    AssetClass.ETF: DataShape.OHLCV,  # SPY.P, QQQ.O
+    AssetClass.EQUITY_INDEX: DataShape.OHLCV,  # .SPX, .DJI, .VIX
 
     # Quote (dealer-quoted)
     AssetClass.FX_SPOT: DataShape.QUOTE,
     AssetClass.FX_FORWARD: DataShape.QUOTE,
+    AssetClass.COMMODITY: DataShape.QUOTE,  # XAU=, XAG= (spot commodities are bid/ask)
 
     # Rate (IR derivatives)
     AssetClass.OIS: DataShape.RATE,
@@ -285,6 +285,8 @@ ASSET_CLASS_TO_DATA_SHAPE = {
     AssetClass.FIXING: DataShape.FIXING,
 }
 ```
+
+**Key distinction**: Commodity *futures* (CLc1, GCc1) use OHLCV, but commodity *spot* (XAU=, XAG=) uses Quote because spot metals are dealer-quoted (bid/ask) not exchange-traded.
 
 ## Table Definitions
 

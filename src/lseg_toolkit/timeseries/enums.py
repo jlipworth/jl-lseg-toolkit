@@ -36,7 +36,7 @@ class AssetClass(str, Enum):
     ETF = "etf"
     EQUITY_INDEX = "equity_index"  # Spot indices (.SPX, .DJI)
 
-    # Commodities (spot)
+    # Commodities (spot - XAU=, XAG= - uses Quote shape, not OHLCV)
     COMMODITY = "commodity"
 
     # Credit
