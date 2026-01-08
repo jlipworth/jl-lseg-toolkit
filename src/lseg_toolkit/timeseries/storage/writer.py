@@ -7,6 +7,7 @@ with support for all data shapes (OHLCV, Quote, Rate, Bond, Fixing).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 
 import duckdb
@@ -16,6 +17,57 @@ from lseg_toolkit.exceptions import StorageError
 from lseg_toolkit.timeseries.enums import DataShape, Granularity
 
 from .field_mapping import FieldMapper
+
+
+@dataclass
+class SaveContext:
+    """
+    Context for saving time series data.
+
+    Encapsulates all parameters needed for save operations, providing
+    cleaner function signatures and easier testing.
+
+    Example:
+        >>> ctx = SaveContext.for_instrument(conn, instrument_id)
+        >>> save_timeseries(conn, df, ctx)
+    """
+
+    instrument_id: int
+    granularity: Granularity
+    data_shape: DataShape
+    source_contract: str | None = None
+    adjustment_factor: float = 1.0
+
+    @classmethod
+    def for_instrument(
+        cls,
+        conn: duckdb.DuckDBPyConnection,
+        instrument_id: int,
+        granularity: Granularity = Granularity.DAILY,
+        **kwargs,
+    ) -> SaveContext:
+        """
+        Factory that looks up data_shape from database.
+
+        Args:
+            conn: Database connection.
+            instrument_id: Instrument ID.
+            granularity: Data granularity.
+            **kwargs: Additional context fields (source_contract, adjustment_factor).
+
+        Returns:
+            SaveContext with data_shape looked up from instrument.
+        """
+        result = conn.execute(
+            "SELECT data_shape FROM instruments WHERE id = ?", [instrument_id]
+        ).fetchone()
+        data_shape = DataShape(result[0]) if result else DataShape.OHLCV
+        return cls(
+            instrument_id=instrument_id,
+            granularity=granularity,
+            data_shape=data_shape,
+            **kwargs,
+        )
 
 
 def _convert_index_to_timestamp(idx) -> datetime:

@@ -47,10 +47,23 @@ from .progress import (
     log_extraction,
     update_extraction_progress,
 )
+from .queries import Queries
 from .reader import get_data_coverage, get_data_range, load_timeseries
+from .resolver import SymbolResolver
 from .roll_events import get_roll_events, save_roll_event
 from .schema import SCHEMA_SQL, init_db
-from .writer import save_timeseries
+from .types import (
+    BondDetails,
+    EquityDetails,
+    ETFDetails,
+    FixingDetails,
+    FuturesDetails,
+    FXDetails,
+    IndexDetails,
+    InstrumentDetails,
+    RateDetails,
+)
+from .writer import SaveContext, save_timeseries
 
 __all__ = [
     # Connection
@@ -69,6 +82,7 @@ __all__ = [
     "get_instrument_by_ric",
     "get_instruments",
     # Writer
+    "SaveContext",
     "save_timeseries",
     # Reader
     "load_timeseries",
@@ -77,6 +91,10 @@ __all__ = [
     # Field Mapping
     "FieldMapper",
     "FieldMapping",
+    # Queries
+    "Queries",
+    # Resolver
+    "SymbolResolver",
     # Roll Events
     "save_roll_event",
     "get_roll_events",
@@ -90,4 +108,14 @@ __all__ = [
     "export_symbol_to_parquet",
     # Migration
     "migrate_from_sqlite",
+    # Types
+    "BondDetails",
+    "EquityDetails",
+    "ETFDetails",
+    "FixingDetails",
+    "FuturesDetails",
+    "FXDetails",
+    "IndexDetails",
+    "InstrumentDetails",
+    "RateDetails",
 ]
