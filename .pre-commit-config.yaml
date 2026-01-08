@@ -35,3 +35,19 @@ repos:
       # Check for large files (>500KB)
       - id: check-added-large-files
         args: [--maxkb=500]
+
+  # Local hooks
+  - repo: local
+    hooks:
+      # Render Mermaid diagrams from markdown files
+      # Only runs when docs/*.md files change
+      # Requires: npm install -g @mermaid-js/mermaid-cli
+      - id: render-diagrams
+        name: render mermaid diagrams
+        entry: python scripts/render_diagrams.py
+        language: python
+        files: ^docs/.*\.md$
+        pass_filenames: false
+        stages: [pre-commit]
+        # Set to 'manual' to skip by default, run with: pre-commit run render-diagrams
+        # stages: [manual]

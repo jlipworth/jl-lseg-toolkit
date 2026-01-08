@@ -8,23 +8,39 @@ from enum import Enum
 class AssetClass(str, Enum):
     """Asset class classification for instruments."""
 
+    # Futures
     BOND_FUTURES = "bond_futures"
     STIR_FUTURES = "stir_futures"
     INDEX_FUTURES = "index_futures"
+    FX_FUTURES = "fx_futures"
+    COMMODITY_FUTURES = "commodity_futures"
+
+    # FX
     FX_SPOT = "fx_spot"
     FX_FORWARD = "fx_forward"
-    FX_FUTURES = "fx_futures"
+
+    # Rates
     OIS = "ois"
     IRS = "irs"
     FRA = "fra"
     DEPOSIT = "deposit"
     REPO = "repo"
+    FIXING = "fixing"
+
+    # Bonds
     GOVT_YIELD = "govt_yield"
     CORP_BOND = "corp_bond"
-    COMMODITY = "commodity"
+
+    # Equities & Funds
     EQUITY = "equity"
+    ETF = "etf"
+    EQUITY_INDEX = "equity_index"  # Spot indices (.SPX, .DJI)
+
+    # Commodities (spot)
+    COMMODITY = "commodity"
+
+    # Credit
     CDS = "cds"
-    FIXING = "fixing"
 
 
 class DataShape(str, Enum):
