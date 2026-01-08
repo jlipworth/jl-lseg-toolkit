@@ -305,7 +305,7 @@ CREATE TABLE instrument_fx (
 
 #### instrument_rate
 
-Stores interest rate derivative details.
+Stores interest rate derivative details for QuantLib curve bootstrapping.
 
 ```sql
 CREATE TABLE instrument_rate (
@@ -314,14 +314,20 @@ CREATE TABLE instrument_rate (
     currency VARCHAR NOT NULL,           -- Currency (USD, EUR, GBP, etc.)
     tenor VARCHAR NOT NULL,              -- Tenor ('1Y', '10Y', '3x6')
     reference_rate VARCHAR,              -- Reference rate ('SOFR', 'EURIBOR', 'SONIA')
-    day_count VARCHAR,                   -- Day count convention ('ACT/360', 'ACT/365')
+    day_count VARCHAR,                   -- Day count convention ('ACT/360', 'ACT/365', 'ACT/ACT')
+    payment_frequency VARCHAR,           -- 'annual', 'semiannual', 'quarterly', 'monthly'
+    business_day_conv VARCHAR,           -- 'modified_following', 'following', 'preceding'
+    calendar VARCHAR,                    -- 'TARGET', 'US', 'UK', 'JP'
+    settlement_days INTEGER DEFAULT 2,   -- T+2 for most swaps
     paired_instrument_id INTEGER REFERENCES instruments(id)  -- For paired rates
 );
 ```
 
+**QuantLib Fields**: `payment_frequency`, `business_day_conv`, `calendar`, `settlement_days` are required for proper curve bootstrapping.
+
 #### instrument_bond
 
-Stores government and corporate bond details.
+Stores government and corporate bond details for QuantLib pricing.
 
 ```sql
 CREATE TABLE instrument_bond (
@@ -330,11 +336,16 @@ CREATE TABLE instrument_bond (
     country VARCHAR,                     -- Country code ('US', 'DE', 'GB', 'JP')
     tenor VARCHAR NOT NULL,              -- Tenor ('2Y', '10Y', '30Y')
     coupon_rate DOUBLE,                  -- Coupon rate
+    coupon_frequency VARCHAR,            -- 'semiannual' (UST), 'annual' (Bunds), 'quarterly'
+    day_count VARCHAR,                   -- 'ACT/ACT', '30/360', 'ACT/365'
     maturity_date DATE,                  -- Maturity date
+    settlement_days INTEGER DEFAULT 1,   -- T+1 for UST, T+2 for most others
     credit_rating VARCHAR,               -- Credit rating
     sector VARCHAR                       -- Sector for corporate bonds
 );
 ```
+
+**QuantLib Fields**: `coupon_frequency`, `day_count`, `settlement_days` are required for proper bond pricing.
 
 #### instrument_fixing
 
@@ -426,7 +437,7 @@ CREATE INDEX idx_timeseries_rate_ts ON timeseries_rate(instrument_id, ts DESC);
 
 #### timeseries_bond
 
-Bond data with price, yield, and analytics.
+Bond data with price, yield, and analytics. Includes fields needed for QuantLib bond pricing.
 
 ```sql
 CREATE TABLE timeseries_bond (
@@ -434,6 +445,8 @@ CREATE TABLE timeseries_bond (
     ts TIMESTAMP NOT NULL,
     granularity VARCHAR NOT NULL,
     price DOUBLE,                        -- Clean price
+    dirty_price DOUBLE,                  -- Full price (clean + accrued interest)
+    accrued_interest DOUBLE,             -- Accrued interest since last coupon
     bid DOUBLE,
     ask DOUBLE,
     yield DOUBLE NOT NULL,               -- Yield to maturity
@@ -450,6 +463,11 @@ CREATE TABLE timeseries_bond (
     oas DOUBLE,                          -- Option-adjusted spread
     PRIMARY KEY (instrument_id, ts, granularity)
 );
+
+-- QuantLib Bond Pricing Notes:
+-- dirty_price = price + accrued_interest
+-- LSEG provides accrued interest for treasuries via ACCRUED_INT field
+-- If dirty_price not provided, calculate as: dirty_price = price + accrued_interest
 
 CREATE INDEX idx_timeseries_bond_ts ON timeseries_bond(instrument_id, ts DESC);
 ```

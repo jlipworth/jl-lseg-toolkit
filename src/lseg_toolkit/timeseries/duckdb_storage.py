@@ -125,7 +125,11 @@ CREATE TABLE IF NOT EXISTS instrument_rate (
     currency VARCHAR NOT NULL,
     tenor VARCHAR NOT NULL,
     reference_rate VARCHAR,  -- 'SOFR', 'EURIBOR', 'SONIA'
-    day_count VARCHAR,  -- 'ACT/360', 'ACT/365'
+    day_count VARCHAR,  -- 'ACT/360', 'ACT/365', 'ACT/ACT'
+    payment_frequency VARCHAR,  -- 'annual', 'semiannual', 'quarterly', 'monthly'
+    business_day_conv VARCHAR,  -- 'modified_following', 'following', 'preceding'
+    calendar VARCHAR,  -- 'TARGET', 'US', 'UK', 'JP'
+    settlement_days INTEGER DEFAULT 2,  -- T+2 for most swaps
     paired_instrument_id INTEGER REFERENCES instruments(id)
 );
 
@@ -136,7 +140,10 @@ CREATE TABLE IF NOT EXISTS instrument_bond (
     country VARCHAR,
     tenor VARCHAR NOT NULL,
     coupon_rate DOUBLE,
+    coupon_frequency VARCHAR,  -- 'semiannual' (UST), 'annual' (Bunds), 'quarterly'
+    day_count VARCHAR,  -- 'ACT/ACT', '30/360', 'ACT/365'
     maturity_date DATE,
+    settlement_days INTEGER DEFAULT 1,  -- T+1 for UST, T+2 for most others
     credit_rating VARCHAR,
     sector VARCHAR
 );
@@ -213,7 +220,9 @@ CREATE TABLE IF NOT EXISTS timeseries_bond (
     instrument_id INTEGER NOT NULL REFERENCES instruments(id),
     ts TIMESTAMP NOT NULL,
     granularity VARCHAR NOT NULL,
-    price DOUBLE,
+    price DOUBLE,  -- Clean price
+    dirty_price DOUBLE,  -- Full price (clean + accrued)
+    accrued_interest DOUBLE,  -- Accrued interest
     bid DOUBLE,
     ask DOUBLE,
     yield DOUBLE NOT NULL,
@@ -729,6 +738,10 @@ def _save_rate_details(
                 tenor = ?,
                 reference_rate = ?,
                 day_count = ?,
+                payment_frequency = ?,
+                business_day_conv = ?,
+                calendar = ?,
+                settlement_days = ?,
                 paired_instrument_id = ?
             WHERE instrument_id = ?
             """,
@@ -738,6 +751,10 @@ def _save_rate_details(
                 kwargs.get("tenor", ""),
                 kwargs.get("reference_rate"),
                 kwargs.get("day_count"),
+                kwargs.get("payment_frequency"),
+                kwargs.get("business_day_conv"),
+                kwargs.get("calendar"),
+                kwargs.get("settlement_days", 2),
                 kwargs.get("paired_instrument_id"),
                 instrument_id,
             ],
@@ -747,9 +764,11 @@ def _save_rate_details(
             """
             INSERT INTO instrument_rate (
                 instrument_id, rate_type, currency, tenor,
-                reference_rate, day_count, paired_instrument_id
+                reference_rate, day_count, payment_frequency,
+                business_day_conv, calendar, settlement_days,
+                paired_instrument_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 instrument_id,
@@ -758,6 +777,10 @@ def _save_rate_details(
                 kwargs.get("tenor", ""),
                 kwargs.get("reference_rate"),
                 kwargs.get("day_count"),
+                kwargs.get("payment_frequency"),
+                kwargs.get("business_day_conv"),
+                kwargs.get("calendar"),
+                kwargs.get("settlement_days", 2),
                 kwargs.get("paired_instrument_id"),
             ],
         )
@@ -779,7 +802,10 @@ def _save_bond_details(
                 country = ?,
                 tenor = ?,
                 coupon_rate = ?,
+                coupon_frequency = ?,
+                day_count = ?,
                 maturity_date = ?,
+                settlement_days = ?,
                 credit_rating = ?,
                 sector = ?
             WHERE instrument_id = ?
@@ -789,7 +815,10 @@ def _save_bond_details(
                 kwargs.get("country"),
                 kwargs.get("tenor", ""),
                 kwargs.get("coupon_rate"),
+                kwargs.get("coupon_frequency"),
+                kwargs.get("day_count"),
                 kwargs.get("maturity_date"),
+                kwargs.get("settlement_days", 1),
                 kwargs.get("credit_rating"),
                 kwargs.get("sector"),
                 instrument_id,
@@ -800,9 +829,10 @@ def _save_bond_details(
             """
             INSERT INTO instrument_bond (
                 instrument_id, issuer_type, country, tenor,
-                coupon_rate, maturity_date, credit_rating, sector
+                coupon_rate, coupon_frequency, day_count,
+                maturity_date, settlement_days, credit_rating, sector
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 instrument_id,
@@ -810,7 +840,10 @@ def _save_bond_details(
                 kwargs.get("country"),
                 kwargs.get("tenor", ""),
                 kwargs.get("coupon_rate"),
+                kwargs.get("coupon_frequency"),
+                kwargs.get("day_count"),
                 kwargs.get("maturity_date"),
+                kwargs.get("settlement_days", 1),
                 kwargs.get("credit_rating"),
                 kwargs.get("sector"),
             ],
@@ -1248,12 +1281,24 @@ def _save_bond_data(
             ):
                 yld = (float(yld_bid) + float(yld_ask)) / 2
 
+        # Get clean price and accrued interest
+        clean_price = row.get("price") or row.get("MID_PRICE") or row.get("CLEAN_PRC")
+        accrued = row.get("accrued_interest") or row.get("ACCRUED_INT")
+        dirty = row.get("dirty_price") or row.get("DIRTY_PRC")
+
+        # Calculate dirty price if we have clean + accrued but no dirty
+        if dirty is None and clean_price is not None and accrued is not None:
+            if not pd.isna(clean_price) and not pd.isna(accrued):
+                dirty = float(clean_price) + float(accrued)
+
         rows.append(
             {
                 "instrument_id": instrument_id,
                 "ts": ts,
                 "granularity": granularity.value,
-                "price": row.get("price") or row.get("MID_PRICE"),
+                "price": clean_price,
+                "dirty_price": dirty,
+                "accrued_interest": accrued,
                 "bid": row.get("bid") or row.get("BID"),
                 "ask": row.get("ask") or row.get("ASK"),
                 "yield": yld,
@@ -1275,18 +1320,20 @@ def _save_bond_data(
         conn.execute(
             """
             INSERT OR REPLACE INTO timeseries_bond (
-                instrument_id, ts, granularity, price, bid, ask,
-                yield, yield_bid, yield_ask, yield_high, yield_low,
+                instrument_id, ts, granularity, price, dirty_price, accrued_interest,
+                bid, ask, yield, yield_bid, yield_ask, yield_high, yield_low,
                 duration, mod_duration, convexity, dv01,
                 credit_spread, z_spread, oas
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 record["instrument_id"],
                 record["ts"],
                 record["granularity"],
                 record["price"],
+                record["dirty_price"],
+                record["accrued_interest"],
                 record["bid"],
                 record["ask"],
                 record["yield"],
@@ -1660,9 +1707,10 @@ def _load_bond_data(
 ) -> pd.DataFrame:
     """Load bond data from timeseries_bond."""
     query = """
-        SELECT ts, price, bid, ask, yield, yield_bid, yield_ask,
-               yield_high, yield_low, duration, mod_duration, convexity,
-               dv01, credit_spread, z_spread, oas
+        SELECT ts, price, dirty_price, accrued_interest, bid, ask,
+               yield, yield_bid, yield_ask, yield_high, yield_low,
+               duration, mod_duration, convexity, dv01,
+               credit_spread, z_spread, oas
         FROM timeseries_bond
         WHERE instrument_id = ? AND granularity = ?
     """
