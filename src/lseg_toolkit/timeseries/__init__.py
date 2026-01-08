@@ -2,12 +2,12 @@
 Time series extraction module for LSEG financial data.
 
 This module provides functionality to extract time series data from LSEG
-(bond futures, FX, OIS, etc.) with storage backends (SQLite/DuckDB) and
-Parquet export for C++/Rust interoperability.
+(bond futures, FX, OIS, etc.) with storage backends and Parquet export
+for C++/Rust interoperability.
 
-Storage Backends:
-    - `storage`: SQLite-based storage (original)
-    - `duckdb_storage`: DuckDB-based storage (better for analytics, native Parquet)
+Storage:
+    - `storage`: DuckDB-based modular storage (recommended)
+    - `duckdb_storage`: Deprecated alias for `storage` (will be removed in v2.0.0)
 
 Example:
     >>> from lseg_toolkit.timeseries import TimeSeriesConfig, Granularity
@@ -19,12 +19,13 @@ Example:
     ...     continuous=True,
     ... )
 
-    >>> # DuckDB storage for analytics
-    >>> from lseg_toolkit.timeseries import duckdb_storage
-    >>> with duckdb_storage.get_connection() as conn:
-    ...     df = duckdb_storage.load_timeseries(conn, "ZN")
+    >>> # Storage usage
+    >>> from lseg_toolkit.timeseries import storage
+    >>> with storage.get_connection() as conn:
+    ...     df = storage.load_timeseries(conn, "ZN")
 """
 
+# Backward compatibility alias (deprecated)
 from lseg_toolkit.timeseries import duckdb_storage, storage
 from lseg_toolkit.timeseries.cache import (
     CacheConfig,
