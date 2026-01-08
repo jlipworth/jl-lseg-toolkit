@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from lseg_toolkit.exceptions import DataRetrievalError
-from lseg_toolkit.timeseries import duckdb_storage
+from lseg_toolkit.timeseries import storage as duckdb_storage
 from lseg_toolkit.timeseries.client import LSEGDataClient, get_client
 from lseg_toolkit.timeseries.constants import (
     ALL_FUTURES_MAPPING,
@@ -58,7 +58,8 @@ from lseg_toolkit.timeseries.constants import (
     USD_OIS_TENORS,
     USD_REPO_RICS,
 )
-from lseg_toolkit.timeseries.duckdb_storage import (
+from lseg_toolkit.timeseries.enums import AssetClass, Granularity
+from lseg_toolkit.timeseries.storage import (
     DEFAULT_DUCKDB_PATH,
     get_data_range,
     get_data_shape,
@@ -67,7 +68,6 @@ from lseg_toolkit.timeseries.duckdb_storage import (
     save_instrument,
     save_timeseries,
 )
-from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable

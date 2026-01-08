@@ -532,10 +532,10 @@ class TestDataCoverage:
         assert len(coverage) == 2
 
         zn_row = coverage[coverage["symbol"] == "ZN"].iloc[0]
-        assert zn_row["days"] == 100
+        assert zn_row["row_count"] == 100
 
         eur_row = coverage[coverage["symbol"] == "EURUSD"].iloc[0]
-        assert eur_row["days"] == 50
+        assert eur_row["row_count"] == 50
 
 
 class TestExtractionLogging:
