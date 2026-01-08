@@ -415,16 +415,19 @@ CREATE INDEX idx_timeseries_quote_ts ON timeseries_quote(instrument_id, ts DESC)
 
 #### timeseries_rate
 
-Rate data for interest rate derivatives (OIS, IRS, FRA, Repo, CDS).
+Rate data for interest rate derivatives (OIS, IRS, FRA, Repo, CDS). Includes OHLC-style fields for intraday rate analysis.
 
 ```sql
 CREATE TABLE timeseries_rate (
     instrument_id INTEGER NOT NULL REFERENCES instruments(id),
     ts TIMESTAMP NOT NULL,
     granularity VARCHAR NOT NULL,
-    rate DOUBLE NOT NULL,                -- Primary rate (fixed leg / repo rate)
+    rate DOUBLE NOT NULL,                -- Primary rate (mid of bid/ask)
     bid DOUBLE,
     ask DOUBLE,
+    open_rate DOUBLE,                    -- Opening rate (mid of OPEN_BID/OPEN_ASK)
+    high_rate DOUBLE,                    -- High rate of day (BID_HIGH_1)
+    low_rate DOUBLE,                     -- Low rate of day (BID_LOW_1)
     rate_2 DOUBLE,                       -- Secondary rate (floating leg / reverse repo)
     spread DOUBLE,                       -- Spread over reference
     reference_rate VARCHAR,              -- Reference rate used
@@ -434,6 +437,12 @@ CREATE TABLE timeseries_rate (
 
 CREATE INDEX idx_timeseries_rate_ts ON timeseries_rate(instrument_id, ts DESC);
 ```
+
+**LSEG Field Mapping:**
+- `rate` = mid of BID/ASK
+- `open_rate` = mid of OPEN_BID/OPEN_ASK
+- `high_rate` = BID_HIGH_1 (rates quoted on bid side)
+- `low_rate` = BID_LOW_1
 
 #### timeseries_bond
 
@@ -449,16 +458,17 @@ CREATE TABLE timeseries_bond (
     accrued_interest DOUBLE,             -- Accrued interest since last coupon
     bid DOUBLE,
     ask DOUBLE,
+    open_price DOUBLE,                   -- Opening price (MID_OPEN)
+    open_yield DOUBLE,                   -- Opening yield (OPEN_YLD)
     yield DOUBLE NOT NULL,               -- Yield to maturity
     yield_bid DOUBLE,
     yield_ask DOUBLE,
     yield_high DOUBLE,
     yield_low DOUBLE,
-    duration DOUBLE,                     -- Macaulay duration
-    mod_duration DOUBLE,                 -- Modified duration
+    mac_duration DOUBLE,                 -- Macaulay duration (for immunization)
+    mod_duration DOUBLE,                 -- Modified duration (for risk)
     convexity DOUBLE,
-    dv01 DOUBLE,                         -- Dollar value of 1bp
-    credit_spread DOUBLE,                -- Credit spread
+    dv01 DOUBLE,                         -- Dollar value of 1bp (BPV)
     z_spread DOUBLE,                     -- Z-spread
     oas DOUBLE,                          -- Option-adjusted spread
     PRIMARY KEY (instrument_id, ts, granularity)

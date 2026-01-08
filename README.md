@@ -14,7 +14,7 @@ A Python toolkit for extracting and analyzing financial data from the LSEG (Lond
 
 - **Earnings Reports**: Screen 13 global indices by upcoming earnings dates with timezone conversion
 - **Equity Screener**: Filter stocks by market cap, valuation metrics, and financial criteria
-- **Time Series Extraction**: Bond futures, FX, OIS, Treasury yields with SQLite storage and Parquet export
+- **Time Series Extraction**: Bond futures, FX, OIS, Treasury yields with DuckDB storage and Parquet export
 - **Continuous Contracts**: Build ratio/difference-adjusted continuous futures with configurable roll methods
 - **Financial Ratios**: 20+ valuation, debt, and performance metrics
 - **Consensus Estimates**: Analyst EPS/revenue estimates (NTM, FY1, FY2, FQ1, FQ2)
@@ -146,7 +146,7 @@ lseg-screener [OPTIONS]
 
 ### lseg-extract
 
-Extract time series data for bond futures, FX, OIS, Treasury yields, and FRAs with SQLite storage and Parquet export.
+Extract time series data for bond futures, FX, OIS, Treasury yields, and FRAs with DuckDB storage and Parquet export.
 
 ```bash
 lseg-extract SYMBOLS... [OPTIONS]
@@ -154,18 +154,17 @@ lseg-extract SYMBOLS... [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `--asset-class` | Asset class: futures, fx, ois, govt-yield, fra (auto-detected if not specified) |
+| `--asset-class` | Asset class: futures, fx, ois, govt-yield, fra (auto-detected if omitted) |
 | `--start DATE` | Start date (YYYY-MM-DD, default: 1 year ago) |
 | `--end DATE` | End date (YYYY-MM-DD, default: today) |
-| `--interval` | Data interval: tick, 1min, 5min, 10min, 30min, hourly, daily, weekly, monthly (default: daily) |
+| `--interval` | Granularity: tick, 1min, 5min, 10min, 30min, hourly, daily, weekly, monthly |
 | `--continuous` | Build continuous contract (futures only) |
 | `--adjust` | Price adjustment: none, ratio, difference (default: ratio) |
-| `--roll-method` | Roll detection: volume, first-notice, fixed-days, expiry (default: volume) |
-| `--roll-days N` | Days before expiry for fixed-days roll (default: 5) |
-| `--db PATH` | SQLite database path (default: data/timeseries.db) |
+| `--roll-method` | Roll detection: volume, first-notice, fixed-days, expiry |
+| `--db PATH` | DuckDB database path (default: data/timeseries.duckdb) |
 | `--parquet DIR` | Parquet output directory (default: data/parquet) |
 | `--no-parquet` | Skip Parquet export |
-| `--list` | Show supported instruments and examples |
+| `--list` | Show supported instruments |
 | `-q, --quiet` | Suppress progress output |
 
 **Examples:**
@@ -177,26 +176,25 @@ lseg-extract ZN ZB
 # Build continuous contract with ratio adjustment
 lseg-extract ZN --continuous --adjust ratio
 
-# Extract FX spot data (hourly, recent 30 days)
-lseg-extract EURUSD USDJPY --asset-class fx --start 2025-12-01 --interval hourly
+# Extract FX spot data (5-minute bars, recent 30 days)
+lseg-extract EURUSD USDJPY --asset-class fx --start 2025-12-01 --interval 5min
 
-# Extract OIS curve (1M, 3M, 1Y, 5Y, 10Y)
-lseg-extract 1M 3M 1Y 5Y 10Y --asset-class ois
+# Extract full USD OIS curve
+lseg-extract 1M 3M 6M 1Y 2Y 5Y 10Y 30Y --asset-class ois
 
 # Extract Treasury yield curve
 lseg-extract 2Y 5Y 10Y 30Y --asset-class govt-yield
 
-# Custom output paths
-lseg-extract ZN --db data/custom.db --parquet output/parquet/
-
-# List all supported instruments
+# List all 200+ supported instruments
 lseg-extract --list
 ```
 
 **Output:**
-- **SQLite database** (`data/timeseries.db`): Relational storage with instruments, OHLCV data, roll events
+- **DuckDB database** (`data/timeseries.duckdb`): Analytics-optimized storage with shape-specific tables
 - **Parquet files** (`data/parquet/`): Columnar format for C++/Rust consumption via Arrow
 - **metadata.json**: Instrument registry, date ranges, roll history
+
+For complete documentation, see [Time Series Guide](docs/TIMESERIES.md).
 
 ## Python API
 
@@ -306,16 +304,14 @@ lseg_toolkit/
 │   └── cli.py              # Command-line interface
 │
 ├── timeseries/             # Time Series Extraction Pipeline
-│   ├── pipeline.py         # Extraction orchestration
-│   ├── fetch.py            # LSEG data fetching
+│   ├── cache.py            # Async cache layer with gap detection
+│   ├── client.py           # LSEG data client
+│   ├── duckdb_storage.py   # DuckDB persistence (shape-specific tables)
 │   ├── rolling.py          # Continuous contract construction
-│   ├── storage.py          # SQLite persistence layer
-│   ├── export.py           # Parquet export
-│   ├── config.py           # Extraction configuration
-│   ├── constants.py        # Symbol mappings (CME↔LSEG)
-│   ├── enums.py            # Asset classes, granularities
-│   ├── models/             # Dataclass models
-│   └── cli.py              # Command-line interface
+│   ├── constants.py        # Symbol mappings (CME↔LSEG, 200+ RICs)
+│   ├── enums.py            # Asset classes, granularities, data shapes
+│   ├── models/             # Instrument and timeseries dataclasses
+│   └── cli.py              # lseg-extract CLI
 │
 ├── excel.py                # Formatted Excel workbook export
 ├── data.py                 # DataFrame processing utilities
@@ -338,7 +334,10 @@ LsegError (base)
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/LSEG_API_REFERENCE.md) | Available indices, fields, API patterns |
+| [Time Series Guide](docs/TIMESERIES.md) | Extraction, storage, and Python API |
+| [Instruments](docs/INSTRUMENTS.md) | 200+ validated RICs by asset class |
+| [Storage Schema](docs/STORAGE_SCHEMA.md) | DuckDB tables and data shapes |
+| [API Reference](docs/LSEG_API_REFERENCE.md) | LSEG fields and API patterns |
 | [Architecture](docs/ARCHITECTURE.md) | System design and data flow |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [Development](docs/DEVELOPMENT.md) | Testing, code quality, setup |
