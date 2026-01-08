@@ -10,6 +10,9 @@
 - [x] **RIC Pattern Discovery** - Found `=RRPS` for US yields intraday, `EUREST{tenor}=` for EUR OIS
 - [x] **Storage Schema Redesign (RUNBOOK 23)** - Implemented multi-table schema by data shape
 - [x] **Async Cache Layer (RUNBOOK 24)** - Implemented DataCache with sync/async APIs
+- [x] **Equity Indices (Spot)** - Validated 34/36 global indices (US, Canada, Europe, Asia, LatAm)
+- [x] **Volatility Indices** - Validated 8/18 VIX family indices (.VIX, .VXD, .VVIX, .V2TX, etc.)
+- [x] **Index Futures Expansion** - Added 9 new futures (VX, SXF, FXXP, FMIB, YAP, SSN, IND, WSP, IPC)
 
 ---
 
@@ -35,9 +38,10 @@ These runbooks are effectively complete - the data is validated and documented i
 | 16 | JPY Rates | ✅ Done (JPY OIS 8/8, JPY IRS 9/9) |
 | 17 | CHF Rates | ✅ Done (CHF OIS 8/8) |
 | 18 | CAD Rates | ✅ Done (CAD OIS 8/8) |
-| 19 | Stock Index Futures | ✅ Done (ES, NQ, STXE, etc) |
+| 19 | Stock Index Futures | ✅ Done (25 futures across US, EU, Asia, LatAm) |
 | 20 | Commodity Futures | ✅ Done (24/24 commodities) |
 | 25 | Timezone Conventions | ✅ Done (UTC confirmed) |
+| 26 | Equity Indices (Spot) | ✅ Done (34/36 global indices + 8 VIX) |
 
 ---
 

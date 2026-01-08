@@ -41,18 +41,23 @@ FX_FUTURES_MAPPING: dict[str, str] = {
     "6S": "SF",  # Swiss Franc
 }
 
-# Stock Index Futures (Validated 2026-01-06)
+# Stock Index Futures (Validated 2026-01-07)
 INDEX_FUTURES_MAPPING: dict[str, str] = {
     # US (CME)
     "ES": "ES",  # E-mini S&P 500
     "NQ": "NQ",  # E-mini Nasdaq-100
     "RTY": "RTY",  # E-mini Russell 2000
     "YM": "YM",  # E-mini Dow
+    "VX": "VX",  # VIX Futures
+    # Canada (TMX)
+    "SXF": "SXF",  # S&P/TSX 60
     # European (Eurex/ICE)
     "FESX": "STXE",  # Euro Stoxx 50
+    "FXXP": "FXXP",  # STOXX Europe 600
     "FDAX": "FDX",  # DAX
     "FCE": "FCE",  # CAC 40
     "Z": "FFI",  # FTSE 100
+    "FMIB": "FMIB",  # FTSE MIB (Italy)
     "FSMI": "FSMI",  # SMI (Swiss)
     "FTI": "AEX",  # AEX (Dutch)
     # Asian
@@ -62,6 +67,12 @@ INDEX_FUTURES_MAPPING: dict[str, str] = {
     "HCEI": "HCEI",  # Hang Seng China Enterprises
     "KS": "KS",  # KOSPI 200
     "TX": "TX",  # TAIEX (Taiwan)
+    "YAP": "YAP",  # ASX 200 Mini (Australia)
+    "SSN": "SSN",  # SGX Nifty (India)
+    # Latin America
+    "IND": "IND",  # Bovespa (Brazil)
+    "WSP": "WSP",  # Mini Bovespa (Brazil)
+    "IPC": "IPC",  # IPC Mexico
 }
 
 # Bond Futures - Asian (Validated 2026-01-06)
@@ -113,6 +124,65 @@ ALL_FUTURES_MAPPING: dict[str, str] = {
 
 # Reverse mapping: LSEG RIC root → CME symbol
 LSEG_TO_CME_MAPPING: dict[str, str] = {v: k for k, v in ALL_FUTURES_MAPPING.items()}
+
+
+# =============================================================================
+# Equity Index (Spot) RICs (Validated 2026-01-07)
+# =============================================================================
+
+EQUITY_INDEX_RICS: dict[str, str] = {
+    # US Indices
+    "SPX": ".SPX",  # S&P 500
+    "NDX": ".NDX",  # Nasdaq 100
+    "DJI": ".DJI",  # Dow Jones Industrial
+    "RUT": ".RUT",  # Russell 2000
+    "RUI": ".RUI",  # Russell 1000
+    "RUA": ".RUA",  # Russell 3000
+    "IXIC": ".IXIC",  # Nasdaq Composite
+    "SP400": ".SP400",  # S&P MidCap 400
+    # Canadian
+    "SPTSE": ".SPTSE",  # S&P/TSX Composite (old)
+    "GSPTSE": ".GSPTSE",  # S&P/TSX Composite
+    # European
+    "FTSE": ".FTSE",  # FTSE 100
+    "GDAXI": ".GDAXI",  # DAX
+    "FCHI": ".FCHI",  # CAC 40
+    "FTMIB": ".FTMIB",  # FTSE MIB
+    "AEX": ".AEX",  # AEX
+    "IBEX": ".IBEX",  # IBEX 35
+    "STOXX": ".STOXX",  # STOXX Europe 600
+    "STOXX50E": ".STOXX50E",  # Euro STOXX 50
+    # Asian
+    "N225": ".N225",  # Nikkei 225
+    "TOPX": ".TOPX",  # TOPIX
+    "CSI300": ".CSI000300",  # CSI 300
+    "HSI": ".HSI",  # Hang Seng
+    "KS11": ".KS11",  # KOSPI
+    "AXJO": ".AXJO",  # ASX 200
+    # Latin American
+    "BVSP": ".BVSP",  # Bovespa
+    "MXX": ".MXX",  # IPC Mexico
+    "SPIPSA": ".SPIPSA",  # S&P IPSA Chile
+    "MERV": ".MERV",  # MERVAL Argentina
+    "IBC": ".IBC",  # IBC Venezuela
+    "COLCAP": ".COLCAP",  # COLCAP Colombia
+    # Other
+    "NSEI": ".NSEI",  # Nifty 50
+    "SPCY": ".SPCY",  # S&P Emerging Markets
+    "MSCIWLD": ".dMIWD00000PUS",  # MSCI World USD
+}
+
+# Volatility Indices (Validated 2026-01-07)
+VOLATILITY_INDEX_RICS: dict[str, str] = {
+    "VIX": ".VIX",  # CBOE VIX (S&P 500)
+    "VXD": ".VXD",  # VXD (Dow Jones)
+    "VVIX": ".VVIX",  # VVIX (VIX of VIX)
+    "VIX9D": ".VIX9D",  # VIX 9-Day
+    "VIX3M": ".VIX3M",  # VIX 3-Month
+    "VIX6M": ".VIX6M",  # VIX 6-Month
+    "VIX1Y": ".VIX1Y",  # VIX 1-Year
+    "V2TX": ".V2TX",  # VSTOXX (European)
+}
 
 
 # =============================================================================
