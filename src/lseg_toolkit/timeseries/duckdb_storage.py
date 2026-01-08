@@ -157,6 +157,48 @@ CREATE TABLE IF NOT EXISTS instrument_fixing (
     administrator VARCHAR  -- 'Fed', 'ECB', 'BoE'
 );
 
+-- Equity instrument details (stocks)
+CREATE TABLE IF NOT EXISTS instrument_equity (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    exchange VARCHAR,  -- 'NYSE', 'NASDAQ', 'LSE', 'XETRA', 'TSE'
+    country VARCHAR NOT NULL,  -- 'US', 'GB', 'DE', 'JP'
+    currency VARCHAR NOT NULL,  -- 'USD', 'GBP', 'EUR', 'JPY'
+    sector VARCHAR,  -- 'Technology', 'Healthcare', 'Financials'
+    industry VARCHAR,  -- 'Software', 'Semiconductors', 'Banks'
+    isin VARCHAR,  -- International Securities Identification Number
+    cusip VARCHAR,  -- US/Canada identifier
+    sedol VARCHAR,  -- UK identifier
+    market_cap_category VARCHAR  -- 'large', 'mid', 'small', 'micro'
+);
+
+-- ETF instrument details
+CREATE TABLE IF NOT EXISTS instrument_etf (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    exchange VARCHAR,  -- 'NYSE', 'NASDAQ', 'LSE'
+    country VARCHAR NOT NULL,  -- 'US', 'IE', 'LU'
+    currency VARCHAR NOT NULL,
+    asset_class_focus VARCHAR,  -- 'equity', 'fixed_income', 'commodity', 'multi_asset'
+    geography_focus VARCHAR,  -- 'US', 'Europe', 'EM', 'Global'
+    benchmark_index VARCHAR,  -- 'S&P 500', 'MSCI World'
+    expense_ratio DOUBLE,
+    isin VARCHAR,
+    cusip VARCHAR,
+    is_leveraged BOOLEAN DEFAULT FALSE,
+    is_inverse BOOLEAN DEFAULT FALSE
+);
+
+-- Index instrument details (spot indices like .SPX, .DJI)
+CREATE TABLE IF NOT EXISTS instrument_index (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    index_family VARCHAR,  -- 'S&P', 'MSCI', 'FTSE', 'Stoxx'
+    country VARCHAR,  -- 'US', 'GB', 'DE', 'JP', 'Global'
+    calculation_method VARCHAR,  -- 'price_weighted', 'market_cap_weighted', 'equal_weighted'
+    currency VARCHAR NOT NULL,
+    num_constituents INTEGER,
+    base_date DATE,
+    base_value DOUBLE
+);
+
 -- =============================================================================
 -- Timeseries Tables (by data shape)
 -- =============================================================================

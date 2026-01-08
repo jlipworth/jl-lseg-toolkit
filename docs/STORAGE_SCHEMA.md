@@ -79,6 +79,46 @@ erDiagram
         VARCHAR administrator
     }
 
+    instrument_equity {
+        INTEGER instrument_id PK,FK
+        VARCHAR exchange
+        VARCHAR country
+        VARCHAR currency
+        VARCHAR sector
+        VARCHAR industry
+        VARCHAR isin
+        VARCHAR cusip
+        VARCHAR sedol
+        VARCHAR market_cap_category
+    }
+
+    instrument_etf {
+        INTEGER instrument_id PK,FK
+        VARCHAR exchange
+        VARCHAR country
+        VARCHAR currency
+        VARCHAR asset_class_focus
+        VARCHAR geography_focus
+        VARCHAR benchmark_index
+        DOUBLE expense_ratio
+        VARCHAR isin
+        VARCHAR cusip
+        VARCHAR legal_structure
+        BOOLEAN is_leveraged
+        BOOLEAN is_inverse
+    }
+
+    instrument_index {
+        INTEGER instrument_id PK,FK
+        VARCHAR index_family
+        VARCHAR country
+        VARCHAR calculation_method
+        VARCHAR currency
+        INTEGER num_constituents
+        DATE base_date
+        DOUBLE base_value
+    }
+
     timeseries_ohlcv {
         INTEGER instrument_id PK,FK
         TIMESTAMP ts PK
@@ -181,6 +221,9 @@ erDiagram
     instruments ||--o| instrument_rate : "has"
     instruments ||--o| instrument_bond : "has"
     instruments ||--o| instrument_fixing : "has"
+    instruments ||--o| instrument_equity : "has"
+    instruments ||--o| instrument_etf : "has"
+    instruments ||--o| instrument_index : "has"
     instruments ||--o{ timeseries_ohlcv : "has"
     instruments ||--o{ timeseries_quote : "has"
     instruments ||--o{ timeseries_rate : "has"
@@ -216,8 +259,11 @@ ASSET_CLASS_TO_DATA_SHAPE = {
     AssetClass.STIR_FUTURES: DataShape.OHLCV,
     AssetClass.INDEX_FUTURES: DataShape.OHLCV,
     AssetClass.FX_FUTURES: DataShape.OHLCV,
+    AssetClass.COMMODITY_FUTURES: DataShape.OHLCV,
     AssetClass.COMMODITY: DataShape.OHLCV,
     AssetClass.EQUITY: DataShape.OHLCV,
+    AssetClass.ETF: DataShape.OHLCV,
+    AssetClass.EQUITY_INDEX: DataShape.OHLCV,
 
     # Quote (dealer-quoted)
     AssetClass.FX_SPOT: DataShape.QUOTE,
@@ -266,7 +312,7 @@ CREATE INDEX idx_instruments_asset_class ON instruments(asset_class);
 CREATE INDEX idx_instruments_data_shape ON instruments(data_shape);
 ```
 
-**Asset Classes**: `bond_futures`, `stir_futures`, `index_futures`, `fx_futures`, `fx_spot`, `fx_forward`, `ois`, `irs`, `fra`, `deposit`, `repo`, `cds`, `govt_yield`, `corp_bond`, `commodity`, `equity`, `fixing`
+**Asset Classes**: `bond_futures`, `stir_futures`, `index_futures`, `fx_futures`, `commodity_futures`, `fx_spot`, `fx_forward`, `ois`, `irs`, `fra`, `deposit`, `repo`, `cds`, `govt_yield`, `corp_bond`, `commodity`, `equity`, `etf`, `equity_index`, `fixing`
 
 **Data Shapes**: `ohlcv`, `quote`, `rate`, `bond`, `fixing`
 
@@ -361,11 +407,76 @@ CREATE TABLE instrument_fixing (
 );
 ```
 
+#### instrument_equity
+
+Stores individual stock details.
+
+```sql
+CREATE TABLE instrument_equity (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    exchange VARCHAR,                    -- 'NYSE', 'NASDAQ', 'LSE', 'XETRA', 'TSE'
+    country VARCHAR NOT NULL,            -- Country code ('US', 'GB', 'DE', 'JP')
+    currency VARCHAR NOT NULL,           -- Quote currency
+    sector VARCHAR,                      -- GICS sector
+    industry VARCHAR,                    -- GICS industry
+    isin VARCHAR,                        -- ISIN identifier
+    cusip VARCHAR,                       -- CUSIP (US)
+    sedol VARCHAR,                       -- SEDOL (UK)
+    market_cap_category VARCHAR          -- 'large_cap', 'mid_cap', 'small_cap'
+);
+```
+
+#### instrument_etf
+
+Stores ETF/fund details with LSEG-sourced metadata.
+
+```sql
+CREATE TABLE instrument_etf (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    exchange VARCHAR,                    -- 'ARCX' (NYSE Arca), 'XXXX' (NASDAQ)
+    country VARCHAR NOT NULL,            -- Country code
+    currency VARCHAR NOT NULL,           -- Quote currency
+    asset_class_focus VARCHAR,           -- 'Equity', 'Fixed Income', 'Commodity'
+    geography_focus VARCHAR,             -- 'United States of America', 'Global', etc.
+    benchmark_index VARCHAR,             -- 'S&P 500 TR', 'NASDAQ 100 TR', etc.
+    expense_ratio DOUBLE,                -- Expense ratio (if available)
+    isin VARCHAR,                        -- ISIN identifier
+    cusip VARCHAR,                       -- CUSIP identifier
+    legal_structure VARCHAR,             -- 'Exchange-Traded Open-end Funds', 'Grantor Trusts'
+    is_leveraged BOOLEAN DEFAULT FALSE,  -- Leveraged ETF (2x, 3x)
+    is_inverse BOOLEAN DEFAULT FALSE     -- Inverse ETF (short exposure)
+);
+```
+
+**LSEG Field Sources**:
+- `benchmark_index`: `TR.IndexName`
+- `geography_focus`: `TR.FundGeographicFocus`
+- `legal_structure`: `TR.FundLegalStructure`
+- `isin`, `cusip`: `TR.ISIN`, `TR.CUSIP`
+- `market_cap` (AUM): `TR.CompanyMarketCap`
+
+#### instrument_index
+
+Stores spot index details (e.g., .SPX, .DJI, .VIX).
+
+```sql
+CREATE TABLE instrument_index (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    index_family VARCHAR,                -- 'S&P', 'Dow Jones', 'FTSE', 'STOXX', 'VIX'
+    country VARCHAR,                     -- Primary country
+    calculation_method VARCHAR,          -- 'price_weighted', 'cap_weighted', 'equal_weighted'
+    currency VARCHAR NOT NULL,           -- Quote currency
+    num_constituents INTEGER,            -- Number of components
+    base_date DATE,                      -- Index inception/base date
+    base_value DOUBLE                    -- Index base value (typically 100 or 1000)
+);
+```
+
 ### Timeseries Tables
 
 #### timeseries_ohlcv
 
-OHLCV data for exchange-traded instruments (futures, equities, commodities).
+OHLCV data for exchange-traded instruments (futures, equities, ETFs, indices, commodities).
 
 ```sql
 CREATE TABLE timeseries_ohlcv (

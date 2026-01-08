@@ -65,16 +65,70 @@ Need to research chain discovery and Greeks fields.
 
 ---
 
+## Schema Roadmap
+
+### Instrument Detail Tables
+
+| Table | Status | Asset Classes |
+|-------|--------|---------------|
+| `instrument_futures` | ✅ Done | Bond, STIR, Index, FX, Commodity futures |
+| `instrument_fx` | ✅ Done | FX spot, FX forwards |
+| `instrument_rate` | ✅ Done | OIS, IRS, FRA, Repo, Deposit |
+| `instrument_bond` | ✅ Done | Govt yields, Corp bonds |
+| `instrument_fixing` | ✅ Done | SOFR, ESTR, SONIA, EURIBOR |
+| `instrument_equity` | ✅ Done | Stocks (AAPL.O, MSFT.O, etc.) |
+| `instrument_etf` | ✅ Done | ETFs (SPY.P, QQQ.O, etc.) |
+| `instrument_index` | ✅ Done | Spot indices (.SPX, .DJI, etc.) |
+| `instrument_commodity` | 🔄 TODO | Commodity spot (not futures) |
+| `instrument_cds` | 🔄 TODO | CDS indices, sovereign CDS |
+| `instrument_option` | 🔄 TODO | Options chains metadata |
+
+### Save Function Coverage
+
+| Data Shape | Table | Save Function | Status |
+|------------|-------|---------------|--------|
+| OHLCV | timeseries_ohlcv | `_save_ohlcv_data` | ✅ Done |
+| Quote | timeseries_quote | `_save_quote_data` | ✅ Done |
+| Rate | timeseries_rate | `_save_rate_data` | ✅ Done |
+| Bond | timeseries_bond | `_save_bond_data` | ✅ Done |
+| Fixing | timeseries_fixing | `_save_fixing_data` | ✅ Done |
+
+### Asset Class → Data Shape Mapping
+
+| Asset Class | Data Shape | Notes |
+|-------------|------------|-------|
+| bond_futures, stir_futures, index_futures, fx_futures, commodity_futures | OHLCV | Futures use settle + OI |
+| equity, etf, equity_index | OHLCV | Stocks/ETFs use close + volume |
+| commodity | OHLCV | Commodity spot (gold, oil) |
+| fx_spot, fx_forward | Quote | Bid/ask quotes |
+| ois, irs, fra, deposit, repo | Rate | Rate quotes |
+| govt_yield, corp_bond | Bond | Yield + price + analytics |
+| fixing | Fixing | Single daily value |
+| cds | Rate or custom | TBD - needs research |
+
+---
+
 ## Technical Debt
 
-### 1. Code Updates Needed
+### 1. Code Refactoring (from agent review)
+
+See `dev_scripts/refactor_recommendations.md` for detailed analysis.
+
+**Priority 1 - Critical:**
+| Item | Impact | Estimated LOC Reduction |
+|------|--------|-------------------------|
+| Extract FieldMapper class | Centralize LSEG field mappings | -400 lines |
+| Extract `_bulk_insert` helper | DRY for all save functions | -150 lines |
+| Unify instrument detail saves | Replace 7 functions with 1 | -310 lines |
+
+### 2. Code Updates Needed
 
 | File | Change Needed |
 |------|---------------|
 | `fetch.py` | Add field mappings for different data shapes |
 | `constants.py` | Add LSEG→storage field mappings |
 
-### 2. Missing Tests
+### 3. Missing Tests
 
 - No tests for intraday data fetching
 - ~~No tests for DuckDB storage~~ (added in test_duckdb_storage.py)
