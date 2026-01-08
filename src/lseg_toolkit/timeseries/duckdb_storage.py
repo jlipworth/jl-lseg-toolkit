@@ -207,6 +207,9 @@ CREATE TABLE IF NOT EXISTS timeseries_rate (
     rate DOUBLE NOT NULL,
     bid DOUBLE,
     ask DOUBLE,
+    open_rate DOUBLE,  -- Opening rate (OPEN_BID/ASK mid)
+    high_rate DOUBLE,  -- High rate of day
+    low_rate DOUBLE,   -- Low rate of day
     rate_2 DOUBLE,  -- Secondary rate (floating leg / reverse repo)
     spread DOUBLE,
     reference_rate VARCHAR,
@@ -225,16 +228,17 @@ CREATE TABLE IF NOT EXISTS timeseries_bond (
     accrued_interest DOUBLE,  -- Accrued interest
     bid DOUBLE,
     ask DOUBLE,
+    open_price DOUBLE,  -- Opening price
+    open_yield DOUBLE,  -- Opening yield
     yield DOUBLE NOT NULL,
     yield_bid DOUBLE,
     yield_ask DOUBLE,
     yield_high DOUBLE,
     yield_low DOUBLE,
-    duration DOUBLE,
-    mod_duration DOUBLE,
+    mac_duration DOUBLE,  -- Macaulay duration (for immunization)
+    mod_duration DOUBLE,  -- Modified duration
     convexity DOUBLE,
     dv01 DOUBLE,
-    credit_spread DOUBLE,
     z_spread DOUBLE,
     oas DOUBLE,
     PRIMARY KEY (instrument_id, ts, granularity)
@@ -1214,6 +1218,23 @@ def _save_rate_data(
             ):
                 rate = (float(bid) + float(ask)) / 2
 
+        # Calculate open_rate from OPEN_BID/OPEN_ASK
+        open_bid = row.get("open_bid") or row.get("OPEN_BID")
+        open_ask = row.get("open_ask") or row.get("OPEN_ASK")
+        open_rate = row.get("open_rate")
+        if open_rate is None or pd.isna(open_rate):
+            if (
+                open_bid is not None
+                and open_ask is not None
+                and not pd.isna(open_bid)
+                and not pd.isna(open_ask)
+            ):
+                open_rate = (float(open_bid) + float(open_ask)) / 2
+
+        # Calculate high/low rate from BID_HIGH/BID_LOW (rates typically quoted on bid side)
+        high_rate = row.get("high_rate") or row.get("BID_HIGH_1")
+        low_rate = row.get("low_rate") or row.get("BID_LOW_1")
+
         rows.append(
             {
                 "instrument_id": instrument_id,
@@ -1222,6 +1243,9 @@ def _save_rate_data(
                 "rate": rate,
                 "bid": row.get("bid") or row.get("BID"),
                 "ask": row.get("ask") or row.get("ASK"),
+                "open_rate": open_rate,
+                "high_rate": high_rate,
+                "low_rate": low_rate,
                 "rate_2": row.get(
                     "rate_2"
                 ),  # Secondary rate (reverse repo, floating leg)
@@ -1236,9 +1260,10 @@ def _save_rate_data(
             """
             INSERT OR REPLACE INTO timeseries_rate (
                 instrument_id, ts, granularity, rate, bid, ask,
+                open_rate, high_rate, low_rate,
                 rate_2, spread, reference_rate, side
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 record["instrument_id"],
@@ -1247,6 +1272,9 @@ def _save_rate_data(
                 record["rate"],
                 record["bid"],
                 record["ask"],
+                record["open_rate"],
+                record["high_rate"],
+                record["low_rate"],
                 record["rate_2"],
                 record["spread"],
                 record["reference_rate"],
@@ -1283,13 +1311,17 @@ def _save_bond_data(
 
         # Get clean price and accrued interest
         clean_price = row.get("price") or row.get("MID_PRICE") or row.get("CLEAN_PRC")
-        accrued = row.get("accrued_interest") or row.get("ACCRUED_INT")
+        accrued = row.get("accrued_interest") or row.get("ACCR_INT")
         dirty = row.get("dirty_price") or row.get("DIRTY_PRC")
 
         # Calculate dirty price if we have clean + accrued but no dirty
         if dirty is None and clean_price is not None and accrued is not None:
             if not pd.isna(clean_price) and not pd.isna(accrued):
                 dirty = float(clean_price) + float(accrued)
+
+        # Get opening price/yield
+        open_price = row.get("open_price") or row.get("MID_OPEN")
+        open_yield = row.get("open_yield") or row.get("OPEN_YLD")
 
         rows.append(
             {
@@ -1301,16 +1333,17 @@ def _save_bond_data(
                 "accrued_interest": accrued,
                 "bid": row.get("bid") or row.get("BID"),
                 "ask": row.get("ask") or row.get("ASK"),
+                "open_price": open_price,
+                "open_yield": open_yield,
                 "yield": yld,
                 "yield_bid": row.get("yield_bid") or row.get("B_YLD_1"),
                 "yield_ask": row.get("yield_ask") or row.get("A_YLD_1"),
                 "yield_high": row.get("yield_high") or row.get("HIGH_YLD"),
                 "yield_low": row.get("yield_low") or row.get("LOW_YLD"),
-                "duration": row.get("duration") or row.get("DURTN"),
+                "mac_duration": row.get("mac_duration") or row.get("MAC_DURTN"),
                 "mod_duration": row.get("mod_duration") or row.get("MOD_DURTN"),
                 "convexity": row.get("convexity") or row.get("CONVEXITY"),
                 "dv01": row.get("dv01") or row.get("BPV"),
-                "credit_spread": row.get("credit_spread"),
                 "z_spread": row.get("z_spread") or row.get("ZSPREAD"),
                 "oas": row.get("oas") or row.get("OAS_BID"),
             }
@@ -1321,11 +1354,12 @@ def _save_bond_data(
             """
             INSERT OR REPLACE INTO timeseries_bond (
                 instrument_id, ts, granularity, price, dirty_price, accrued_interest,
-                bid, ask, yield, yield_bid, yield_ask, yield_high, yield_low,
-                duration, mod_duration, convexity, dv01,
-                credit_spread, z_spread, oas
+                bid, ask, open_price, open_yield,
+                yield, yield_bid, yield_ask, yield_high, yield_low,
+                mac_duration, mod_duration, convexity, dv01,
+                z_spread, oas
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 record["instrument_id"],
@@ -1336,16 +1370,17 @@ def _save_bond_data(
                 record["accrued_interest"],
                 record["bid"],
                 record["ask"],
+                record["open_price"],
+                record["open_yield"],
                 record["yield"],
                 record["yield_bid"],
                 record["yield_ask"],
                 record["yield_high"],
                 record["yield_low"],
-                record["duration"],
+                record["mac_duration"],
                 record["mod_duration"],
                 record["convexity"],
                 record["dv01"],
-                record["credit_spread"],
                 record["z_spread"],
                 record["oas"],
             ],
@@ -1676,7 +1711,8 @@ def _load_rate_data(
 ) -> pd.DataFrame:
     """Load rate data from timeseries_rate."""
     query = """
-        SELECT ts, rate, bid, ask, rate_2, spread, reference_rate, side
+        SELECT ts, rate, bid, ask, open_rate, high_rate, low_rate,
+               rate_2, spread, reference_rate, side
         FROM timeseries_rate
         WHERE instrument_id = ? AND granularity = ?
     """
@@ -1708,9 +1744,10 @@ def _load_bond_data(
     """Load bond data from timeseries_bond."""
     query = """
         SELECT ts, price, dirty_price, accrued_interest, bid, ask,
+               open_price, open_yield,
                yield, yield_bid, yield_ask, yield_high, yield_low,
-               duration, mod_duration, convexity, dv01,
-               credit_spread, z_spread, oas
+               mac_duration, mod_duration, convexity, dv01,
+               z_spread, oas
         FROM timeseries_bond
         WHERE instrument_id = ? AND granularity = ?
     """
@@ -2310,6 +2347,9 @@ def export_to_parquet(
                     t.rate,
                     t.bid,
                     t.ask,
+                    t.open_rate,
+                    t.high_rate,
+                    t.low_rate,
                     t.rate_2,
                     t.spread,
                     t.reference_rate,
@@ -2328,18 +2368,21 @@ def export_to_parquet(
                     t.ts as timestamp,
                     t.granularity,
                     t.price,
+                    t.dirty_price,
+                    t.accrued_interest,
                     t.bid,
                     t.ask,
+                    t.open_price,
+                    t.open_yield,
                     t.yield,
                     t.yield_bid,
                     t.yield_ask,
                     t.yield_high,
                     t.yield_low,
-                    t.duration,
+                    t.mac_duration,
                     t.mod_duration,
                     t.convexity,
                     t.dv01,
-                    t.credit_spread,
                     t.z_spread,
                     t.oas
                 FROM timeseries_bond t
@@ -2451,12 +2494,17 @@ def export_symbol_to_parquet(
             time_col = "ts"
         elif data_shape == DataShape.RATE:
             select_cols = (
-                "ts as timestamp, rate, bid, ask, rate_2, spread, reference_rate, side"
+                "ts as timestamp, rate, bid, ask, open_rate, high_rate, low_rate, "
+                "rate_2, spread, reference_rate, side"
             )
             table_name = "timeseries_rate"
             time_col = "ts"
         elif data_shape == DataShape.BOND:
-            select_cols = "ts as timestamp, price, bid, ask, yield, yield_bid, yield_ask, duration, convexity"
+            select_cols = (
+                "ts as timestamp, price, dirty_price, accrued_interest, bid, ask, "
+                "open_price, open_yield, yield, yield_bid, yield_ask, yield_high, yield_low, "
+                "mac_duration, mod_duration, convexity, dv01"
+            )
             table_name = "timeseries_bond"
             time_col = "ts"
         elif data_shape == DataShape.FIXING:

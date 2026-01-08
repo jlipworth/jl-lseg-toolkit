@@ -330,12 +330,12 @@ Both pipelines follow a similar pattern:
 
 | Module | Purpose |
 |--------|---------|
-| `fetch.py` | LSEG data fetching for multiple asset classes |
+| `cache.py` | Async cache layer with gap detection and batch fetching |
+| `client.py` | LSEG data client (wraps lseg.data API) |
+| `duckdb_storage.py` | DuckDB persistence with shape-specific tables |
 | `rolling.py` | Continuous contract construction and roll detection |
-| `storage.py` | SQLite database layer for time series persistence |
-| `export.py` | Parquet export for C++/Rust interoperability |
-| `constants.py` | CME↔LSEG symbol mappings and RIC patterns |
-| `enums.py` | Asset classes, granularity, roll methods |
+| `constants.py` | CME↔LSEG symbol mappings (200+ validated RICs) |
+| `enums.py` | Asset classes, granularity, data shapes, roll methods |
 | `models/` | Dataclass models for instruments and time series |
 
 ### Utility Layer
@@ -484,33 +484,35 @@ Pipelines handle missing data gracefully:
 
 ### Overview
 
-The timeseries module provides functionality for extracting, storing, and exporting historical market data for bond futures, FX, OIS curves, Treasury yields, and FRAs. Unlike the earnings/screener modules which export to Excel, timeseries data is stored in SQLite and optionally exported to Parquet for high-performance consumption by C++/Rust applications.
+The timeseries module provides functionality for extracting, storing, and exporting historical market data for bond futures, FX, OIS curves, Treasury yields, and FRAs. Unlike the earnings/screener modules which export to Excel, timeseries data is stored in DuckDB with shape-specific tables and can be exported to Parquet for high-performance consumption by C++/Rust applications.
 
 ### Data Flow
 
 ```mermaid
 flowchart TB
     subgraph Input
-        Config[TimeSeriesConfig]
+        Config[CacheConfig]
         Symbols[Symbols: ZN, EURUSD, etc.]
     end
 
-    subgraph Fetch["Fetch Layer"]
-        RIC[resolve_ric<br/>CME→LSEG mapping]
-        API[rd.get_history<br/>LSEG API]
+    subgraph Cache["Cache Layer"]
+        DataCache[DataCache<br/>async/sync API]
+        GapDetect[Gap Detection<br/>granularity-aware]
     end
 
-    subgraph Process["Processing Layer"]
-        Discrete[Discrete Contracts<br/>TYH5, TYM5, ...]
-        Roll[build_continuous<br/>Roll detection & stitching]
-        Continuous[Continuous Contract<br/>TYc1 ratio-adjusted]
+    subgraph Client["Client Layer"]
+        Registry[InstrumentRegistry<br/>200+ validated RICs]
+        API[LSEGDataClient<br/>lseg.data wrapper]
     end
 
-    subgraph Storage["Storage Layer"]
-        SQLite[(SQLite DB<br/>timeseries.db)]
-        Instruments[instruments table]
-        OHLCV[ohlcv_daily/intraday]
-        RollEvents[roll_events table]
+    subgraph Storage["DuckDB Storage"]
+        DuckDB[(DuckDB<br/>timeseries.duckdb)]
+        ShapeRouter[Data Shape Router]
+        OHLCV[timeseries_ohlcv]
+        Quote[timeseries_quote]
+        Bond[timeseries_bond]
+        Rate[timeseries_rate]
+        Fixing[timeseries_fixing]
     end
 
     subgraph Export["Export Layer"]
@@ -518,85 +520,82 @@ flowchart TB
         Metadata[metadata.json]
     end
 
-    Config --> RIC
-    Symbols --> RIC
-    RIC --> API
-    API --> Discrete
-    Discrete --> Roll
-    Roll --> Continuous
-    Continuous --> Instruments
-    Continuous --> OHLCV
-    Roll --> RollEvents
-    OHLCV --> Parquet
-    Instruments --> Metadata
-    RollEvents --> Metadata
+    Symbols --> DataCache
+    Config --> DataCache
+    DataCache --> GapDetect
+    GapDetect --> API
+    DataCache --> Registry
+    Registry --> API
+    API --> ShapeRouter
+    ShapeRouter --> OHLCV
+    ShapeRouter --> Quote
+    ShapeRouter --> Bond
+    ShapeRouter --> Rate
+    ShapeRouter --> Fixing
+    DuckDB --> Parquet
+    DuckDB --> Metadata
 ```
 
 ### Key Classes
 
-#### TimeSeriesConfig
+#### DataCache (Recommended Entry Point)
 
-Configuration dataclass with validation:
+Cache-first data access with async support:
 
 ```python
-@dataclass
-class TimeSeriesConfig:
-    symbols: list[str]              # ['ZN', 'ZB', 'EURUSD']
-    asset_class: AssetClass | None  # Auto-detected if None
-    start_date: date                # Default: 1 year ago
-    end_date: date                  # Default: today
-    granularity: Granularity        # daily, hourly, 1min, etc.
-    continuous: bool                # Build continuous contracts?
-    continuous_type: ContinuousType # ratio_adjusted, difference_adjusted, unadjusted
-    roll_method: RollMethod         # volume_switch, fixed_days, expiry
-    db_path: str                    # SQLite database path
-    parquet_dir: str                # Parquet export directory
-    export_parquet: bool            # Export to Parquet?
+from lseg_toolkit.timeseries import DataCache, CacheConfig
+
+cache = DataCache(CacheConfig(db_path="data/timeseries.duckdb"))
+
+# Sync usage
+df = cache.get_or_fetch("TYc1", start="2024-01-01", end="2024-12-31")
+
+# Async batch usage
+results = await cache.async_get_or_fetch_many(
+    ["TYc1", "USc1", "EUR="],
+    start="2024-01-01",
+    end="2024-12-31"
+)
 ```
 
-**Validation:**
-- Date range must be valid (`start_date <= end_date`)
-- Intraday granularity limited to 90-day range
-- `roll_days_before >= 1` for FIXED_DAYS roll method
+**Features:**
+- Granularity-aware gap detection (daily data doesn't satisfy 5min requests)
+- Instrument validation against 200+ known RICs
+- Async/await for parallel multi-RIC fetching
+- Progress tracking with callbacks
 
-#### TimeSeriesExtractionPipeline
+#### InstrumentRegistry
 
-Orchestrates the full extraction workflow:
+Validates RICs against known instruments from `constants.py`:
 
-1. **Asset Class Detection:** Auto-detect from symbol patterns if not specified
-2. **Data Fetching:** Route to appropriate fetch function based on asset class
-3. **Continuous Contract Building:** If enabled, stitch discrete contracts with roll events
-4. **Storage:** Save to SQLite with instrument metadata
-5. **Parquet Export:** Export OHLCV data and metadata for external consumption
+```python
+from lseg_toolkit.timeseries import InstrumentRegistry, get_registry
 
-### Storage Schema (SQLite)
+registry = get_registry()
+registry.validate_ric("TYc1")  # OK
+registry.validate_ric("INVALID")  # Raises InstrumentNotFoundError
+```
 
-**Core Tables:**
+### Storage Schema (DuckDB)
 
-- **`instruments`**: Master instrument registry
-  - `symbol`, `name`, `asset_class`, `lseg_ric`
-  - Indexed on `symbol` and `asset_class`
+Data is routed to shape-specific tables based on asset class:
 
-- **`ohlcv_daily`**: Daily OHLCV data
-  - `instrument_id`, `date`, `open`, `high`, `low`, `close`, `volume`, `settle`
-  - `adjustment_factor`, `source_contract` (for continuous series)
-  - Primary key: `(instrument_id, date)`
+| Data Shape | Table | Asset Classes |
+|------------|-------|---------------|
+| OHLCV | `timeseries_ohlcv` | Futures, equities, commodities |
+| Quote | `timeseries_quote` | FX, OIS, IRS, FRA |
+| Bond | `timeseries_bond` | Government bonds (yields + analytics) |
+| Rate | `timeseries_rate` | Swaps, repos |
+| Fixing | `timeseries_fixing` | SOFR, ESTR, SONIA |
 
-- **`ohlcv_intraday`**: Intraday OHLCV data (separate for performance)
-  - `instrument_id`, `timestamp`, `granularity`, OHLCV columns
-  - Primary key: `(instrument_id, timestamp, granularity)`
+**Instrument Tables:**
+- `instruments`: Master registry (symbol, asset_class, lseg_ric)
+- `instrument_future`: Futures metadata (expiry, tick size, point value)
+- `instrument_fx`: FX pair details (base/quote currency)
+- `instrument_rate`: Rate details (tenor, day count, payment frequency)
+- `instrument_bond`: Bond details (coupon, maturity, day count)
 
-- **`roll_events`**: Continuous contract roll history
-  - `continuous_id`, `roll_date`, `from_contract`, `to_contract`
-  - `from_price`, `to_price`, `price_gap`, `adjustment_factor`
-  - `roll_method` (how roll was detected)
-
-**Extension Tables:**
-
-- **`futures_contracts`**: Futures-specific metadata (expiry dates, tick size, point value)
-- **`fx_spots`**: FX pair details (base/quote currency, pip size)
-- **`ois_rates`**: OIS curve details (currency, tenor, reference rate)
-- **`govt_yields`**: Government yield details (country, tenor)
+For complete schema, see [STORAGE_SCHEMA.md](STORAGE_SCHEMA.md).
 
 ### Continuous Contract Construction
 
@@ -714,7 +713,7 @@ data/parquet/
 The timeseries module uses custom exceptions from `lseg_toolkit.exceptions`:
 
 - **`DataRetrievalError`**: API fetch failures, invalid RICs
-- **`StorageError`**: SQLite operations (save/load failures)
+- **`StorageError`**: DuckDB operations (save/load failures)
 - **`InstrumentNotFoundError`**: Unknown symbol/RIC
 - **`ConfigurationError`**: Invalid config (date range, granularity mismatch)
 
@@ -736,24 +735,22 @@ class ExtractionResult:
 | Operation | Scale | Typical Time |
 |-----------|-------|--------------|
 | Fetch 1 year daily data | 1 symbol | 2-5 sec |
-| Fetch 1 year daily data | 5 symbols | 8-15 sec |
+| Fetch 1 year daily data | 5 symbols (async) | 3-8 sec |
 | Build continuous contract | 1 symbol | 1-3 sec |
-| SQLite storage | 250 rows | <100 ms |
+| DuckDB storage | 250 rows | <100 ms |
 | Parquet export | 1 year data | <500 ms |
 
 **Optimization:**
-- Batch fetches when possible (same granularity, date range)
-- Use SQLite transactions for bulk inserts
-- Separate intraday table reduces query overhead
+- Async batch fetching with semaphore rate limiting
+- DuckDB transactions for bulk inserts
+- Shape-specific tables reduce query overhead
 
 ## Future Considerations
 
 ### Potential Enhancements
 
-1. **Async client:** Use `aiohttp` for concurrent API calls
-2. **Caching layer:** Cache constituent lists and static data
-3. **More export formats:** JSON, CSV, Parquet
-4. **Web interface:** Simple Flask/FastAPI dashboard
+1. **Web interface:** Simple Flask/FastAPI dashboard
+2. **Real-time streaming:** WebSocket integration for live data
 
 ### Extensibility Points
 
