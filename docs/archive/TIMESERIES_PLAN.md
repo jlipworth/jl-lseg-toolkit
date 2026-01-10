@@ -2,9 +2,9 @@
 
 > **Note:** This is a historical planning document. The implementation is complete.
 >
-> - **For users:** See [TIMESERIES.md](TIMESERIES.md)
-> - **For instrument list:** See [INSTRUMENTS.md](INSTRUMENTS.md)
-> - **For schema details:** See [STORAGE_SCHEMA.md](STORAGE_SCHEMA.md)
+> - **For users:** See [TIMESERIES.md](../TIMESERIES.md)
+> - **For instrument list:** See [INSTRUMENTS.md](../INSTRUMENTS.md)
+> - **For schema details:** See [STORAGE_SCHEMA.md](../STORAGE_SCHEMA.md)
 
 ---
 
