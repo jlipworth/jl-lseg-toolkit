@@ -141,6 +141,40 @@ CREATE TABLE IF NOT EXISTS instrument_index (
     base_value DOUBLE
 );
 
+-- Commodity spot details (precious metals, energy spot)
+CREATE TABLE IF NOT EXISTS instrument_commodity (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    commodity_type VARCHAR NOT NULL,  -- 'precious_metal', 'energy', 'agricultural', 'base_metal'
+    unit VARCHAR,  -- 'oz', 'barrel', 'bushel', 'mt'
+    currency VARCHAR NOT NULL,  -- 'USD', 'EUR'
+    quote_convention VARCHAR  -- 'per_oz', 'per_barrel', 'per_mt'
+);
+
+-- CDS instrument details (credit default swaps)
+CREATE TABLE IF NOT EXISTS instrument_cds (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    index_family VARCHAR,  -- 'iTraxx', 'CDX'
+    series INTEGER,  -- Series number (e.g., 42 for iTraxx Europe S42)
+    tenor VARCHAR NOT NULL,  -- '5Y', '10Y'
+    currency VARCHAR NOT NULL,
+    restructuring_type VARCHAR,  -- 'XR' (no restructuring), 'CR', 'MR', 'MM'
+    reference_entity VARCHAR  -- For single-name CDS: issuer name
+);
+
+-- Option instrument details
+CREATE TABLE IF NOT EXISTS instrument_option (
+    instrument_id INTEGER PRIMARY KEY REFERENCES instruments(id),
+    underlying_symbol VARCHAR NOT NULL,  -- 'AAPL.O', 'SPY.P', '.SPX'
+    underlying_id INTEGER REFERENCES instruments(id),  -- FK to underlying instrument
+    option_type VARCHAR NOT NULL,  -- 'call', 'put'
+    strike DOUBLE NOT NULL,
+    expiry_date DATE NOT NULL,
+    exercise_style VARCHAR NOT NULL,  -- 'american', 'european'
+    contract_size INTEGER DEFAULT 100,
+    exchange VARCHAR,  -- 'CBOE', 'ISE', 'PHLX'
+    root_symbol VARCHAR  -- Option root (e.g., 'AAPL' for AAPL options)
+);
+
 -- =============================================================================
 -- Timeseries Tables (by data shape)
 -- =============================================================================

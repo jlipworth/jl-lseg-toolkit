@@ -63,7 +63,8 @@
       "Bash(timeout 120 uv run:*)",
       "Bash(timeout 300 uv run:*)",
       "Bash(timeout 600 uv run python:*)",
-      "Bash(cd /Users/jlipworth/Nextcloud/Documents/Refinitiv\\\\ Projects && timeout 60 uv run python:*)"
+      "Bash(cd /Users/jlipworth/Nextcloud/Documents/Refinitiv\\\\ Projects && timeout 60 uv run python:*)",
+      "Bash(eza -la --tree:*)"
     ],
     "deny": [],
     "ask": []

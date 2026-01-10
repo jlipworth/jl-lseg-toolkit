@@ -20,18 +20,6 @@ Individual options RICs don't support time series (only snapshots). Need to rese
 
 ---
 
-## Schema
-
-Missing instrument detail tables:
-
-| Table | Asset Classes |
-|-------|---------------|
-| `instrument_commodity` | Commodity spot (not futures) |
-| `instrument_cds` | CDS indices, sovereign CDS |
-| `instrument_option` | Options chains metadata |
-
----
-
 ## Technical Debt
 
 ### Code Refactoring
@@ -40,7 +28,6 @@ Missing instrument detail tables:
 |------|--------|-------------------|
 | Extract FieldMapper class | Centralize LSEG field mappings | -400 |
 | Extract `_bulk_insert` helper | DRY for all save functions | -150 |
-| Unify instrument detail saves | Replace 7 functions with 1 | -310 |
 
 See `dev_scripts/refactor_recommendations.md` for detailed analysis.
 
@@ -55,5 +42,4 @@ See `dev_scripts/refactor_recommendations.md` for detailed analysis.
 
 ## Tests
 
-- [ ] Intraday data fetching tests
-- [ ] Integration tests with LSEG API
+- [ ] Intraday data fetching tests (in `test_integration.py`, needs LSEG Workspace)
