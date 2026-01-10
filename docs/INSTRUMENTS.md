@@ -2025,7 +2025,7 @@ Most options chains return "not found" or "access denied" - requires higher data
 
 ### CF Calculation (CME Formula)
 
-Conversion factors must be calculated or obtained from CME. See `docs/BOND_BASIS_RICS.md`.
+Conversion factors must be calculated or obtained from CME. See [BOND_BASIS_RICS.md](ric-guides/BOND_BASIS_RICS.md).
 
 **Historical CF Considerations:**
 - Current era (2020s): Low coupons (3-5%) → CFs typically 0.85-0.95

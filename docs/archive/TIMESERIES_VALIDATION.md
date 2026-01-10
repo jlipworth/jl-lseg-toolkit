@@ -1,7 +1,7 @@
 # LSEG Timeseries Data Validation Results
 
 > **Note:** This document contains raw validation results from development.
-> For the consolidated instrument list, see [INSTRUMENTS.md](INSTRUMENTS.md).
+> For the consolidated instrument list, see [INSTRUMENTS.md](../INSTRUMENTS.md).
 
 Validation run: 2026-01-06
 
