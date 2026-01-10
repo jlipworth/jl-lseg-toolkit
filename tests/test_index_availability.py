@@ -24,13 +24,6 @@ class TestIndexAvailability:
     """Test that all listed indices are queryable."""
 
     @pytest.fixture(scope="class")
-    def client(self):
-        """Create a client instance for the test class."""
-        client = LsegClient()
-        yield client
-        client.close_session()
-
-    @pytest.fixture(scope="class")
     def all_indices(self):
         """Get all available indices."""
         return LsegClient.get_available_indices()
@@ -61,16 +54,14 @@ class TestIndexAvailability:
             "GSPTSE",  # Canada
         ],
     )
-    def test_index_is_queryable(self, client, index_code):
+    def test_index_is_queryable(self, lseg_client_class, index_code):
         """Test that each index can be successfully queried."""
         try:
-            rics = client.get_index_constituents(index_code)
+            rics = lseg_client_class.get_index_constituents(index_code)
 
-            # Should return a non-empty list
             assert isinstance(rics, list), f"{index_code} did not return a list"
             assert len(rics) > 0, f"{index_code} returned empty list"
 
-            # All entries should be strings
             assert all(isinstance(ric, str) for ric in rics), (
                 f"{index_code} contains non-string RICs"
             )
@@ -80,68 +71,55 @@ class TestIndexAvailability:
         except Exception as e:
             pytest.fail(f"Failed to query {index_code}: {e}")
 
-    def test_us_indices_have_reasonable_sizes(self, client):
-        """Test that major US indices return expected number of constituents."""
-        expected_ranges = {
-            "SPX": (400, 600),  # S&P 500
-            "SPCY": (550, 650),  # S&P SmallCap 600
-            "NDX": (80, 120),  # Nasdaq 100
-            "DJI": (25, 35),  # Dow 30
-        }
+    @pytest.mark.parametrize(
+        "index_code,min_expected,max_expected",
+        [
+            ("SPX", 400, 600),  # S&P 500
+            ("SPCY", 550, 650),  # S&P SmallCap 600
+            ("NDX", 80, 120),  # Nasdaq 100
+            ("DJI", 25, 35),  # Dow 30
+        ],
+        ids=["SPX", "SPCY", "NDX", "DJI"],
+    )
+    def test_us_index_size(self, lseg_client_class, index_code, min_expected, max_expected):
+        """Test that US index returns expected number of constituents."""
+        rics = lseg_client_class.get_index_constituents(index_code)
+        count = len(rics)
 
-        for index_code, (min_expected, max_expected) in expected_ranges.items():
-            rics = client.get_index_constituents(index_code)
-            count = len(rics)
+        assert min_expected <= count <= max_expected, (
+            f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
+        )
 
-            assert min_expected <= count <= max_expected, (
-                f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
-            )
+    @pytest.mark.parametrize(
+        "index_code,min_expected,max_expected",
+        [
+            ("FTSE", 80, 120),  # FTSE 100
+            ("STOXX50E", 40, 60),  # EURO STOXX 50
+            ("GDAXI", 35, 45),  # DAX 40
+            ("FCHI", 35, 45),  # CAC 40
+            ("AEX", 20, 35),  # AEX 25
+        ],
+        ids=["FTSE", "STOXX50E", "GDAXI", "FCHI", "AEX"],
+    )
+    def test_european_index_size(self, lseg_client_class, index_code, min_expected, max_expected):
+        """Test that European index returns expected number of constituents."""
+        rics = lseg_client_class.get_index_constituents(index_code)
+        count = len(rics)
 
-            print(
-                f"✓ {index_code}: {count} constituents (expected {min_expected}-{max_expected})"
-            )
+        assert min_expected <= count <= max_expected, (
+            f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
+        )
 
-    def test_european_indices_have_reasonable_sizes(self, client):
-        """Test that major European indices return expected number of constituents."""
-        expected_ranges = {
-            "FTSE": (80, 120),  # FTSE 100
-            "STOXX50E": (40, 60),  # EURO STOXX 50
-            "GDAXI": (35, 45),  # DAX 40
-            "FCHI": (35, 45),  # CAC 40
-            "AEX": (20, 35),  # AEX 25
-        }
-
-        for index_code, (min_expected, max_expected) in expected_ranges.items():
-            rics = client.get_index_constituents(index_code)
-            count = len(rics)
-
-            assert min_expected <= count <= max_expected, (
-                f"{index_code} has {count} constituents, expected {min_expected}-{max_expected}"
-            )
-
-            print(
-                f"✓ {index_code}: {count} constituents (expected {min_expected}-{max_expected})"
-            )
-
-    def test_index_with_and_without_prefix(self, client):
+    @pytest.mark.parametrize("index_code", ["SPX", "GDAXI", "NDX"])
+    def test_index_prefix_consistency(self, lseg_client_class, index_code):
         """Test that indices work with or without . prefix."""
-        test_indices = ["SPX", "GDAXI", "NDX"]
+        rics1 = lseg_client_class.get_index_constituents(index_code)
+        rics2 = lseg_client_class.get_index_constituents(f".{index_code}")
 
-        for index_code in test_indices:
-            # Without prefix
-            rics1 = client.get_index_constituents(index_code)
-
-            # With prefix
-            rics2 = client.get_index_constituents(f".{index_code}")
-
-            # Should return same results
-            assert set(rics1) == set(rics2), (
-                f"{index_code}: Different results with/without . prefix"
-            )
-
-            print(f"✓ {index_code}: Consistent with/without prefix")
+        assert set(rics1) == set(rics2), (
+            f"{index_code}: Different results with/without . prefix"
+        )
 
 
 if __name__ == "__main__":
-    # Run tests with pytest
     pytest.main([__file__, "-v", "-s"])

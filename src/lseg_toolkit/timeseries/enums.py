@@ -42,6 +42,9 @@ class AssetClass(str, Enum):
     # Credit
     CDS = "cds"
 
+    # Derivatives
+    OPTION = "option"
+
 
 class DataShape(str, Enum):
     """Data shape classification for routing to correct storage table."""

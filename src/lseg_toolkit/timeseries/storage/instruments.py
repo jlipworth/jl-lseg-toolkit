@@ -42,6 +42,8 @@ ASSET_CLASS_TO_DATA_SHAPE: dict[AssetClass, DataShape] = {
     AssetClass.CORP_BOND: DataShape.BOND,
     # Fixing (daily benchmark rates)
     AssetClass.FIXING: DataShape.FIXING,
+    # Options (use OHLCV for historical bars)
+    AssetClass.OPTION: DataShape.OHLCV,
 }
 
 
@@ -204,18 +206,14 @@ DETAIL_TABLES: dict[str, tuple[str | None, list[str]]] = {
         ],
     ),
     "cds": (
-        "instrument_rate",
+        "instrument_cds",
         [
-            "rate_type",
-            "currency",
+            "index_family",
+            "series",
             "tenor",
-            "reference_rate",
-            "day_count",
-            "payment_frequency",
-            "business_day_conv",
-            "calendar",
-            "settlement_days",
-            "paired_instrument_id",
+            "currency",
+            "restructuring_type",
+            "reference_entity",
         ],
     ),
     # Bonds
@@ -299,8 +297,26 @@ DETAIL_TABLES: dict[str, tuple[str | None, list[str]]] = {
             "base_value",
         ],
     ),
-    # Commodities (spot) - no detail table needed, uses quote shape
-    "commodity": (None, []),
+    # Commodities (spot)
+    "commodity": (
+        "instrument_commodity",
+        ["commodity_type", "unit", "currency", "quote_convention"],
+    ),
+    # Options
+    "option": (
+        "instrument_option",
+        [
+            "underlying_symbol",
+            "underlying_id",
+            "option_type",
+            "strike",
+            "expiry_date",
+            "exercise_style",
+            "contract_size",
+            "exchange",
+            "root_symbol",
+        ],
+    ),
 }
 
 
