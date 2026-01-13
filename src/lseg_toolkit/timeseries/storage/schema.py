@@ -1,11 +1,14 @@
 """
 DuckDB schema definitions and initialization.
 
-This module contains the SQL schema for all tables and the init_db function.
+DEPRECATED: This module contains the legacy DuckDB schema. The storage layer
+now uses PostgreSQL/TimescaleDB. See pg_schema.py for the current schema.
+Use connection.init_db() for schema initialization.
 """
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import duckdb
@@ -13,6 +16,14 @@ import duckdb
 from lseg_toolkit.exceptions import StorageError
 
 from .connection import DEFAULT_DUCKDB_PATH
+
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "schema module (DuckDB) is deprecated. "
+    "Use pg_schema for PostgreSQL/TimescaleDB schema definitions.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 SCHEMA_SQL = """
 -- =============================================================================

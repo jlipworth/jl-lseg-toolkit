@@ -25,8 +25,6 @@ from lseg_toolkit.timeseries.storage import (
     FieldMapper,
     FieldMapping,
     create_extraction_progress,
-    export_symbol_to_parquet,
-    export_to_parquet,
     get_connection,
     get_data_coverage,
     get_data_range,
@@ -40,7 +38,6 @@ from lseg_toolkit.timeseries.storage import (
     init_db,
     load_timeseries,
     log_extraction,
-    migrate_from_sqlite,
     save_instrument,
     save_roll_event,
     save_timeseries,
@@ -89,9 +86,4 @@ __all__ = [
     "create_extraction_progress",
     "update_extraction_progress",
     "get_extraction_progress",
-    # Parquet
-    "export_to_parquet",
-    "export_symbol_to_parquet",
-    # Migration
-    "migrate_from_sqlite",
 ]
