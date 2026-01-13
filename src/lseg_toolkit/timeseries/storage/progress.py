@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-import duckdb
+import psycopg
 
 from lseg_toolkit.timeseries.enums import Granularity
 
@@ -17,7 +17,7 @@ from .instruments import get_instrument_id
 
 
 def log_extraction(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     symbol: str,
     start_date: date,
     end_date: date,
@@ -39,20 +39,20 @@ def log_extraction(
     if instrument_id is None:
         return
 
-    log_id = conn.execute("SELECT nextval('seq_extraction_log')").fetchone()[0]
-    conn.execute(
-        """
-        INSERT INTO extraction_log (
-            id, instrument_id, start_date, end_date, granularity, rows_fetched
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO extraction_log (
+                instrument_id, start_date, end_date, granularity, rows_fetched
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            [instrument_id, start_date, end_date, granularity.value, rows_fetched],
         )
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        [log_id, instrument_id, start_date, end_date, granularity.value, rows_fetched],
-    )
 
 
 def create_extraction_progress(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     asset_class: str,
     instrument: str,
     start_date: date,
@@ -71,23 +71,23 @@ def create_extraction_progress(
     Returns:
         Progress record ID.
     """
-    progress_id = conn.execute("SELECT nextval('seq_extraction_progress')").fetchone()[
-        0
-    ]
-    conn.execute(
-        """
-        INSERT INTO extraction_progress (
-            id, asset_class, instrument, start_date, end_date, status
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO extraction_progress (
+                asset_class, instrument, start_date, end_date, status
+            )
+            VALUES (%s, %s, %s, %s, 'pending')
+            RETURNING id
+            """,
+            [asset_class, instrument, start_date, end_date],
         )
-        VALUES (?, ?, ?, ?, ?, 'pending')
-        """,
-        [progress_id, asset_class, instrument, start_date, end_date],
-    )
+        progress_id = cur.fetchone()[0]
     return progress_id
 
 
 def update_extraction_progress(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     progress_id: int,
     status: str,
     rows_fetched: int | None = None,
@@ -103,37 +103,38 @@ def update_extraction_progress(
         rows_fetched: Number of rows fetched (optional).
         error_message: Error message if failed (optional).
     """
-    if status == "running":
-        conn.execute(
-            """
-            UPDATE extraction_progress
-            SET status = ?, started_at = current_timestamp
-            WHERE id = ?
-            """,
-            [status, progress_id],
-        )
-    elif status == "complete":
-        conn.execute(
-            """
-            UPDATE extraction_progress
-            SET status = ?, rows_fetched = ?, completed_at = current_timestamp
-            WHERE id = ?
-            """,
-            [status, rows_fetched, progress_id],
-        )
-    elif status == "failed":
-        conn.execute(
-            """
-            UPDATE extraction_progress
-            SET status = ?, error_message = ?, completed_at = current_timestamp
-            WHERE id = ?
-            """,
-            [status, error_message, progress_id],
-        )
+    with conn.cursor() as cur:
+        if status == "running":
+            cur.execute(
+                """
+                UPDATE extraction_progress
+                SET status = %s, started_at = current_timestamp
+                WHERE id = %s
+                """,
+                [status, progress_id],
+            )
+        elif status == "complete":
+            cur.execute(
+                """
+                UPDATE extraction_progress
+                SET status = %s, rows_fetched = %s, completed_at = current_timestamp
+                WHERE id = %s
+                """,
+                [status, rows_fetched, progress_id],
+            )
+        elif status == "failed":
+            cur.execute(
+                """
+                UPDATE extraction_progress
+                SET status = %s, error_message = %s, completed_at = current_timestamp
+                WHERE id = %s
+                """,
+                [status, error_message, progress_id],
+            )
 
 
 def get_extraction_progress(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     asset_class: str | None = None,
     instrument: str | None = None,
     status: str | None = None,
@@ -154,17 +155,18 @@ def get_extraction_progress(
     params = []
 
     if asset_class:
-        query += " AND asset_class = ?"
+        query += " AND asset_class = %s"
         params.append(asset_class)
     if instrument:
-        query += " AND instrument = ?"
+        query += " AND instrument = %s"
         params.append(instrument)
     if status:
-        query += " AND status = ?"
+        query += " AND status = %s"
         params.append(status)
 
     query += " ORDER BY id"
 
-    result = conn.execute(query, params)
-    columns = [desc[0] for desc in result.description]
-    return [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+    with conn.cursor() as cur:
+        cur.execute(query, params)
+        columns = [desc[0] for desc in cur.description]
+        return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]

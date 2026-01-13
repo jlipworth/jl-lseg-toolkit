@@ -4,6 +4,7 @@ Configuration for time series extraction.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
@@ -14,6 +15,67 @@ from lseg_toolkit.timeseries.enums import (
     Granularity,
     RollMethod,
 )
+
+
+@dataclass
+class DatabaseConfig:
+    """
+    TimescaleDB/PostgreSQL connection configuration.
+
+    Can be configured via environment variables:
+        TSDB_HOST, TSDB_PORT, TSDB_DATABASE, TSDB_USER, TSDB_PASSWORD
+
+    Example:
+        >>> config = DatabaseConfig.from_env()
+        >>> with psycopg.connect(config.dsn) as conn:
+        ...     # use connection
+    """
+
+    host: str = "localhost"
+    port: int = 5432
+    database: str = "timeseries"
+    user: str = "postgres"
+    password: str = ""
+
+    # Connection pool settings
+    pool_min_size: int = 2
+    pool_max_size: int = 10
+
+    # Batch settings - maximized for historical backfills
+    batch_size: int = 50_000  # Rows per COPY batch
+
+    @property
+    def dsn(self) -> str:
+        """Build PostgreSQL connection DSN."""
+        if self.password:
+            return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        return f"postgresql://{self.user}@{self.host}:{self.port}/{self.database}"
+
+    @classmethod
+    def from_env(cls) -> "DatabaseConfig":
+        """
+        Load configuration from environment variables.
+
+        Environment variables:
+            TSDB_HOST: Database host (default: localhost)
+            TSDB_PORT: Database port (default: 5432)
+            TSDB_DATABASE: Database name (default: timeseries)
+            TSDB_USER: Database user (default: postgres)
+            TSDB_PASSWORD: Database password (default: empty)
+            TSDB_POOL_MIN: Min pool connections (default: 2)
+            TSDB_POOL_MAX: Max pool connections (default: 10)
+            TSDB_BATCH_SIZE: Rows per COPY batch (default: 50000)
+        """
+        return cls(
+            host=os.getenv("TSDB_HOST", "localhost"),
+            port=int(os.getenv("TSDB_PORT", "5432")),
+            database=os.getenv("TSDB_DATABASE", "timeseries"),
+            user=os.getenv("TSDB_USER", "postgres"),
+            password=os.getenv("TSDB_PASSWORD", ""),
+            pool_min_size=int(os.getenv("TSDB_POOL_MIN", "2")),
+            pool_max_size=int(os.getenv("TSDB_POOL_MAX", "10")),
+            batch_size=int(os.getenv("TSDB_BATCH_SIZE", "50000")),
+        )
 
 
 def _default_start_date() -> date:

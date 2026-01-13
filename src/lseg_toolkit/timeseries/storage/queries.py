@@ -16,25 +16,25 @@ class Queries:
     @staticmethod
     def instrument_exists(symbol: str) -> tuple[str, list]:
         """Check if instrument exists by symbol."""
-        return "SELECT id FROM instruments WHERE symbol = ?", [symbol]
+        return "SELECT id FROM instruments WHERE symbol = %s", [symbol]
 
     @staticmethod
     def get_instrument_id(symbol_or_ric: str) -> tuple[str, list]:
         """Get instrument ID by symbol or RIC."""
         return (
-            "SELECT id FROM instruments WHERE symbol = ? OR lseg_ric = ?",
+            "SELECT id FROM instruments WHERE symbol = %s OR lseg_ric = %s",
             [symbol_or_ric, symbol_or_ric],
         )
 
     @staticmethod
     def get_instrument_with_shape(symbol: str) -> tuple[str, list]:
         """Get instrument ID and data_shape by symbol."""
-        return "SELECT id, data_shape FROM instruments WHERE symbol = ?", [symbol]
+        return "SELECT id, data_shape FROM instruments WHERE symbol = %s", [symbol]
 
     @staticmethod
     def get_data_shape(instrument_id: int) -> tuple[str, list]:
         """Get data_shape for an instrument."""
-        return "SELECT data_shape FROM instruments WHERE id = ?", [instrument_id]
+        return "SELECT data_shape FROM instruments WHERE id = %s", [instrument_id]
 
     @staticmethod
     def get_date_range(data_shape: DataShape, granularity: str | None = None) -> str:
@@ -54,13 +54,13 @@ class Queries:
             return f"""
                 SELECT MIN(date), MAX(date)
                 FROM {table}
-                WHERE instrument_id = ?
+                WHERE instrument_id = %s
             """
         else:
             return f"""
                 SELECT CAST(MIN(ts) AS DATE), CAST(MAX(ts) AS DATE)
                 FROM {table}
-                WHERE instrument_id = ? AND granularity = ?
+                WHERE instrument_id = %s AND granularity = %s
             """
 
     @staticmethod
@@ -77,9 +77,9 @@ class Queries:
         table = _get_table_for_shape(data_shape)
 
         if data_shape == DataShape.FIXING:
-            return f"SELECT COUNT(*) FROM {table} WHERE instrument_id = ?"
+            return f"SELECT COUNT(*) FROM {table} WHERE instrument_id = %s"
         else:
-            return f"SELECT COUNT(*) FROM {table} WHERE instrument_id = ? AND granularity = ?"
+            return f"SELECT COUNT(*) FROM {table} WHERE instrument_id = %s AND granularity = %s"
 
 
 def _get_table_for_shape(data_shape: DataShape) -> str:

@@ -1,5 +1,5 @@
 """
-Instrument CRUD operations for DuckDB storage.
+Instrument CRUD operations for PostgreSQL/TimescaleDB storage.
 
 This module provides functions for saving, updating, and retrieving
 instrument metadata, including type-specific details tables.
@@ -7,7 +7,7 @@ instrument metadata, including type-specific details tables.
 
 from __future__ import annotations
 
-import duckdb
+import psycopg
 
 from lseg_toolkit.exceptions import StorageError
 from lseg_toolkit.timeseries.enums import AssetClass, DataShape
@@ -339,7 +339,7 @@ REQUIRED_FIELD_DEFAULTS: dict[str, dict[str, str | int]] = {
 
 
 def _upsert_instrument_details(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     instrument_id: int,
     asset_class: str,
     **kwargs,
@@ -377,26 +377,28 @@ def _upsert_instrument_details(
         return
 
     # Check if exists
-    exists = conn.execute(
-        f"SELECT 1 FROM {table} WHERE instrument_id = ?",  # noqa: S608
-        [instrument_id],
-    ).fetchone()
+    with conn.cursor() as cur:
+        cur.execute(
+            f"SELECT 1 FROM {table} WHERE instrument_id = %s",  # noqa: S608
+            [instrument_id],
+        )
+        exists = cur.fetchone()
 
-    if exists:
-        # UPDATE
-        set_clause = ", ".join(f"{k} = ?" for k in details)
-        conn.execute(
-            f"UPDATE {table} SET {set_clause} WHERE instrument_id = ?",  # noqa: S608
-            list(details.values()) + [instrument_id],
-        )
-    else:
-        # INSERT
-        cols = ["instrument_id", *list(details.keys())]
-        placeholders = ", ".join("?" for _ in cols)
-        conn.execute(
-            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})",  # noqa: S608
-            [instrument_id, *list(details.values())],
-        )
+        if exists:
+            # UPDATE
+            set_clause = ", ".join(f"{k} = %s" for k in details)
+            cur.execute(
+                f"UPDATE {table} SET {set_clause} WHERE instrument_id = %s",  # noqa: S608
+                list(details.values()) + [instrument_id],
+            )
+        else:
+            # INSERT
+            cols = ["instrument_id", *list(details.keys())]
+            placeholders = ", ".join("%s" for _ in cols)
+            cur.execute(
+                f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})",  # noqa: S608
+                [instrument_id, *list(details.values())],
+            )
 
 
 # =============================================================================
@@ -405,7 +407,7 @@ def _upsert_instrument_details(
 
 
 def save_instrument(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     symbol: str,
     name: str,
     asset_class: AssetClass,
@@ -436,56 +438,56 @@ def save_instrument(
         data_shape = get_data_shape(asset_class)
 
     try:
-        # Check if instrument exists
-        result = conn.execute(
-            "SELECT id FROM instruments WHERE symbol = ?", [symbol]
-        ).fetchone()
+        with conn.cursor() as cur:
+            # Check if instrument exists
+            cur.execute(
+                "SELECT id FROM instruments WHERE symbol = %s", [symbol]
+            )
+            result = cur.fetchone()
 
-        if result:
-            # Update existing
-            instrument_id = result[0]
-            conn.execute(
-                """
-                UPDATE instruments SET
-                    name = ?,
-                    asset_class = ?,
-                    data_shape = ?,
-                    lseg_ric = ?,
-                    updated_at = current_timestamp
-                WHERE id = ?
-                """,
-                [name, asset_class.value, data_shape.value, lseg_ric, instrument_id],
-            )
-        else:
-            # Insert new
-            instrument_id = conn.execute(
-                "SELECT nextval('seq_instruments')"
-            ).fetchone()[0]
-            conn.execute(
-                """
-                INSERT INTO instruments (id, symbol, name, asset_class, data_shape, lseg_ric, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, current_timestamp)
-                """,
-                [
-                    instrument_id,
-                    symbol,
-                    name,
-                    asset_class.value,
-                    data_shape.value,
-                    lseg_ric,
-                ],
-            )
+            if result:
+                # Update existing
+                instrument_id = result[0]
+                cur.execute(
+                    """
+                    UPDATE instruments SET
+                        name = %s,
+                        asset_class = %s,
+                        data_shape = %s,
+                        lseg_ric = %s,
+                        updated_at = current_timestamp
+                    WHERE id = %s
+                    """,
+                    [name, asset_class.value, data_shape.value, lseg_ric, instrument_id],
+                )
+            else:
+                # Insert new and get ID using RETURNING
+                cur.execute(
+                    """
+                    INSERT INTO instruments (symbol, name, asset_class, data_shape, lseg_ric, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, current_timestamp)
+                    RETURNING id
+                    """,
+                    [
+                        symbol,
+                        name,
+                        asset_class.value,
+                        data_shape.value,
+                        lseg_ric,
+                    ],
+                )
+                instrument_id = cur.fetchone()[0]
 
         # Save type-specific details using unified function
         if kwargs:
             _upsert_instrument_details(conn, instrument_id, asset_class.value, **kwargs)
 
         return instrument_id
-    except duckdb.Error as e:
+    except psycopg.Error as e:
         raise StorageError(f"Failed to save instrument {symbol}: {e}") from e
 
 
-def get_instrument(conn: duckdb.DuckDBPyConnection, symbol: str) -> dict | None:
+def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
     """
     Get instrument by symbol.
 
@@ -496,16 +498,18 @@ def get_instrument(conn: duckdb.DuckDBPyConnection, symbol: str) -> dict | None:
     Returns:
         Instrument dict or None if not found.
     """
-    result = conn.execute(
-        "SELECT * FROM instruments WHERE symbol = ?", [symbol]
-    ).fetchone()
-    if result:
-        columns = [desc[0] for desc in conn.description]
-        return dict(zip(columns, result, strict=True))
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM instruments WHERE symbol = %s", [symbol]
+        )
+        result = cur.fetchone()
+        if result:
+            columns = [desc[0] for desc in cur.description]
+            return dict(zip(columns, result, strict=True))
     return None
 
 
-def get_instrument_id(conn: duckdb.DuckDBPyConnection, symbol: str) -> int | None:
+def get_instrument_id(conn: psycopg.Connection, symbol: str) -> int | None:
     """
     Get instrument ID by symbol.
 
@@ -516,14 +520,16 @@ def get_instrument_id(conn: duckdb.DuckDBPyConnection, symbol: str) -> int | Non
     Returns:
         Instrument ID or None if not found.
     """
-    result = conn.execute(
-        "SELECT id FROM instruments WHERE symbol = ?", [symbol]
-    ).fetchone()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM instruments WHERE symbol = %s", [symbol]
+        )
+        result = cur.fetchone()
     return result[0] if result else None
 
 
 def get_instrument_by_ric(
-    conn: duckdb.DuckDBPyConnection, lseg_ric: str
+    conn: psycopg.Connection, lseg_ric: str
 ) -> dict | None:
     """
     Get instrument by LSEG RIC.
@@ -535,17 +541,19 @@ def get_instrument_by_ric(
     Returns:
         Instrument dict or None if not found.
     """
-    result = conn.execute(
-        "SELECT * FROM instruments WHERE lseg_ric = ?", [lseg_ric]
-    ).fetchone()
-    if result:
-        columns = [desc[0] for desc in conn.description]
-        return dict(zip(columns, result, strict=True))
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT * FROM instruments WHERE lseg_ric = %s", [lseg_ric]
+        )
+        result = cur.fetchone()
+        if result:
+            columns = [desc[0] for desc in cur.description]
+            return dict(zip(columns, result, strict=True))
     return None
 
 
 def get_instruments(
-    conn: duckdb.DuckDBPyConnection, asset_class: AssetClass | None = None
+    conn: psycopg.Connection, asset_class: AssetClass | None = None
 ) -> list[dict]:
     """
     Get all instruments, optionally filtered by asset class.
@@ -557,13 +565,14 @@ def get_instruments(
     Returns:
         List of instrument dicts.
     """
-    if asset_class:
-        result = conn.execute(
-            "SELECT * FROM instruments WHERE asset_class = ? ORDER BY symbol",
-            [asset_class.value],
-        )
-    else:
-        result = conn.execute("SELECT * FROM instruments ORDER BY symbol")
+    with conn.cursor() as cur:
+        if asset_class:
+            cur.execute(
+                "SELECT * FROM instruments WHERE asset_class = %s ORDER BY symbol",
+                [asset_class.value],
+            )
+        else:
+            cur.execute("SELECT * FROM instruments ORDER BY symbol")
 
-    columns = [desc[0] for desc in result.description]
-    return [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+        columns = [desc[0] for desc in cur.description]
+        return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
