@@ -39,8 +39,8 @@ class ClientConfig:
 
     max_retries: int = 3
     retry_delay: float = 1.0
-    rate_limit_delay: float = 0.1
-    max_rics_per_request: int = 50  # LSEG typically handles 50-100 RICs per call
+    rate_limit_delay: float = 0.05  # Reduced from 0.1 for faster batching
+    max_rics_per_request: int = 100  # Increased from 50 - LSEG handles 100+ RICs per call
     validate_inputs: bool = True
 
 

@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from lseg_toolkit.exceptions import DataRetrievalError
-from lseg_toolkit.timeseries import storage as duckdb_storage
+from lseg_toolkit.timeseries import storage
 from lseg_toolkit.timeseries.client import LSEGDataClient, get_client
 from lseg_toolkit.timeseries.constants import (
     ALL_FUTURES_MAPPING,
@@ -72,7 +72,7 @@ from lseg_toolkit.timeseries.storage import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
-    import duckdb
+    import psycopg
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +367,7 @@ class InstrumentRegistry:
 
     def register_instrument(
         self,
-        conn: duckdb.DuckDBPyConnection,
+        conn: psycopg.Connection,
         symbol: str,
         ric: str | None = None,
     ) -> int:
@@ -432,7 +432,7 @@ class DateGap:
 
 
 def detect_gaps(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     symbol: str,
     start_date: date,
     end_date: date,
@@ -529,7 +529,7 @@ class DataCache:
         self._fetch_locks: dict[tuple[str, Granularity], asyncio.Lock] = {}
 
         # Pre-initialize the database to avoid concurrent schema creation issues
-        with duckdb_storage.get_connection(self.config.db_path):
+        with storage.get_connection(db_path=self.config.db_path):
             pass
 
     @property
@@ -665,7 +665,7 @@ class DataCache:
                     error=str(e),
                 )
 
-        with duckdb_storage.get_connection(self.config.db_path) as conn:
+        with storage.get_connection(db_path=self.config.db_path) as conn:
             # Ensure instrument is registered
             instrument_id = get_instrument_id(conn, ric)
             if instrument_id is None and self.config.auto_register_instruments:

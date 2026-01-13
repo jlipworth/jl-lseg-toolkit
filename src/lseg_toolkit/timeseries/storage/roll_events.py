@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-import duckdb
+import psycopg
 
 from lseg_toolkit.exceptions import StorageError
 
@@ -17,7 +17,7 @@ from .instruments import get_instrument_id
 
 
 def save_roll_event(
-    conn: duckdb.DuckDBPyConnection,
+    conn: psycopg.Connection,
     continuous_symbol: str,
     roll_date: date,
     from_contract: str,
@@ -53,35 +53,36 @@ def save_roll_event(
     adjustment_factor = to_price / from_price if from_price != 0 else 1.0
 
     try:
-        roll_id = conn.execute("SELECT nextval('seq_roll_events')").fetchone()[0]
-        conn.execute(
-            """
-            INSERT INTO roll_events (
-                id, continuous_id, roll_date, from_contract, to_contract,
-                from_price, to_price, price_gap, adjustment_factor, roll_method
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO roll_events (
+                    continuous_id, roll_date, from_contract, to_contract,
+                    from_price, to_price, price_gap, adjustment_factor, roll_method
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                [
+                    instrument_id,
+                    roll_date,
+                    from_contract,
+                    to_contract,
+                    from_price,
+                    to_price,
+                    price_gap,
+                    adjustment_factor,
+                    roll_method,
+                ],
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                roll_id,
-                instrument_id,
-                roll_date,
-                from_contract,
-                to_contract,
-                from_price,
-                to_price,
-                price_gap,
-                adjustment_factor,
-                roll_method,
-            ],
-        )
+            roll_id = cur.fetchone()[0]
         return roll_id
-    except duckdb.Error as e:
+    except psycopg.Error as e:
         raise StorageError(f"Failed to save roll event: {e}") from e
 
 
 def get_roll_events(
-    conn: duckdb.DuckDBPyConnection, continuous_symbol: str
+    conn: psycopg.Connection, continuous_symbol: str
 ) -> list[dict]:
     """
     Get roll events for a continuous contract.
@@ -97,15 +98,16 @@ def get_roll_events(
     if instrument_id is None:
         return []
 
-    result = conn.execute(
-        """
-        SELECT roll_date, from_contract, to_contract,
-               from_price, to_price, price_gap, adjustment_factor, roll_method
-        FROM roll_events
-        WHERE continuous_id = ?
-        ORDER BY roll_date ASC
-        """,
-        [instrument_id],
-    )
-    columns = [desc[0] for desc in result.description]
-    return [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT roll_date, from_contract, to_contract,
+                   from_price, to_price, price_gap, adjustment_factor, roll_method
+            FROM roll_events
+            WHERE continuous_id = %s
+            ORDER BY roll_date ASC
+            """,
+            [instrument_id],
+        )
+        columns = [desc[0] for desc in cur.description]
+        return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]

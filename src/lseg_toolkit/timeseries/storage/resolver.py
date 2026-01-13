@@ -7,7 +7,7 @@ to instrument IDs with in-memory caching.
 
 from __future__ import annotations
 
-import duckdb
+import psycopg
 
 from lseg_toolkit.exceptions import StorageError
 
@@ -29,12 +29,12 @@ class SymbolResolver:
         ...     id2 = resolver.resolve("TYc1")  # Cache hit
     """
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection):
+    def __init__(self, conn: psycopg.Connection):
         """
         Initialize resolver with database connection.
 
         Args:
-            conn: DuckDB connection.
+            conn: PostgreSQL connection.
         """
         self.conn = conn
         self._cache: dict[str, int] = {}
@@ -56,7 +56,9 @@ class SymbolResolver:
             return self._cache[symbol_or_ric]
 
         sql, params = Queries.get_instrument_id(symbol_or_ric)
-        result = self.conn.execute(sql, params).fetchone()
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            result = cur.fetchone()
 
         if not result:
             raise StorageError(f"Unknown symbol/RIC: {symbol_or_ric}")
@@ -109,18 +111,19 @@ class SymbolResolver:
         Returns:
             Number of instruments loaded.
         """
-        if symbols:
-            placeholders = ", ".join("?" for _ in symbols)
-            result = self.conn.execute(
-                f"SELECT symbol, id FROM instruments WHERE symbol IN ({placeholders})",  # noqa: S608
-                symbols,
-            )
-        else:
-            result = self.conn.execute("SELECT symbol, id FROM instruments")
+        with self.conn.cursor() as cur:
+            if symbols:
+                placeholders = ", ".join("%s" for _ in symbols)
+                cur.execute(
+                    f"SELECT symbol, id FROM instruments WHERE symbol IN ({placeholders})",  # noqa: S608
+                    symbols,
+                )
+            else:
+                cur.execute("SELECT symbol, id FROM instruments")
 
-        count = 0
-        for row in result.fetchall():
-            self._cache[row[0]] = row[1]
-            count += 1
+            count = 0
+            for row in cur.fetchall():
+                self._cache[row[0]] = row[1]
+                count += 1
 
         return count

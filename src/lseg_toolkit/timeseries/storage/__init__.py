@@ -1,5 +1,5 @@
 """
-DuckDB storage layer for time series data.
+PostgreSQL/TimescaleDB storage layer for time series data.
 
 This package provides a modular storage layer for financial time series data,
 supporting multiple asset classes and data shapes:

@@ -20,16 +20,16 @@ This document evaluates database options for storing timeseries market data and 
 
 ## Comparison Matrix
 
-| Feature | TimescaleDB | QuestDB | ClickHouse | DuckDB + Storage |
-|---------|-------------|---------|------------|------------------|
-| **Complex JOINs** | Excellent | Good (v9.1+) | Requires denorm | Excellent |
-| **C++ Client** | libpq (mature) | Native client | Native client | Native client |
-| **Python Client** | psycopg/SQLAlchemy | Native + PGWire | clickhouse-driver | Native |
-| **Multi-writer** | Yes (ACID) | Yes | Yes | Limited |
-| **K8s Deployment** | Helm + CNPG | Helm | Altinity Operator | N/A (embedded) |
-| **Ops Complexity** | Medium | Low | High | Low |
-| **Timeseries Features** | Hypertables, compression | ASOF JOIN, SAMPLE BY | MergeTree, TTL | Window functions |
-| **Maturity** | High | Medium | High | High (embedded) |
+| Feature                 | TimescaleDB              | QuestDB              | ClickHouse        | DuckDB + Storage |
+|-------------------------|--------------------------|----------------------|-------------------|------------------|
+| **Complex JOINs**       | Excellent                | Good (v9.1+)         | Requires denorm   | Excellent        |
+| **C++ Client**          | libpq (mature)           | Native client        | Native client     | Native client    |
+| **Python Client**       | psycopg/SQLAlchemy       | Native + PGWire      | clickhouse-driver | Native           |
+| **Multi-writer**        | Yes (ACID)               | Yes                  | Yes               | Limited          |
+| **K8s Deployment**      | Helm + CNPG              | Helm                 | Altinity Operator | N/A (embedded)   |
+| **Ops Complexity**      | Medium                   | Low                  | High              | Low              |
+| **Timeseries Features** | Hypertables, compression | ASOF JOIN, SAMPLE BY | MergeTree, TTL    | Window functions |
+| **Maturity**            | High                     | Medium               | High              | High (embedded)  |
 
 ---
 
