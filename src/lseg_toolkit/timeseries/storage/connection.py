@@ -29,9 +29,6 @@ _pool: ConnectionPool | None = None
 _pool_config: DatabaseConfig | None = None
 _pool_lock = threading.Lock()
 
-# Legacy compatibility constant
-DEFAULT_DUCKDB_PATH: str = "data/timeseries.duckdb"
-
 
 def get_pool(config: DatabaseConfig | None = None) -> ConnectionPool:
     """

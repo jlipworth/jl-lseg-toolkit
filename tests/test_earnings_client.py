@@ -52,7 +52,9 @@ class TestEarningsData:
         for col in expected_columns:
             assert col in df.columns, f"Missing column: {col}"
 
-        assert len(df) > 0, f"No earnings found in date range {start_date} to {end_date}"
+        assert len(df) > 0, (
+            f"No earnings found in date range {start_date} to {end_date}"
+        )
 
         if len(df) > 0:
             assert (df["Company Event Type"] == "EarningsReleases").all()

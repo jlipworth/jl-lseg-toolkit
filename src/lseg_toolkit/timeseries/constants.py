@@ -1131,11 +1131,3 @@ BENCHMARK_FIXINGS: dict[str, str] = {
     # Note: SONIA (SONIAOSR=) returns access_denied
     # Note: TONA (JPY) not found with standard RICs
 }
-
-
-# =============================================================================
-# Default Database Path
-# =============================================================================
-
-DEFAULT_DB_PATH: str = "data/timeseries.db"
-DEFAULT_PARQUET_DIR: str = "data/parquet"

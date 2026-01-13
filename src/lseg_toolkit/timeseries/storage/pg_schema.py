@@ -320,6 +320,61 @@ CREATE TABLE IF NOT EXISTS extraction_progress (
     error_message TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_progress ON extraction_progress(asset_class, instrument, status);
+
+-- =============================================================================
+-- Scheduler Tables
+-- =============================================================================
+
+-- Job definitions (what to extract)
+CREATE TABLE IF NOT EXISTS scheduler_jobs (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    instrument_group TEXT NOT NULL,
+    granularity TEXT NOT NULL,
+    schedule_cron TEXT NOT NULL,
+    priority INTEGER DEFAULT 50,
+    enabled BOOLEAN DEFAULT TRUE,
+    lookback_days INTEGER DEFAULT 5,
+    max_chunk_days INTEGER DEFAULT 30,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_scheduler_jobs_group ON scheduler_jobs(instrument_group);
+CREATE INDEX IF NOT EXISTS idx_scheduler_jobs_enabled ON scheduler_jobs(enabled);
+
+-- Per-instrument extraction state
+CREATE TABLE IF NOT EXISTS scheduler_state (
+    id SERIAL PRIMARY KEY,
+    job_id INTEGER NOT NULL REFERENCES scheduler_jobs(id) ON DELETE CASCADE,
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    last_success_date DATE,
+    last_attempt_at TIMESTAMPTZ,
+    last_success_at TIMESTAMPTZ,
+    consecutive_failures INTEGER DEFAULT 0,
+    next_retry_at TIMESTAMPTZ,
+    error_message TEXT,
+    UNIQUE (job_id, instrument_id)
+);
+CREATE INDEX IF NOT EXISTS idx_scheduler_state_job ON scheduler_state(job_id);
+CREATE INDEX IF NOT EXISTS idx_scheduler_state_failures ON scheduler_state(consecutive_failures) WHERE consecutive_failures > 0;
+CREATE INDEX IF NOT EXISTS idx_scheduler_state_last_success ON scheduler_state(last_success_date) WHERE last_success_date IS NOT NULL;
+
+-- Job run history (audit log)
+CREATE TABLE IF NOT EXISTS scheduler_runs (
+    id SERIAL PRIMARY KEY,
+    job_id INTEGER NOT NULL REFERENCES scheduler_jobs(id) ON DELETE CASCADE,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'running',
+    instruments_total INTEGER DEFAULT 0,
+    instruments_success INTEGER DEFAULT 0,
+    instruments_failed INTEGER DEFAULT 0,
+    rows_extracted INTEGER DEFAULT 0,
+    error_summary TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_scheduler_runs_job ON scheduler_runs(job_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scheduler_runs_status ON scheduler_runs(status) WHERE status = 'running';
 """
 
 # =============================================================================

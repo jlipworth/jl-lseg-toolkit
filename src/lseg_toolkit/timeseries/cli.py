@@ -11,8 +11,6 @@ from datetime import date, datetime, timedelta
 from lseg_toolkit.exceptions import LsegError
 from lseg_toolkit.timeseries.config import TimeSeriesConfig
 from lseg_toolkit.timeseries.constants import (
-    DEFAULT_DB_PATH,
-    DEFAULT_PARQUET_DIR,
     USD_OIS_TENORS,
     UST_YIELD_TENORS,
 )
@@ -191,14 +189,9 @@ Examples:
 
     # Output options
     parser.add_argument(
-        "--db",
-        default=DEFAULT_DB_PATH,
-        help=f"SQLite database path [default: {DEFAULT_DB_PATH}]",
-    )
-    parser.add_argument(
         "--parquet",
-        default=DEFAULT_PARQUET_DIR,
-        help=f"Parquet output directory [default: {DEFAULT_PARQUET_DIR}]",
+        default="data/parquet",
+        help="Parquet output directory [default: data/parquet]",
     )
     parser.add_argument(
         "--no-parquet",
@@ -277,7 +270,6 @@ Examples:
         continuous_type=continuous_type,
         roll_method=roll_method,
         roll_days_before=args.roll_days,
-        db_path=args.db,
         parquet_dir=args.parquet,
         export_parquet=not args.no_parquet,
     )

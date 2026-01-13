@@ -7,6 +7,11 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from lseg_toolkit.timeseries.duckdb_storage import (
+    get_connection,
+    save_instrument,
+    save_timeseries,
+)
 
 from lseg_toolkit.timeseries.cache import (
     CacheConfig,
@@ -18,11 +23,6 @@ from lseg_toolkit.timeseries.cache import (
     InstrumentRegistry,
     detect_gaps,
     get_registry,
-)
-from lseg_toolkit.timeseries.duckdb_storage import (
-    get_connection,
-    save_instrument,
-    save_timeseries,
 )
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 

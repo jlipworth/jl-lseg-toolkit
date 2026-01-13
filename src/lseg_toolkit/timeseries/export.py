@@ -16,7 +16,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from lseg_toolkit.exceptions import StorageError
-from lseg_toolkit.timeseries.constants import DEFAULT_PARQUET_DIR
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.storage import (
     get_connection,
@@ -91,7 +90,7 @@ ROLL_EVENTS_SCHEMA = pa.schema(
 
 def export_to_parquet(
     db_path: str,
-    output_dir: str = DEFAULT_PARQUET_DIR,
+    output_dir: str = "data/parquet",
     symbol: str | None = None,
     asset_class: AssetClass | None = None,
     granularity: Granularity = Granularity.DAILY,
@@ -230,9 +229,7 @@ def _write_parquet(df: pd.DataFrame, file_path: Path, granularity: Granularity) 
     )
 
 
-def export_metadata(
-    db_path: str, output_dir: str = DEFAULT_PARQUET_DIR
-) -> dict[str, Path]:
+def export_metadata(db_path: str, output_dir: str = "data/parquet") -> dict[str, Path]:
     """
     Export metadata tables to Parquet.
 
@@ -312,7 +309,7 @@ def _export_roll_events_metadata(conn: sqlite3.Connection, file_path: Path) -> N
 def export_symbol(
     db_path: str,
     symbol: str,
-    output_dir: str = DEFAULT_PARQUET_DIR,
+    output_dir: str = "data/parquet",
     granularity: Granularity = Granularity.DAILY,
 ) -> Path:
     """
@@ -342,9 +339,7 @@ def export_symbol(
     return files[0]
 
 
-def export_all(
-    db_path: str, output_dir: str = DEFAULT_PARQUET_DIR
-) -> dict[str, list[Path]]:
+def export_all(db_path: str, output_dir: str = "data/parquet") -> dict[str, list[Path]]:
     """
     Export all data and metadata to Parquet.
 

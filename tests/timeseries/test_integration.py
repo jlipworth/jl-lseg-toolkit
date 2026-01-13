@@ -9,7 +9,6 @@ Run locally with: uv run pytest tests/timeseries/test_integration.py -v
 
 from datetime import date, timedelta
 
-import pandas as pd
 import pytest
 
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity

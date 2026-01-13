@@ -242,10 +242,12 @@ class TestGetData:
     @patch("lseg_toolkit.timeseries.client.rd")
     def test_get_data_basic(self, mock_rd):
         """Should fetch snapshot data."""
-        mock_rd.get_data.return_value = pd.DataFrame({
-            "Instrument": ["TYc1"],
-            "DSPLY_NAME": ["10Y T-Note"],
-        })
+        mock_rd.get_data.return_value = pd.DataFrame(
+            {
+                "Instrument": ["TYc1"],
+                "DSPLY_NAME": ["10Y T-Note"],
+            }
+        )
 
         config = ClientConfig(validate_inputs=False)
         client = LSEGDataClient(config)

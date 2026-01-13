@@ -8,7 +8,6 @@ import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from lseg_toolkit.timeseries.constants import DEFAULT_DB_PATH, DEFAULT_PARQUET_DIR
 from lseg_toolkit.timeseries.enums import (
     AssetClass,
     ContinuousType,
@@ -52,7 +51,7 @@ class DatabaseConfig:
         return f"postgresql://{self.user}@{self.host}:{self.port}/{self.database}"
 
     @classmethod
-    def from_env(cls) -> "DatabaseConfig":
+    def from_env(cls) -> DatabaseConfig:
         """
         Load configuration from environment variables.
 
@@ -117,8 +116,7 @@ class TimeSeriesConfig:
     continuous_type: ContinuousType = ContinuousType.RATIO_ADJUSTED
     roll_method: RollMethod = RollMethod.VOLUME_SWITCH
     roll_days_before: int = 5
-    db_path: str = DEFAULT_DB_PATH
-    parquet_dir: str = DEFAULT_PARQUET_DIR
+    parquet_dir: str = "data/parquet"
     export_parquet: bool = True
 
     def __post_init__(self):
@@ -164,7 +162,6 @@ class TimeSeriesConfig:
             "continuous": self.continuous,
             "continuous_type": self.continuous_type.value if self.continuous else None,
             "roll_method": self.roll_method.value if self.continuous else None,
-            "db_path": self.db_path,
             "parquet_dir": self.parquet_dir,
             "export_parquet": self.export_parquet,
         }

@@ -6,7 +6,6 @@ These tests use temporary files and don't require LSEG Workspace.
 """
 
 import tempfile
-from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -88,14 +87,16 @@ class TestWriteParquet:
         with tempfile.TemporaryDirectory() as tmpdir:
             file_path = Path(tmpdir) / "test.parquet"
 
-            df = pd.DataFrame({
-                "date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
-                "open": [100.0, 101.0],
-                "high": [101.0, 102.0],
-                "low": [99.0, 100.0],
-                "close": [100.5, 101.5],
-                "volume": [1000.0, 1100.0],
-            })
+            df = pd.DataFrame(
+                {
+                    "date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+                    "open": [100.0, 101.0],
+                    "high": [101.0, 102.0],
+                    "low": [99.0, 100.0],
+                    "close": [100.5, 101.5],
+                    "volume": [1000.0, 1100.0],
+                }
+            )
             df = df.set_index("date")
 
             _write_parquet(df, file_path, Granularity.DAILY)
@@ -114,20 +115,22 @@ class TestWriteParquet:
         with tempfile.TemporaryDirectory() as tmpdir:
             file_path = Path(tmpdir) / "test.parquet"
 
-            df = pd.DataFrame({
-                "date": pd.to_datetime(["2024-01-01"]),
-                "open": [100.0],
-                "high": [101.0],
-                "low": [99.0],
-                "close": [100.5],
-                "volume": [1000.0],
-            })
+            df = pd.DataFrame(
+                {
+                    "date": pd.to_datetime(["2024-01-01"]),
+                    "open": [100.0],
+                    "high": [101.0],
+                    "low": [99.0],
+                    "close": [100.5],
+                    "volume": [1000.0],
+                }
+            )
             df = df.set_index("date")
 
             _write_parquet(df, file_path, Granularity.DAILY)
 
-            # Check metadata
-            metadata = pq.read_metadata(file_path)
+            # Check metadata (verify parquet file can be read)
+            _ = pq.read_metadata(file_path)
             # Snappy compression should result in smaller file or specific encoding
             assert file_path.exists()
 
@@ -138,9 +141,7 @@ class TestExportToParquet:
     @patch("lseg_toolkit.timeseries.export.get_connection")
     @patch("lseg_toolkit.timeseries.export.get_instruments")
     @patch("lseg_toolkit.timeseries.export.load_timeseries")
-    def test_export_creates_files(
-        self, mock_load, mock_get_instruments, mock_get_conn
-    ):
+    def test_export_creates_files(self, mock_load, mock_get_instruments, mock_get_conn):
         """export_to_parquet should create Parquet files."""
         from lseg_toolkit.timeseries.export import export_to_parquet
 
@@ -153,13 +154,16 @@ class TestExportToParquet:
             {"id": 1, "symbol": "ZN", "asset_class": "bond_futures"}
         ]
 
-        mock_load.return_value = pd.DataFrame({
-            "open": [100.0],
-            "high": [101.0],
-            "low": [99.0],
-            "close": [100.5],
-            "volume": [1000.0],
-        }, index=pd.to_datetime(["2024-01-01"]))
+        mock_load.return_value = pd.DataFrame(
+            {
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [1000.0],
+            },
+            index=pd.to_datetime(["2024-01-01"]),
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             files = export_to_parquet(
@@ -175,9 +179,7 @@ class TestExportToParquet:
     @patch("lseg_toolkit.timeseries.export.get_connection")
     @patch("lseg_toolkit.timeseries.export.get_instrument")
     @patch("lseg_toolkit.timeseries.export.load_timeseries")
-    def test_export_single_symbol(
-        self, mock_load, mock_get_instrument, mock_get_conn
-    ):
+    def test_export_single_symbol(self, mock_load, mock_get_instrument, mock_get_conn):
         """export_to_parquet with symbol filter should export one instrument."""
         from lseg_toolkit.timeseries.export import export_to_parquet
 
@@ -192,13 +194,16 @@ class TestExportToParquet:
             "asset_class": "bond_futures",
         }
 
-        mock_load.return_value = pd.DataFrame({
-            "open": [100.0, 101.0],
-            "high": [101.0, 102.0],
-            "low": [99.0, 100.0],
-            "close": [100.5, 101.5],
-            "volume": [1000.0, 1100.0],
-        }, index=pd.to_datetime(["2024-01-01", "2024-01-02"]))
+        mock_load.return_value = pd.DataFrame(
+            {
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.0, 100.0],
+                "close": [100.5, 101.5],
+                "volume": [1000.0, 1100.0],
+            },
+            index=pd.to_datetime(["2024-01-01", "2024-01-02"]),
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             files = export_to_parquet(
@@ -247,7 +252,6 @@ class TestExportSymbol:
     @patch("lseg_toolkit.timeseries.export.export_to_parquet")
     def test_export_symbol_calls_export(self, mock_export):
         """export_symbol should call export_to_parquet with correct params."""
-        from lseg_toolkit.exceptions import StorageError
         from lseg_toolkit.timeseries.export import export_symbol
 
         mock_export.return_value = [Path("/tmp/ZN.parquet")]

@@ -42,10 +42,11 @@ dependencies = [
     "httpx<0.27",
     # Parquet export for C++/Rust interop
     "pyarrow>=14.0.0",
-    # DuckDB for analytical storage (legacy, kept for migration)
-    "duckdb>=1.0.0",
     # TimescaleDB/PostgreSQL for production storage
     "psycopg[binary,pool]>=3.2.0",
+    # Scheduler dependencies
+    "apscheduler>=3.10",
+    "pydantic>=2.0",
 ]
 
 [project.urls]
@@ -57,6 +58,7 @@ lseg-earnings = "lseg_toolkit.earnings.cli:main"
 lseg-screener = "lseg_toolkit.equity_screener.cli:main"
 lseg-setup = "lseg_toolkit.setup_app_key:main"
 lseg-extract = "lseg_toolkit.timeseries.cli:main"
+lseg-scheduler = "lseg_toolkit.timeseries.scheduler.cli:main"
 
 [dependency-groups]
 test = [

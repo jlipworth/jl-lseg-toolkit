@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from lseg_toolkit.timeseries.duckdb_storage import (
     create_extraction_progress,
     export_symbol_to_parquet,
@@ -27,6 +26,7 @@ from lseg_toolkit.timeseries.duckdb_storage import (
     save_timeseries,
     update_extraction_progress,
 )
+
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 
 

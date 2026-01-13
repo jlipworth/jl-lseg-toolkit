@@ -60,7 +60,6 @@ from lseg_toolkit.timeseries.constants import (
 )
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.storage import (
-    DEFAULT_DUCKDB_PATH,
     get_data_range,
     get_data_shape,
     get_instrument_id,
@@ -144,7 +143,6 @@ class FetchResult:
 class CacheConfig:
     """Configuration for DataCache."""
 
-    db_path: str = DEFAULT_DUCKDB_PATH
     max_concurrent_fetches: int = 5
     executor_workers: int = 4
     validate_instruments: bool = True
@@ -529,7 +527,7 @@ class DataCache:
         self._fetch_locks: dict[tuple[str, Granularity], asyncio.Lock] = {}
 
         # Pre-initialize the database to avoid concurrent schema creation issues
-        with storage.get_connection(db_path=self.config.db_path):
+        with storage.get_connection():
             pass
 
     @property
@@ -665,7 +663,7 @@ class DataCache:
                     error=str(e),
                 )
 
-        with storage.get_connection(db_path=self.config.db_path) as conn:
+        with storage.get_connection() as conn:
             # Ensure instrument is registered
             instrument_id = get_instrument_id(conn, ric)
             if instrument_id is None and self.config.auto_register_instruments:
