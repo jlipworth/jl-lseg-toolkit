@@ -1,12 +1,16 @@
 """
 Parquet export functionality for DuckDB storage.
 
-This module provides functions for exporting time series data to Parquet format,
-leveraging DuckDB's native Parquet support for efficient exports.
+DEPRECATED: This module uses DuckDB and is not compatible with the new
+PostgreSQL/TimescaleDB storage backend. It will be removed in a future version.
+
+For exporting data from TimescaleDB, use PostgreSQL COPY TO CSV or
+psycopg's copy_to functionality directly.
 """
 
 from __future__ import annotations
 
+import warnings
 from datetime import date
 from pathlib import Path
 
@@ -14,6 +18,15 @@ import duckdb
 
 from lseg_toolkit.exceptions import StorageError
 from lseg_toolkit.timeseries.enums import AssetClass, DataShape, Granularity
+
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "parquet_export module is deprecated and uses DuckDB. "
+    "The storage layer now uses PostgreSQL/TimescaleDB. "
+    "This module will be removed in a future version.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def export_to_parquet(

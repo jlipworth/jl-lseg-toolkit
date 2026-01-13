@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -99,7 +99,7 @@ def _convert_index_to_timestamp(idx) -> datetime:
 
     # Ensure timezone-aware (required for TIMESTAMPTZ)
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
+        ts = ts.replace(tzinfo=UTC)
     return ts
 
 
@@ -121,7 +121,7 @@ def _format_copy_value(value) -> str:
         return r"\N"
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
+            value = value.replace(tzinfo=UTC)
         return value.isoformat()
     if isinstance(value, date):
         return value.isoformat()
@@ -236,9 +236,7 @@ def _copy_with_upsert(
 
         if update_columns:
             update_clause = sql.SQL(", ").join(
-                sql.SQL("{} = EXCLUDED.{}").format(
-                    sql.Identifier(c), sql.Identifier(c)
-                )
+                sql.SQL("{} = EXCLUDED.{}").format(sql.Identifier(c), sql.Identifier(c))
                 for c in update_columns
             )
 
@@ -671,185 +669,3 @@ def _save_fixing_data(
         return _copy_with_upsert(conn, table, columns, buffer, conflict_columns)
     else:
         return _bulk_copy(conn, table, columns, buffer)
-
-
-# =============================================================================
-# Instrument save functions (unchanged logic, new connection type)
-# =============================================================================
-
-
-def save_instrument(
-    conn: psycopg.Connection,
-    symbol: str,
-    name: str,
-    asset_class: str,
-    lseg_ric: str,
-    data_shape: str = "ohlcv",
-    exchange: str | None = None,
-    currency: str | None = None,
-    description: str | None = None,
-) -> int:
-    """
-    Save or update an instrument.
-
-    Args:
-        conn: Database connection.
-        symbol: Instrument symbol.
-        name: Display name.
-        asset_class: Asset class.
-        lseg_ric: LSEG RIC code.
-        data_shape: Data shape for routing.
-        exchange: Exchange code.
-        currency: Quote currency.
-        description: Description.
-
-    Returns:
-        Instrument ID.
-    """
-    with conn.cursor() as cur:
-        # Check if exists
-        cur.execute("SELECT id FROM instruments WHERE symbol = %s", [symbol])
-        result = cur.fetchone()
-
-        if result:
-            # Update existing
-            cur.execute(
-                """
-                UPDATE instruments SET
-                    name = %s,
-                    asset_class = %s,
-                    data_shape = %s,
-                    lseg_ric = %s,
-                    exchange = %s,
-                    currency = %s,
-                    description = %s,
-                    updated_at = NOW()
-                WHERE symbol = %s
-                RETURNING id
-                """,
-                [
-                    name,
-                    asset_class,
-                    data_shape,
-                    lseg_ric,
-                    exchange,
-                    currency,
-                    description,
-                    symbol,
-                ],
-            )
-            result = cur.fetchone()
-            return result[0]
-        else:
-            # Insert new
-            cur.execute(
-                """
-                INSERT INTO instruments
-                    (symbol, name, asset_class, data_shape, lseg_ric,
-                     exchange, currency, description)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                [
-                    symbol,
-                    name,
-                    asset_class,
-                    data_shape,
-                    lseg_ric,
-                    exchange,
-                    currency,
-                    description,
-                ],
-            )
-            result = cur.fetchone()
-            return result[0]
-
-
-def save_roll_event(
-    conn: psycopg.Connection,
-    continuous_id: int,
-    roll_date: date,
-    from_contract: str,
-    to_contract: str,
-    from_price: float,
-    to_price: float,
-    roll_method: str,
-) -> int:
-    """
-    Save a roll event for continuous contracts.
-
-    Args:
-        conn: Database connection.
-        continuous_id: Continuous instrument ID.
-        roll_date: Date of roll.
-        from_contract: Contract being rolled from.
-        to_contract: Contract being rolled into.
-        from_price: Price of from_contract at roll.
-        to_price: Price of to_contract at roll.
-        roll_method: Roll determination method.
-
-    Returns:
-        Roll event ID.
-    """
-    price_gap = to_price - from_price
-    adjustment_factor = to_price / from_price if from_price != 0 else 1.0
-
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO roll_events
-                (continuous_id, roll_date, from_contract, to_contract,
-                 from_price, to_price, price_gap, adjustment_factor, roll_method)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-            """,
-            [
-                continuous_id,
-                roll_date,
-                from_contract,
-                to_contract,
-                from_price,
-                to_price,
-                price_gap,
-                adjustment_factor,
-                roll_method,
-            ],
-        )
-        result = cur.fetchone()
-        return result[0]
-
-
-def log_extraction(
-    conn: psycopg.Connection,
-    instrument_id: int,
-    start_date: date,
-    end_date: date,
-    granularity: str,
-    rows_fetched: int,
-) -> int:
-    """
-    Log an extraction operation.
-
-    Args:
-        conn: Database connection.
-        instrument_id: Instrument ID.
-        start_date: Extraction start date.
-        end_date: Extraction end date.
-        granularity: Data granularity.
-        rows_fetched: Number of rows fetched.
-
-    Returns:
-        Log entry ID.
-    """
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO extraction_log
-                (instrument_id, start_date, end_date, granularity, rows_fetched)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id
-            """,
-            [instrument_id, start_date, end_date, granularity, rows_fetched],
-        )
-        result = cur.fetchone()
-        return result[0]

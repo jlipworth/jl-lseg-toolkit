@@ -27,7 +27,7 @@ Usage:
         save_timeseries(conn, instrument_id, df)
 """
 
-from .connection import DEFAULT_DUCKDB_PATH, get_connection
+from .connection import DEFAULT_DUCKDB_PATH, get_connection, init_db
 from .field_mapping import FieldMapper, FieldMapping
 from .instruments import (
     ASSET_CLASS_TO_DATA_SHAPE,
@@ -39,8 +39,7 @@ from .instruments import (
     get_instruments,
     save_instrument,
 )
-from .migration import migrate_from_sqlite
-from .parquet_export import export_symbol_to_parquet, export_to_parquet
+from .pg_schema import SCHEMA_SQL
 from .progress import (
     create_extraction_progress,
     get_extraction_progress,
@@ -51,7 +50,6 @@ from .queries import Queries
 from .reader import get_data_coverage, get_data_range, load_timeseries
 from .resolver import SymbolResolver
 from .roll_events import get_roll_events, save_roll_event
-from .schema import SCHEMA_SQL, init_db
 from .types import (
     BondDetails,
     EquityDetails,
@@ -67,11 +65,11 @@ from .writer import SaveContext, save_timeseries
 
 __all__ = [
     # Connection
-    "DEFAULT_DUCKDB_PATH",
+    "DEFAULT_DUCKDB_PATH",  # Deprecated, kept for backwards compatibility
     "get_connection",
+    "init_db",
     # Schema
     "SCHEMA_SQL",
-    "init_db",
     # Instruments
     "ASSET_CLASS_TO_DATA_SHAPE",
     "DETAIL_TABLES",
@@ -103,11 +101,6 @@ __all__ = [
     "create_extraction_progress",
     "update_extraction_progress",
     "get_extraction_progress",
-    # Parquet
-    "export_to_parquet",
-    "export_symbol_to_parquet",
-    # Migration
-    "migrate_from_sqlite",
     # Types
     "BondDetails",
     "EquityDetails",

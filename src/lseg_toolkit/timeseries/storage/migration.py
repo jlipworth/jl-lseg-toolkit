@@ -1,15 +1,26 @@
 """
 Database migration utilities.
 
-This module provides functions for migrating data between database formats
-and legacy table structures.
+DEPRECATED: This module provides SQLite-to-DuckDB migration, which is no longer
+the primary storage path. For migrating to PostgreSQL/TimescaleDB, use the
+migrate_to_tsdb module instead.
 """
 
 from __future__ import annotations
 
+import warnings
+
 import duckdb
 
 from lseg_toolkit.exceptions import StorageError
+
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "migration module (SQLite-to-DuckDB) is deprecated. "
+    "Use migrate_to_tsdb for PostgreSQL/TimescaleDB migration.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def migrate_from_sqlite(
