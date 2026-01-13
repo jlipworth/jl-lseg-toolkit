@@ -4,8 +4,8 @@ Common test helper functions for DataFrame validation and assertions.
 These helpers reduce boilerplate in tests and provide consistent error messages.
 """
 
+from collections.abc import Sequence
 from datetime import date, datetime
-from typing import Sequence
 
 import pandas as pd
 
@@ -99,9 +99,7 @@ def assert_date_range(
         end_dt = pd.to_datetime(end)
         max_date = dates.max()
         if max_date > end_dt:
-            raise AssertionError(
-                f"Maximum date {max_date} is after end date {end_dt}"
-            )
+            raise AssertionError(f"Maximum date {max_date} is after end date {end_dt}")
 
 
 def assert_dataframe_not_empty(df: pd.DataFrame, msg: str = "") -> None:

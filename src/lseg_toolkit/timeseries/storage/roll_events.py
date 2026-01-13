@@ -81,9 +81,7 @@ def save_roll_event(
         raise StorageError(f"Failed to save roll event: {e}") from e
 
 
-def get_roll_events(
-    conn: psycopg.Connection, continuous_symbol: str
-) -> list[dict]:
+def get_roll_events(conn: psycopg.Connection, continuous_symbol: str) -> list[dict]:
     """
     Get roll events for a continuous contract.
 

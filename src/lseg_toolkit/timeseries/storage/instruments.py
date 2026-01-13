@@ -440,9 +440,7 @@ def save_instrument(
     try:
         with conn.cursor() as cur:
             # Check if instrument exists
-            cur.execute(
-                "SELECT id FROM instruments WHERE symbol = %s", [symbol]
-            )
+            cur.execute("SELECT id FROM instruments WHERE symbol = %s", [symbol])
             result = cur.fetchone()
 
             if result:
@@ -458,7 +456,13 @@ def save_instrument(
                         updated_at = current_timestamp
                     WHERE id = %s
                     """,
-                    [name, asset_class.value, data_shape.value, lseg_ric, instrument_id],
+                    [
+                        name,
+                        asset_class.value,
+                        data_shape.value,
+                        lseg_ric,
+                        instrument_id,
+                    ],
                 )
             else:
                 # Insert new and get ID using RETURNING
@@ -499,9 +503,7 @@ def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
         Instrument dict or None if not found.
     """
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT * FROM instruments WHERE symbol = %s", [symbol]
-        )
+        cur.execute("SELECT * FROM instruments WHERE symbol = %s", [symbol])
         result = cur.fetchone()
         if result:
             columns = [desc[0] for desc in cur.description]
@@ -521,16 +523,12 @@ def get_instrument_id(conn: psycopg.Connection, symbol: str) -> int | None:
         Instrument ID or None if not found.
     """
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id FROM instruments WHERE symbol = %s", [symbol]
-        )
+        cur.execute("SELECT id FROM instruments WHERE symbol = %s", [symbol])
         result = cur.fetchone()
     return result[0] if result else None
 
 
-def get_instrument_by_ric(
-    conn: psycopg.Connection, lseg_ric: str
-) -> dict | None:
+def get_instrument_by_ric(conn: psycopg.Connection, lseg_ric: str) -> dict | None:
     """
     Get instrument by LSEG RIC.
 
@@ -542,9 +540,7 @@ def get_instrument_by_ric(
         Instrument dict or None if not found.
     """
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT * FROM instruments WHERE lseg_ric = %s", [lseg_ric]
-        )
+        cur.execute("SELECT * FROM instruments WHERE lseg_ric = %s", [lseg_ric])
         result = cur.fetchone()
         if result:
             columns = [desc[0] for desc in cur.description]

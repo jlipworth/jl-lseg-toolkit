@@ -81,7 +81,9 @@ class TestIndexAvailability:
         ],
         ids=["SPX", "SPCY", "NDX", "DJI"],
     )
-    def test_us_index_size(self, lseg_client_class, index_code, min_expected, max_expected):
+    def test_us_index_size(
+        self, lseg_client_class, index_code, min_expected, max_expected
+    ):
         """Test that US index returns expected number of constituents."""
         rics = lseg_client_class.get_index_constituents(index_code)
         count = len(rics)
@@ -101,7 +103,9 @@ class TestIndexAvailability:
         ],
         ids=["FTSE", "STOXX50E", "GDAXI", "FCHI", "AEX"],
     )
-    def test_european_index_size(self, lseg_client_class, index_code, min_expected, max_expected):
+    def test_european_index_size(
+        self, lseg_client_class, index_code, min_expected, max_expected
+    ):
         """Test that European index returns expected number of constituents."""
         rics = lseg_client_class.get_index_constituents(index_code)
         count = len(rics)

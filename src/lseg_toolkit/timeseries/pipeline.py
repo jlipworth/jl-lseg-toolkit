@@ -19,7 +19,6 @@ import pandas as pd
 from lseg_toolkit.client import SessionManager
 from lseg_toolkit.timeseries.config import TimeSeriesConfig
 from lseg_toolkit.timeseries.enums import AssetClass
-from lseg_toolkit.timeseries.export import export_metadata, export_to_parquet
 from lseg_toolkit.timeseries.fetch import (
     fetch_fras,
     fetch_futures,
@@ -155,17 +154,13 @@ class TimeSeriesExtractionPipeline:
             result.total_rows = sum(r.rows_fetched for r in extraction_results)
 
             # Export to Parquet if requested
+            # Note: Parquet export is deprecated pending refactor to PostgreSQL
             if self.config.export_parquet:
-                with timer("Exporting to Parquet", self.verbose):
-                    parquet_files = export_to_parquet(
-                        self.config.db_path,
-                        self.config.parquet_dir,
-                        granularity=self.config.granularity,
-                    )
-                    export_metadata(self.config.db_path, self.config.parquet_dir)
-                    result.parquet_files = parquet_files
+                logger.warning(
+                    "Parquet export is temporarily disabled during PostgreSQL migration"
+                )
 
-            result.db_path = Path(self.config.db_path)
+            result.db_path = None
 
         finally:
             if self.session:
@@ -257,7 +252,7 @@ class TimeSeriesExtractionPipeline:
             )
 
             # Store roll events
-            with get_connection(self.config.db_path) as conn:
+            with get_connection() as conn:
                 for event in roll_events:
                     save_roll_event(
                         conn,
@@ -431,7 +426,7 @@ class TimeSeriesExtractionPipeline:
             )
 
         try:
-            with get_connection(self.config.db_path) as conn:
+            with get_connection() as conn:
                 # Save instrument
                 inst_id = save_instrument(
                     conn,
@@ -505,7 +500,7 @@ class TimeSeriesExtractionPipeline:
         if self.config.continuous:
             print(f"Continuous:   {self.config.continuous_type.value}")
             print(f"Roll Method:  {self.config.roll_method.value}")
-        print(f"Database:     {self.config.db_path}")
+        print("Database:     PostgreSQL (via TSDB_* env vars)")
         if self.config.export_parquet:
             print(f"Parquet Dir:  {self.config.parquet_dir}")
         print("=" * 80)

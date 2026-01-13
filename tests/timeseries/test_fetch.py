@@ -6,7 +6,7 @@ These tests use mocks and don't require LSEG Workspace.
 """
 
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -75,13 +75,15 @@ class TestNormalizeColumns:
 
     def test_normalize_ohlcv_columns(self):
         """OHLCV columns should be normalized correctly."""
-        df = pd.DataFrame({
-            "OPEN_PRC": [100.0],
-            "HIGH_1": [101.0],
-            "LOW_1": [99.0],
-            "TRDPRC_1": [100.5],
-            "ACVOL_UNS": [1000],
-        })
+        df = pd.DataFrame(
+            {
+                "OPEN_PRC": [100.0],
+                "HIGH_1": [101.0],
+                "LOW_1": [99.0],
+                "TRDPRC_1": [100.5],
+                "ACVOL_UNS": [1000],
+            }
+        )
 
         result = _normalize_columns(df)
 
@@ -93,10 +95,12 @@ class TestNormalizeColumns:
 
     def test_normalize_fx_columns(self):
         """FX columns should be normalized correctly."""
-        df = pd.DataFrame({
-            "BID": [1.0850],
-            "ASK": [1.0852],
-        })
+        df = pd.DataFrame(
+            {
+                "BID": [1.0850],
+                "ASK": [1.0852],
+            }
+        )
 
         result = _normalize_columns(df)
 
@@ -105,10 +109,12 @@ class TestNormalizeColumns:
 
     def test_normalize_preserves_unknown_columns(self):
         """Unknown columns should be preserved."""
-        df = pd.DataFrame({
-            "CUSTOM_FIELD": [1.0],
-            "ANOTHER_FIELD": [2.0],
-        })
+        df = pd.DataFrame(
+            {
+                "CUSTOM_FIELD": [1.0],
+                "ANOTHER_FIELD": [2.0],
+            }
+        )
 
         result = _normalize_columns(df)
 
@@ -153,13 +159,16 @@ class TestFetchWithMocks:
         """fetch_futures should return dict of DataFrames."""
         from lseg_toolkit.timeseries.fetch import fetch_futures
 
-        mock_fetch_timeseries.return_value = pd.DataFrame({
-            "open": [100.0, 101.0],
-            "high": [101.0, 102.0],
-            "low": [99.0, 100.0],
-            "close": [100.5, 101.5],
-            "volume": [1000, 1100],
-        }, index=pd.to_datetime(["2024-01-01", "2024-01-02"]))
+        mock_fetch_timeseries.return_value = pd.DataFrame(
+            {
+                "open": [100.0, 101.0],
+                "high": [101.0, 102.0],
+                "low": [99.0, 100.0],
+                "close": [100.5, 101.5],
+                "volume": [1000, 1100],
+            },
+            index=pd.to_datetime(["2024-01-01", "2024-01-02"]),
+        )
 
         result = fetch_futures(
             ["TYc1"],
@@ -176,10 +185,13 @@ class TestFetchWithMocks:
         """fetch_fx should return dict of DataFrames."""
         from lseg_toolkit.timeseries.fetch import fetch_fx
 
-        mock_fetch_timeseries.return_value = pd.DataFrame({
-            "bid": [1.0850],
-            "ask": [1.0852],
-        }, index=pd.to_datetime(["2024-01-01"]))
+        mock_fetch_timeseries.return_value = pd.DataFrame(
+            {
+                "bid": [1.0850],
+                "ask": [1.0852],
+            },
+            index=pd.to_datetime(["2024-01-01"]),
+        )
 
         result = fetch_fx(
             ["EURUSD"],
@@ -207,11 +219,13 @@ class TestSplitMultiRicResponse:
 
     def test_split_with_instrument_column(self):
         """Multi-RIC with 'Instrument' column should split correctly."""
-        df = pd.DataFrame({
-            "Instrument": ["TYc1", "TYc1", "USc1", "USc1"],
-            "close": [100.0, 101.0, 150.0, 151.0],
-            "date": ["2024-01-01", "2024-01-02", "2024-01-01", "2024-01-02"],
-        })
+        df = pd.DataFrame(
+            {
+                "Instrument": ["TYc1", "TYc1", "USc1", "USc1"],
+                "close": [100.0, 101.0, 150.0, 151.0],
+                "date": ["2024-01-01", "2024-01-02", "2024-01-01", "2024-01-02"],
+            }
+        )
         key_to_ric = {"ZN": "TYc1", "ZB": "USc1"}
 
         result = _split_multi_ric_response(df, key_to_ric)
@@ -256,10 +270,12 @@ class TestSplitMultiRicResponse:
 
     def test_split_missing_ric_in_response(self):
         """Missing RIC in response should not be included."""
-        df = pd.DataFrame({
-            "Instrument": ["TYc1", "TYc1"],
-            "close": [100.0, 101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "Instrument": ["TYc1", "TYc1"],
+                "close": [100.0, 101.0],
+            }
+        )
         key_to_ric = {"ZN": "TYc1", "ZB": "USc1"}  # USc1 not in response
 
         result = _split_multi_ric_response(df, key_to_ric)

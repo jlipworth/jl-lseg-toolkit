@@ -27,7 +27,7 @@ Usage:
         save_timeseries(conn, instrument_id, df)
 """
 
-from .connection import DEFAULT_DUCKDB_PATH, get_connection, init_db
+from .connection import get_connection, init_db
 from .field_mapping import FieldMapper, FieldMapping
 from .instruments import (
     ASSET_CLASS_TO_DATA_SHAPE,
@@ -65,7 +65,6 @@ from .writer import SaveContext, save_timeseries
 
 __all__ = [
     # Connection
-    "DEFAULT_DUCKDB_PATH",  # Deprecated, kept for backwards compatibility
     "get_connection",
     "init_db",
     # Schema

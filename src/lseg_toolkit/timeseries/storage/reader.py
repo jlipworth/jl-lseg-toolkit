@@ -7,7 +7,7 @@ with support for all data shapes (OHLCV, Quote, Rate, Bond, Fixing).
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pandas as pd
 import psycopg
@@ -136,14 +136,10 @@ def _load_ohlcv_data(
 
     if start_date:
         query += " AND ts >= %s"
-        params.append(
-            datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(start_date, datetime.min.time(), tzinfo=UTC))
     if end_date:
         query += " AND ts <= %s"
-        params.append(
-            datetime.combine(end_date, datetime.max.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(end_date, datetime.max.time(), tzinfo=UTC))
 
     query += " ORDER BY ts ASC"
 
@@ -168,14 +164,10 @@ def _load_quote_data(
 
     if start_date:
         query += " AND ts >= %s"
-        params.append(
-            datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(start_date, datetime.min.time(), tzinfo=UTC))
     if end_date:
         query += " AND ts <= %s"
-        params.append(
-            datetime.combine(end_date, datetime.max.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(end_date, datetime.max.time(), tzinfo=UTC))
 
     query += " ORDER BY ts ASC"
 
@@ -200,14 +192,10 @@ def _load_rate_data(
 
     if start_date:
         query += " AND ts >= %s"
-        params.append(
-            datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(start_date, datetime.min.time(), tzinfo=UTC))
     if end_date:
         query += " AND ts <= %s"
-        params.append(
-            datetime.combine(end_date, datetime.max.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(end_date, datetime.max.time(), tzinfo=UTC))
 
     query += " ORDER BY ts ASC"
 
@@ -235,14 +223,10 @@ def _load_bond_data(
 
     if start_date:
         query += " AND ts >= %s"
-        params.append(
-            datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(start_date, datetime.min.time(), tzinfo=UTC))
     if end_date:
         query += " AND ts <= %s"
-        params.append(
-            datetime.combine(end_date, datetime.max.time(), tzinfo=timezone.utc)
-        )
+        params.append(datetime.combine(end_date, datetime.max.time(), tzinfo=UTC))
 
     query += " ORDER BY ts ASC"
 
