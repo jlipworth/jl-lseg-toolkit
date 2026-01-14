@@ -445,7 +445,7 @@ def save_instrument(
 
             if result:
                 # Update existing
-                instrument_id = result[0]
+                instrument_id = result["id"]
                 cur.execute(
                     """
                     UPDATE instruments SET
@@ -564,5 +564,5 @@ def get_instruments(
         else:
             cur.execute("SELECT * FROM instruments ORDER BY symbol")
 
-        columns = [desc[0] for desc in cur.description]
-        return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+        # With dict_row, fetchall() returns list of dicts directly
+        return [dict(row) for row in cur.fetchall()]

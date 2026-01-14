@@ -64,14 +64,14 @@ class TestTimeSeriesConfig:
             )
 
     def test_intraday_date_range_validation(self):
-        """Test intraday data date range limit."""
+        """Test intraday data date range limit (365 days max)."""
         with pytest.raises(
-            ValueError, match="Intraday data only available for ~90 days"
+            ValueError, match="Intraday data only available for ~365 days"
         ):
             TimeSeriesConfig(
                 symbols=["ZN"],
-                start_date=date(2024, 1, 1),
-                end_date=date(2024, 12, 31),
+                start_date=date(2023, 1, 1),
+                end_date=date(2024, 12, 31),  # > 365 days
                 granularity=Granularity.MINUTE_5,
             )
 

@@ -29,8 +29,8 @@ class TestClientConfig:
 
         assert config.max_retries == 3
         assert config.retry_delay == 1.0
-        assert config.rate_limit_delay == 0.1
-        assert config.max_rics_per_request == 50
+        assert config.rate_limit_delay == 0.05  # Reduced for faster batching
+        assert config.max_rics_per_request == 100
         assert config.validate_inputs is True
 
     def test_custom_values(self):

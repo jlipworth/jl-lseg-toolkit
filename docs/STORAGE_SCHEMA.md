@@ -1,10 +1,17 @@
-# DuckDB Storage Schema
+# TimescaleDB Storage Schema
 
 This document describes the storage schema for the `jl-lseg-toolkit` time series database.
 
 ## Overview
 
-The storage layer uses DuckDB for high-performance analytical queries and native Parquet export. The schema is organized around **data shapes** rather than asset classes, which normalizes storage by the fundamental structure of the data rather than the instrument type.
+The storage layer uses **TimescaleDB** (PostgreSQL with time-series extensions) for high-performance analytical queries. The schema is organized around **data shapes** rather than asset classes, which normalizes storage by the fundamental structure of the data rather than the instrument type.
+
+### TimescaleDB Features
+
+- **Hypertables**: Time-partitioned tables for efficient time-range queries
+- **Compression**: Automatic compression of older chunks (7+ days)
+- **Space partitioning**: Hash partitioning by `instrument_id` for multi-instrument queries
+- **Continuous aggregates**: Pre-computed rollups (optional)
 
 ### Design Principles
 
@@ -609,6 +616,45 @@ CREATE TABLE timeseries_fixing (
 );
 
 CREATE INDEX idx_timeseries_fixing_date ON timeseries_fixing(instrument_id, date DESC);
+```
+
+### Hypertable Configuration
+
+All timeseries tables are converted to TimescaleDB hypertables for optimized time-series performance:
+
+```sql
+-- Convert to hypertables with 1-month chunks
+SELECT create_hypertable('timeseries_ohlcv', 'ts', chunk_time_interval => INTERVAL '1 month');
+SELECT create_hypertable('timeseries_quote', 'ts', chunk_time_interval => INTERVAL '1 month');
+SELECT create_hypertable('timeseries_rate', 'ts', chunk_time_interval => INTERVAL '1 month');
+SELECT create_hypertable('timeseries_bond', 'ts', chunk_time_interval => INTERVAL '1 month');
+SELECT create_hypertable('timeseries_fixing', 'date', chunk_time_interval => INTERVAL '1 year');
+
+-- Add space partitioning by instrument_id (4 partitions)
+SELECT add_dimension('timeseries_ohlcv', by_hash('instrument_id', 4));
+SELECT add_dimension('timeseries_quote', by_hash('instrument_id', 4));
+SELECT add_dimension('timeseries_rate', by_hash('instrument_id', 4));
+SELECT add_dimension('timeseries_bond', by_hash('instrument_id', 4));
+```
+
+### Compression Policies
+
+Automatic compression is enabled for older data:
+
+```sql
+-- Enable compression
+ALTER TABLE timeseries_ohlcv SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'instrument_id, granularity',
+    timescaledb.compress_orderby = 'ts DESC'
+);
+
+-- Auto-compress chunks older than 7 days
+SELECT add_compression_policy('timeseries_ohlcv', INTERVAL '7 days');
+SELECT add_compression_policy('timeseries_quote', INTERVAL '7 days');
+SELECT add_compression_policy('timeseries_rate', INTERVAL '7 days');
+SELECT add_compression_policy('timeseries_bond', INTERVAL '7 days');
+SELECT add_compression_policy('timeseries_fixing', INTERVAL '30 days');
 ```
 
 ### Metadata Tables

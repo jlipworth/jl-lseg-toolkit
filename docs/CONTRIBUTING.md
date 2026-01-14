@@ -4,20 +4,12 @@ Thank you for your interest in contributing to the LSEG Toolkit!
 
 ## Getting Started
 
-### Prerequisites
-
-- Python 3.12+
-- uv for dependency and environment management
-- LSEG Workspace Desktop (for integration testing)
-
-### Development Setup
+For complete setup instructions, see **[GETTING_STARTED.md](GETTING_STARTED.md)**.
 
 ```bash
-# Clone the repository
+# Clone and install
 git clone <repository-url>
 cd jl-lseg-toolkit
-
-# Install dependencies (creates virtual environment automatically)
 uv sync
 
 # Install pre-commit hooks
@@ -180,10 +172,10 @@ uv run pytest tests/ -m "unit"
 | File | Purpose |
 |------|---------|
 | `README.md` | Quick start, installation, examples |
+| `docs/GETTING_STARTED.md` | Setup for all platforms |
 | `docs/ARCHITECTURE.md` | System design, data flow |
 | `docs/DEVELOPMENT.md` | Developer guide, testing |
 | `docs/LSEG_API_REFERENCE.md` | API patterns, field reference |
-| `docs/WSL_SETUP.md` | WSL-specific setup |
 | `docs/CHANGELOG.md` | Version history |
 
 ## Commit Messages

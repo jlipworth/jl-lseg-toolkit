@@ -344,3 +344,16 @@ df = rd.get_history(universe=['EUR='], interval='hourly', start='2024-10-01', en
 **Rates (OIS, Yields, FRAs):**
 - `CLOSE`: Closing rate/yield
 - `BID`, `ASK`: Bid/ask for FRAs
+
+## RIC Reference Guides
+
+Detailed RIC documentation for specific asset classes:
+
+| Guide | Coverage |
+|-------|----------|
+| [BOND_BASIS_RICS.md](ric-guides/BOND_BASIS_RICS.md) | Treasury futures deliverables, conversion factors |
+| [CREDIT_DATA_RICS.md](ric-guides/CREDIT_DATA_RICS.md) | CDS indices (CDX IG/HY), sovereign CDS |
+| [REPO_RATES_RICS.md](ric-guides/REPO_RATES_RICS.md) | US repo rates, SOFR, overnight rates |
+| [TREASURY_DATA_SOURCES.md](ric-guides/TREASURY_DATA_SOURCES.md) | Treasury auction data, TreasuryDirect API |
+
+For the complete validated instrument list (200+ RICs), see [INSTRUMENTS.md](INSTRUMENTS.md).

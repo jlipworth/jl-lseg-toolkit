@@ -1,241 +1,251 @@
-"""Tests for timeseries storage layer."""
+"""Tests for timeseries PostgreSQL/TimescaleDB storage layer.
 
-import tempfile
+Uses mocked psycopg connections to test storage operations without
+requiring a live database.
+"""
+
 from datetime import date
-from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from lseg_toolkit.timeseries.enums import AssetClass, Granularity
-from lseg_toolkit.timeseries.storage import (
-    get_connection,
-    get_data_range,
-    get_instrument,
-    get_instrument_id,
-    get_instruments,
-    get_roll_events,
-    init_db,
-    load_timeseries,
-    save_instrument,
-    save_roll_event,
-    save_timeseries,
-)
+from lseg_toolkit.timeseries.enums import AssetClass, DataShape, Granularity
 
 
-class TestDatabaseInit:
+class TestGetConnection:
+    """Tests for database connection management."""
+
+    @patch("lseg_toolkit.timeseries.storage.connection.get_pool")
+    def test_get_connection_uses_pool(self, mock_get_pool):
+        """Connection should use pool by default."""
+        from lseg_toolkit.timeseries.storage import get_connection
+
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_pool.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__exit__ = MagicMock(return_value=False)
+        mock_get_pool.return_value = mock_pool
+
+        with get_connection() as conn:
+            assert conn == mock_conn
+
+    @patch("lseg_toolkit.timeseries.storage.connection.psycopg")
+    def test_get_connection_direct_dsn(self, mock_psycopg):
+        """Direct DSN should bypass pool."""
+        from lseg_toolkit.timeseries.storage import get_connection
+
+        mock_conn = MagicMock()
+        mock_psycopg.connect.return_value = mock_conn
+
+        with get_connection(dsn="postgresql://test", use_pool=False) as conn:
+            mock_psycopg.connect.assert_called_once()
+            assert conn == mock_conn
+
+    @patch("lseg_toolkit.timeseries.storage.connection.get_pool")
+    def test_get_connection_db_path_deprecated(self, mock_get_pool):
+        """db_path parameter should emit deprecation warning."""
+        from lseg_toolkit.timeseries.storage import get_connection
+
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_pool.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__exit__ = MagicMock(return_value=False)
+        mock_get_pool.return_value = mock_pool
+
+        with pytest.warns(DeprecationWarning, match="db_path.*deprecated"):
+            with get_connection(db_path="/path/to/db"):
+                pass
+
+
+class TestInitDb:
     """Tests for database initialization."""
 
-    def test_init_db_creates_file(self):
-        """Test database file creation."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
-            conn = init_db(str(db_path))
-            assert db_path.exists()
-            conn.close()
+    @patch("lseg_toolkit.timeseries.storage.connection.get_connection")
+    @patch("lseg_toolkit.timeseries.storage.pg_schema.init_schema")
+    def test_init_db_calls_init_schema(self, mock_init_schema, mock_get_conn):
+        """init_db should call init_schema with connection."""
+        from lseg_toolkit.timeseries.storage import init_db
 
-    def test_init_db_creates_nested_path(self):
-        """Test database creation with nested directories."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "data" / "nested" / "test.db"
-            conn = init_db(str(db_path))
-            assert db_path.exists()
-            conn.close()
+        mock_conn = MagicMock()
+        mock_get_conn.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_get_conn.return_value.__exit__ = MagicMock(return_value=False)
 
-    def test_init_db_creates_tables(self):
-        """Test that all tables are created."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
-            conn = init_db(str(db_path))
+        init_db()
 
-            # Check tables exist
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-            )
-            tables = [row[0] for row in cursor.fetchall()]
-
-            assert "instruments" in tables
-            assert "ohlcv_daily" in tables
-            assert "ohlcv_intraday" in tables
-            assert "roll_events" in tables
-            assert "extraction_log" in tables
-            assert "futures_contracts" in tables
-            assert "fx_spots" in tables
-            assert "ois_rates" in tables
-
-            conn.close()
+        mock_init_schema.assert_called_once_with(mock_conn)
 
 
-class TestInstrumentCRUD:
-    """Tests for instrument CRUD operations."""
+class TestSaveInstrument:
+    """Tests for instrument save operations."""
 
-    @pytest.fixture
-    def db_conn(self):
-        """Create temporary database."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
-            conn = init_db(str(db_path))
-            yield conn
-            conn.close()
-
-    def test_save_instrument_new(self, db_conn):
+    def test_save_instrument_basic(self):
         """Test saving a new instrument."""
+        from lseg_toolkit.timeseries.storage import save_instrument
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = {"id": 1}
+
         inst_id = save_instrument(
-            db_conn,
+            mock_conn,
             symbol="ZN",
             name="10-Year T-Note",
             asset_class=AssetClass.BOND_FUTURES,
             lseg_ric="TYc1",
         )
+
         assert inst_id == 1
+        mock_cursor.execute.assert_called()
 
-    def test_save_instrument_upsert(self, db_conn):
-        """Test upserting an instrument."""
-        # Save first time
-        id1 = save_instrument(
-            db_conn,
-            symbol="ZN",
-            name="10-Year T-Note",
-            asset_class=AssetClass.BOND_FUTURES,
-            lseg_ric="TYc1",
-        )
+    def test_save_instrument_with_details(self):
+        """Test saving instrument with futures details."""
+        from lseg_toolkit.timeseries.storage import save_instrument
 
-        # Upsert with updated name
-        id2 = save_instrument(
-            db_conn,
-            symbol="ZN",
-            name="Updated Name",
-            asset_class=AssetClass.BOND_FUTURES,
-            lseg_ric="TYc1",
-        )
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = {"id": 1}
 
-        assert id1 == id2  # Same ID
-
-        # Check name was updated
-        inst = get_instrument(db_conn, "ZN")
-        assert inst["name"] == "Updated Name"
-
-    def test_save_futures_with_details(self, db_conn):
-        """Test saving futures with contract details."""
         inst_id = save_instrument(
-            db_conn,
+            mock_conn,
             symbol="TYH25",
             name="10-Year T-Note Mar 2025",
             asset_class=AssetClass.BOND_FUTURES,
             lseg_ric="TYH5",
             underlying="TY",
-            expiry_month="H",
-            expiry_year=25,
             continuous_type="discrete",
         )
-        assert inst_id > 0
 
-    def test_save_fx_with_details(self, db_conn):
-        """Test saving FX with currency details."""
-        inst_id = save_instrument(
-            db_conn,
-            symbol="EURUSD",
-            name="EUR/USD",
-            asset_class=AssetClass.FX_SPOT,
-            lseg_ric="EUR=",
-            base_currency="EUR",
-            quote_currency="USD",
-            pip_size=0.0001,
-        )
-        assert inst_id > 0
-
-    def test_save_ois_with_details(self, db_conn):
-        """Test saving OIS with rate details."""
-        inst_id = save_instrument(
-            db_conn,
-            symbol="USD1MOIS",
-            name="USD 1M OIS",
-            asset_class=AssetClass.OIS,
-            lseg_ric="USD1MOIS=",
-            currency="USD",
-            tenor="1M",
-            reference_rate="SOFR",
-        )
-        assert inst_id > 0
-
-    def test_get_instrument(self, db_conn):
-        """Test retrieving an instrument."""
-        save_instrument(
-            db_conn,
-            symbol="ZN",
-            name="10-Year T-Note",
-            asset_class=AssetClass.BOND_FUTURES,
-            lseg_ric="TYc1",
-        )
-
-        inst = get_instrument(db_conn, "ZN")
-        assert inst is not None
-        assert inst["symbol"] == "ZN"
-        assert inst["name"] == "10-Year T-Note"
-        assert inst["asset_class"] == "bond_futures"
-        assert inst["lseg_ric"] == "TYc1"
-
-    def test_get_instrument_not_found(self, db_conn):
-        """Test retrieving non-existent instrument."""
-        inst = get_instrument(db_conn, "NOTFOUND")
-        assert inst is None
-
-    def test_get_instrument_id(self, db_conn):
-        """Test getting instrument ID."""
-        save_instrument(
-            db_conn,
-            symbol="ZN",
-            name="10-Year T-Note",
-            asset_class=AssetClass.BOND_FUTURES,
-            lseg_ric="TYc1",
-        )
-
-        inst_id = get_instrument_id(db_conn, "ZN")
         assert inst_id == 1
 
-        inst_id = get_instrument_id(db_conn, "NOTFOUND")
+
+class TestGetInstrument:
+    """Tests for instrument retrieval."""
+
+    def test_get_instrument_found(self):
+        """Test retrieving an existing instrument."""
+        from lseg_toolkit.timeseries.storage import get_instrument
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = {
+            "id": 1,
+            "symbol": "ZN",
+            "name": "10-Year T-Note",
+            "asset_class": "bond_futures",
+            "lseg_ric": "TYc1",
+        }
+
+        inst = get_instrument(mock_conn, "ZN")
+
+        assert inst is not None
+        assert inst["symbol"] == "ZN"
+        assert inst["asset_class"] == "bond_futures"
+
+    def test_get_instrument_not_found(self):
+        """Test retrieving non-existent instrument."""
+        from lseg_toolkit.timeseries.storage import get_instrument
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = None
+
+        inst = get_instrument(mock_conn, "NOTFOUND")
+
+        assert inst is None
+
+
+class TestGetInstrumentId:
+    """Tests for instrument ID lookup."""
+
+    def test_get_instrument_id_found(self):
+        """Test getting ID for existing instrument."""
+        from lseg_toolkit.timeseries.storage import get_instrument_id
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = {"id": 42}
+
+        inst_id = get_instrument_id(mock_conn, "ZN")
+
+        assert inst_id == 42
+
+    def test_get_instrument_id_not_found(self):
+        """Test getting ID for non-existent instrument."""
+        from lseg_toolkit.timeseries.storage import get_instrument_id
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = None
+
+        inst_id = get_instrument_id(mock_conn, "NOTFOUND")
+
         assert inst_id is None
 
-    def test_get_instruments_all(self, db_conn):
+
+class TestGetInstruments:
+    """Tests for instrument listing."""
+
+    def test_get_instruments_all(self):
         """Test retrieving all instruments."""
-        save_instrument(db_conn, "ZN", "10-Year", AssetClass.BOND_FUTURES, "TYc1")
-        save_instrument(db_conn, "EURUSD", "EUR/USD", AssetClass.FX_SPOT, "EUR=")
+        from lseg_toolkit.timeseries.storage import get_instruments
 
-        instruments = get_instruments(db_conn)
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchall.return_value = [
+            {"id": 1, "symbol": "EURUSD", "asset_class": "fx_spot"},
+            {"id": 2, "symbol": "ZN", "asset_class": "bond_futures"},
+        ]
+
+        instruments = get_instruments(mock_conn)
+
         assert len(instruments) == 2
-        assert instruments[0]["symbol"] == "EURUSD"  # Sorted alphabetically
-        assert instruments[1]["symbol"] == "ZN"
+        assert instruments[0]["symbol"] == "EURUSD"
 
-    def test_get_instruments_by_asset_class(self, db_conn):
+    def test_get_instruments_by_asset_class(self):
         """Test filtering instruments by asset class."""
-        save_instrument(db_conn, "ZN", "10-Year", AssetClass.BOND_FUTURES, "TYc1")
-        save_instrument(db_conn, "EURUSD", "EUR/USD", AssetClass.FX_SPOT, "EUR=")
-        save_instrument(db_conn, "GBPUSD", "GBP/USD", AssetClass.FX_SPOT, "GBP=")
+        from lseg_toolkit.timeseries.storage import get_instruments
 
-        fx_instruments = get_instruments(db_conn, AssetClass.FX_SPOT)
-        assert len(fx_instruments) == 2
-        assert all(i["asset_class"] == "fx_spot" for i in fx_instruments)
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchall.return_value = [
+            {"id": 1, "symbol": "EURUSD", "asset_class": "fx_spot"},
+            {"id": 2, "symbol": "GBPUSD", "asset_class": "fx_spot"},
+        ]
+
+        instruments = get_instruments(mock_conn, AssetClass.FX_SPOT)
+
+        assert len(instruments) == 2
+        mock_cursor.execute.assert_called()
 
 
-class TestTimeSeriesCRUD:
-    """Tests for time series CRUD operations."""
+class TestSaveTimeseries:
+    """Tests for timeseries save operations."""
 
-    @pytest.fixture
-    def db_with_instrument(self):
-        """Create database with an instrument."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
-            conn = init_db(str(db_path))
-            inst_id = save_instrument(
-                conn, "ZN", "10-Year", AssetClass.BOND_FUTURES, "TYc1"
-            )
-            yield conn, inst_id
-            conn.close()
-
-    def test_save_timeseries_daily(self, db_with_instrument):
+    def test_save_timeseries_daily(self):
         """Test saving daily time series."""
-        conn, inst_id = db_with_instrument
+        from lseg_toolkit.timeseries.storage import save_timeseries
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
 
         dates = pd.date_range("2024-01-01", periods=5, freq="D")
         df = pd.DataFrame(
@@ -244,85 +254,122 @@ class TestTimeSeriesCRUD:
                 "high": [110.5, 111.0, 111.5, 111.0, 112.0],
                 "low": [109.5, 110.0, 110.5, 110.0, 111.0],
                 "close": [110.25, 110.75, 111.25, 110.75, 111.75],
-                "volume": [100000, 120000, 110000, 90000, 130000],
             },
             index=dates,
         )
 
-        rows = save_timeseries(conn, inst_id, df, Granularity.DAILY)
+        rows = save_timeseries(
+            mock_conn, 1, df, Granularity.DAILY, data_shape=DataShape.OHLCV
+        )
+
         assert rows == 5
 
-    def test_save_timeseries_upsert(self, db_with_instrument):
-        """Test upserting time series data."""
-        conn, inst_id = db_with_instrument
+    def test_save_timeseries_with_volume(self):
+        """Test saving time series with volume."""
+        from lseg_toolkit.timeseries.storage import save_timeseries
 
-        # Save initial data
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
         dates = pd.date_range("2024-01-01", periods=3, freq="D")
-        df1 = pd.DataFrame({"close": [100, 101, 102]}, index=dates)
-        save_timeseries(conn, inst_id, df1, Granularity.DAILY)
-
-        # Upsert with updated values
-        df2 = pd.DataFrame({"close": [100.5, 101.5, 102.5]}, index=dates)
-        save_timeseries(conn, inst_id, df2, Granularity.DAILY)
-
-        # Check values were updated
-        loaded = load_timeseries(conn, "ZN")
-        assert len(loaded) == 3
-        assert loaded["close"].iloc[0] == 100.5
-
-    def test_load_timeseries_all(self, db_with_instrument):
-        """Test loading all time series data."""
-        conn, inst_id = db_with_instrument
-
-        dates = pd.date_range("2024-01-01", periods=10, freq="D")
-        df = pd.DataFrame({"close": range(10)}, index=dates)
-        save_timeseries(conn, inst_id, df, Granularity.DAILY)
-
-        loaded = load_timeseries(conn, "ZN")
-        assert len(loaded) == 10
-        assert "close" in loaded.columns
-
-    def test_load_timeseries_date_filter(self, db_with_instrument):
-        """Test loading time series with date filter."""
-        conn, inst_id = db_with_instrument
-
-        dates = pd.date_range("2024-01-01", periods=31, freq="D")
-        df = pd.DataFrame({"close": range(31)}, index=dates)
-        save_timeseries(conn, inst_id, df, Granularity.DAILY)
-
-        # Load subset
-        loaded = load_timeseries(
-            conn,
-            "ZN",
-            start_date=date(2024, 1, 10),
-            end_date=date(2024, 1, 20),
+        df = pd.DataFrame(
+            {
+                "close": [100, 101, 102],
+                "volume": [1000, 1100, 1200],
+            },
+            index=dates,
         )
-        assert len(loaded) == 11
-        assert loaded.index.min().date() == date(2024, 1, 10)
-        assert loaded.index.max().date() == date(2024, 1, 20)
 
-    def test_load_timeseries_not_found(self, db_with_instrument):
+        rows = save_timeseries(
+            mock_conn, 1, df, Granularity.DAILY, data_shape=DataShape.OHLCV
+        )
+
+        assert rows == 3
+
+
+class TestLoadTimeseries:
+    """Tests for timeseries retrieval."""
+
+    def test_load_timeseries_basic(self):
+        """Test loading time series data."""
+        from lseg_toolkit.timeseries.storage import load_timeseries
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Mock instrument lookup
+        mock_cursor.fetchone.side_effect = [
+            {"id": 1, "data_shape": "ohlcv"},  # get_instrument_by_ric result
+        ]
+
+        # Mock timeseries data - returns list of dicts
+        mock_cursor.fetchall.return_value = [
+            {"ts": pd.Timestamp("2024-01-01"), "close": 100.0},
+            {"ts": pd.Timestamp("2024-01-02"), "close": 101.0},
+        ]
+
+        load_timeseries(mock_conn, "ZN")
+
+        # Check cursor was called
+        mock_cursor.execute.assert_called()
+
+    def test_load_timeseries_not_found(self):
         """Test loading non-existent instrument."""
-        conn, _ = db_with_instrument
-        loaded = load_timeseries(conn, "NOTFOUND")
-        assert loaded.empty
+        from lseg_toolkit.timeseries.storage import load_timeseries
 
-    def test_get_data_range(self, db_with_instrument):
-        """Test getting data date range."""
-        conn, inst_id = db_with_instrument
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = None  # Instrument not found
 
-        dates = pd.date_range("2024-01-15", periods=20, freq="D")
-        df = pd.DataFrame({"close": range(20)}, index=dates)
-        save_timeseries(conn, inst_id, df, Granularity.DAILY)
+        df = load_timeseries(mock_conn, "NOTFOUND")
 
-        min_date, max_date = get_data_range(conn, "ZN")
-        assert min_date == date(2024, 1, 15)
-        assert max_date == date(2024, 2, 3)
+        assert df.empty
 
-    def test_get_data_range_no_data(self, db_with_instrument):
-        """Test getting range for empty instrument."""
-        conn, _ = db_with_instrument
-        min_date, max_date = get_data_range(conn, "ZN")
+
+class TestGetDataRange:
+    """Tests for data range queries."""
+
+    def test_get_data_range_with_data(self):
+        """Test getting date range for instrument with data."""
+        from lseg_toolkit.timeseries.storage import get_data_range
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_cursor.fetchone.side_effect = [
+            {"id": 1, "data_shape": "ohlcv"},  # get_instrument_by_ric
+            {"min": date(2024, 1, 1), "max": date(2024, 1, 31)},
+        ]
+
+        min_date, max_date = get_data_range(mock_conn, "ZN")
+
+        assert min_date == date(2024, 1, 1)
+        assert max_date == date(2024, 1, 31)
+
+    def test_get_data_range_no_data(self):
+        """Test getting range for instrument with no data."""
+        from lseg_toolkit.timeseries.storage import get_data_range
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_cursor.fetchone.side_effect = [
+            {"id": 1, "data_shape": "ohlcv"},  # get_instrument_by_ric
+            {"min": None, "max": None},  # No data
+        ]
+
+        min_date, max_date = get_data_range(mock_conn, "ZN")
+
         assert min_date is None
         assert max_date is None
 
@@ -330,69 +377,115 @@ class TestTimeSeriesCRUD:
 class TestRollEvents:
     """Tests for roll event operations."""
 
-    @pytest.fixture
-    def db_with_continuous(self):
-        """Create database with continuous instrument."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
-            conn = init_db(str(db_path))
-            save_instrument(
-                conn, "ZN", "10-Year Continuous", AssetClass.BOND_FUTURES, "TYc1"
-            )
-            yield conn
-            conn.close()
-
-    def test_save_roll_event(self, db_with_continuous):
+    def test_save_roll_event(self):
         """Test saving a roll event."""
-        conn = db_with_continuous
+        from lseg_toolkit.timeseries.storage import save_roll_event
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.side_effect = [
+            {"id": 1},  # get_instrument_id
+            {"id": 1},  # insert result
+        ]
+
         roll_id = save_roll_event(
-            conn,
+            mock_conn,
             continuous_symbol="ZN",
             roll_date=date(2024, 3, 15),
             from_contract="TYH24",
             to_contract="TYM24",
             from_price=110.0,
             to_price=110.5,
-            roll_method="volume_switch",
+            roll_method="volume",
         )
+
         assert roll_id == 1
 
-    def test_get_roll_events(self, db_with_continuous):
+    def test_get_roll_events(self):
         """Test retrieving roll events."""
-        conn = db_with_continuous
+        from lseg_toolkit.timeseries.storage import get_roll_events
 
-        # Save multiple roll events
-        save_roll_event(
-            conn, "ZN", date(2024, 3, 15), "TYH24", "TYM24", 110.0, 110.5, "volume"
-        )
-        save_roll_event(
-            conn, "ZN", date(2024, 6, 15), "TYM24", "TYU24", 111.0, 111.3, "volume"
-        )
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
 
-        events = get_roll_events(conn, "ZN")
+        mock_cursor.fetchone.return_value = {"id": 1}  # get_instrument_id
+        mock_cursor.fetchall.return_value = [
+            {
+                "roll_date": date(2024, 3, 15),
+                "from_contract": "TYH24",
+                "to_contract": "TYM24",
+            },
+            {
+                "roll_date": date(2024, 6, 15),
+                "from_contract": "TYM24",
+                "to_contract": "TYU24",
+            },
+        ]
+
+        events = get_roll_events(mock_conn, "ZN")
+
         assert len(events) == 2
         assert events[0]["from_contract"] == "TYH24"
-        assert events[1]["from_contract"] == "TYM24"
 
-    def test_get_roll_events_empty(self, db_with_continuous):
-        """Test getting roll events for instrument with none."""
-        conn = db_with_continuous
-        events = get_roll_events(conn, "ZN")
+    def test_get_roll_events_empty(self):
+        """Test getting roll events when none exist."""
+        from lseg_toolkit.timeseries.storage import get_roll_events
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_cursor.fetchone.return_value = {"id": 1}  # get_instrument_id
+        mock_cursor.fetchall.return_value = []
+
+        events = get_roll_events(mock_conn, "ZN")
+
         assert events == []
 
 
-class TestContextManager:
-    """Tests for database context manager."""
+class TestDataShape:
+    """Tests for data shape utilities."""
 
-    def test_get_connection_context(self):
-        """Test context manager for connections."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
+    def test_get_data_shape_futures(self):
+        """Test data shape for futures."""
+        from lseg_toolkit.timeseries.storage import get_data_shape
 
-            with get_connection(str(db_path)) as conn:
-                save_instrument(conn, "ZN", "10-Year", AssetClass.BOND_FUTURES, "TYc1")
-                inst = get_instrument(conn, "ZN")
-                assert inst is not None
+        shape = get_data_shape(AssetClass.BOND_FUTURES)
+        assert shape == DataShape.OHLCV
 
-            # Connection should be closed after context
-            assert db_path.exists()
+    def test_get_data_shape_fx(self):
+        """Test data shape for FX spot."""
+        from lseg_toolkit.timeseries.storage import get_data_shape
+
+        shape = get_data_shape(AssetClass.FX_SPOT)
+        assert shape == DataShape.QUOTE
+
+    def test_get_data_shape_ois(self):
+        """Test data shape for OIS."""
+        from lseg_toolkit.timeseries.storage import get_data_shape
+
+        shape = get_data_shape(AssetClass.OIS)
+        assert shape == DataShape.RATE
+
+    def test_get_data_shape_govt_yield(self):
+        """Test data shape for government yields."""
+        from lseg_toolkit.timeseries.storage import get_data_shape
+
+        shape = get_data_shape(AssetClass.GOVT_YIELD)
+        assert shape == DataShape.BOND
+
+    def test_get_data_shape_fixing(self):
+        """Test data shape for fixings."""
+        from lseg_toolkit.timeseries.storage import get_data_shape
+
+        shape = get_data_shape(AssetClass.FIXING)
+        assert shape == DataShape.FIXING
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
