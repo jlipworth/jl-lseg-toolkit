@@ -322,6 +322,88 @@ CREATE TABLE IF NOT EXISTS extraction_progress (
 CREATE INDEX IF NOT EXISTS idx_progress ON extraction_progress(asset_class, instrument, status);
 
 -- =============================================================================
+-- Bond Basis Tables
+-- =============================================================================
+
+-- Futures contract reference (for discrete contracts, not continuous)
+CREATE TABLE IF NOT EXISTS futures_contracts (
+    id SERIAL PRIMARY KEY,
+    futures_root TEXT NOT NULL,           -- 'TY', 'FV', 'TU', 'US', 'TN', 'UB'
+    contract_month TEXT NOT NULL,         -- 'H26', 'M26', 'U26', 'Z26'
+    expiry_date DATE NOT NULL,
+    first_notice_date DATE,
+    first_delivery_date DATE,
+    last_delivery_date DATE,
+    lseg_ric TEXT NOT NULL UNIQUE,        -- 'TYH26', 'TYH5^2' (for expired)
+    cme_symbol TEXT,                      -- 'ZNH26'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (futures_root, contract_month)
+);
+CREATE INDEX IF NOT EXISTS idx_futures_contracts_root ON futures_contracts(futures_root);
+CREATE INDEX IF NOT EXISTS idx_futures_contracts_expiry ON futures_contracts(expiry_date);
+
+-- Bonds deliverable into futures contracts
+CREATE TABLE IF NOT EXISTS deliverable_bonds (
+    id SERIAL PRIMARY KEY,
+    bond_instrument_id INTEGER REFERENCES instruments(id),
+    futures_contract_id INTEGER NOT NULL REFERENCES futures_contracts(id),
+    cusip TEXT NOT NULL,
+    isin TEXT,
+    coupon_rate DOUBLE PRECISION NOT NULL,
+    maturity_date DATE NOT NULL,
+    issue_date DATE,
+    lseg_ric TEXT,                        -- '91282CFV8='
+    is_ctd BOOLEAN DEFAULT FALSE,         -- CTD at contract expiry
+    ctd_rank INTEGER,                     -- 1=CTD, 2=2nd cheapest, etc.
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (futures_contract_id, cusip)
+);
+CREATE INDEX IF NOT EXISTS idx_deliverable_bonds_contract ON deliverable_bonds(futures_contract_id);
+CREATE INDEX IF NOT EXISTS idx_deliverable_bonds_cusip ON deliverable_bonds(cusip);
+CREATE INDEX IF NOT EXISTS idx_deliverable_bonds_ctd ON deliverable_bonds(is_ctd) WHERE is_ctd = TRUE;
+
+-- CME conversion factors (one per bond per contract)
+CREATE TABLE IF NOT EXISTS conversion_factors (
+    id SERIAL PRIMARY KEY,
+    futures_contract_id INTEGER NOT NULL REFERENCES futures_contracts(id),
+    bond_cusip TEXT NOT NULL,
+    conversion_factor DOUBLE PRECISION NOT NULL,
+    source TEXT NOT NULL,                 -- 'cme_lookup', 'cme_calculator', 'calculated'
+    effective_date DATE,                  -- When CF was published
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (futures_contract_id, bond_cusip)
+);
+CREATE INDEX IF NOT EXISTS idx_conversion_factors_contract ON conversion_factors(futures_contract_id);
+
+-- Historical bond basis timeseries
+CREATE TABLE IF NOT EXISTS timeseries_basis (
+    futures_contract_id INTEGER NOT NULL REFERENCES futures_contracts(id),
+    bond_cusip TEXT NOT NULL,
+    ts TIMESTAMPTZ NOT NULL,
+    -- Prices
+    bond_price DOUBLE PRECISION NOT NULL,         -- Clean price (ASK)
+    bond_bid DOUBLE PRECISION,
+    bond_yield DOUBLE PRECISION,
+    futures_price DOUBLE PRECISION NOT NULL,      -- Settle or BID
+    -- Basis components
+    conversion_factor DOUBLE PRECISION NOT NULL,
+    invoice_price DOUBLE PRECISION NOT NULL,      -- futures_price * CF
+    gross_basis DOUBLE PRECISION NOT NULL,        -- bond_price - invoice_price
+    carry DOUBLE PRECISION,                       -- Coupon income - financing cost
+    net_basis DOUBLE PRECISION,                   -- gross_basis - carry (or + carry if LSEG sign convention)
+    -- Rates
+    repo_rate DOUBLE PRECISION,                   -- Actual repo used for carry calc
+    implied_repo_rate DOUBLE PRECISION,           -- IRR derived from basis
+    -- Context
+    days_to_delivery INTEGER,
+    accrued_interest DOUBLE PRECISION,
+    source TEXT DEFAULT 'calculated',             -- 'lseg_ctd', 'calculated'
+    PRIMARY KEY (futures_contract_id, bond_cusip, ts)
+);
+CREATE INDEX IF NOT EXISTS idx_basis_contract_ts ON timeseries_basis(futures_contract_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_basis_cusip ON timeseries_basis(bond_cusip);
+
+-- =============================================================================
 -- Scheduler Tables
 -- =============================================================================
 
@@ -445,6 +527,19 @@ SELECT create_hypertable(
     chunk_time_interval => INTERVAL '1 year',
     if_not_exists => TRUE
 );
+
+-- Basis: 1 month chunks with space partitioning by futures contract
+SELECT create_hypertable(
+    'timeseries_basis',
+    'ts',
+    chunk_time_interval => INTERVAL '1 month',
+    if_not_exists => TRUE
+);
+SELECT add_dimension(
+    'timeseries_basis',
+    by_hash('futures_contract_id', 4),
+    if_not_exists => TRUE
+);
 """
 
 # =============================================================================
@@ -491,6 +586,13 @@ ALTER TABLE timeseries_fixing SET (
     timescaledb.compress_orderby = 'date DESC'
 );
 
+-- Basis compression
+ALTER TABLE timeseries_basis SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'futures_contract_id, bond_cusip',
+    timescaledb.compress_orderby = 'ts DESC'
+);
+
 -- =============================================================================
 -- Add compression policies (auto-compress chunks older than N days)
 -- =============================================================================
@@ -500,6 +602,7 @@ SELECT add_compression_policy('timeseries_quote', INTERVAL '7 days', if_not_exis
 SELECT add_compression_policy('timeseries_rate', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('timeseries_bond', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_compression_policy('timeseries_fixing', INTERVAL '30 days', if_not_exists => TRUE);
+SELECT add_compression_policy('timeseries_basis', INTERVAL '7 days', if_not_exists => TRUE);
 """
 
 # =============================================================================

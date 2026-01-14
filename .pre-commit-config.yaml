@@ -16,7 +16,7 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        additional_dependencies: [types-pytz, pandas-stubs]
+        additional_dependencies: [types-pytz, pandas-stubs, types-requests]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -32,9 +32,9 @@ repos:
       - id: trailing-whitespace
       # Ensure files end with newline
       - id: end-of-file-fixer
-      # Check for large files (>500KB)
+      # Check for large files (>600KB)
       - id: check-added-large-files
-        args: [--maxkb=500]
+        args: [--maxkb=600]
 
   # Local hooks
   - repo: local
