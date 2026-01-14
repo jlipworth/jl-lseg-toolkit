@@ -45,7 +45,7 @@ uv sync
 lseg-setup  # Interactive setup
 ```
 
-**WSL2 users:** See [WSL Setup Guide](docs/WSL_SETUP.md).
+**All platforms (including WSL2):** See [Getting Started Guide](docs/GETTING_STARTED.md).
 
 ## Quick Start
 
@@ -147,7 +147,7 @@ lseg-screener [OPTIONS]
 
 ### lseg-extract
 
-Extract time series data for bond futures, FX, OIS, Treasury yields, and FRAs with DuckDB storage and Parquet export.
+Extract time series data for bond futures, FX, OIS, Treasury yields, and FRAs with TimescaleDB storage and Parquet export.
 
 ```bash
 lseg-extract SYMBOLS... [OPTIONS]
@@ -162,7 +162,6 @@ lseg-extract SYMBOLS... [OPTIONS]
 | `--continuous` | Build continuous contract (futures only) |
 | `--adjust` | Price adjustment: none, ratio, difference (default: ratio) |
 | `--roll-method` | Roll detection: volume, first-notice, fixed-days, expiry |
-| `--db PATH` | DuckDB database path (default: data/timeseries.duckdb) |
 | `--parquet DIR` | Parquet output directory (default: data/parquet) |
 | `--no-parquet` | Skip Parquet export |
 | `--list` | Show supported instruments |
@@ -191,9 +190,10 @@ lseg-extract --list
 ```
 
 **Output:**
-- **DuckDB database** (`data/timeseries.duckdb`): Analytics-optimized storage with shape-specific tables
+- **TimescaleDB**: PostgreSQL with time-series hypertables for analytics-optimized storage
 - **Parquet files** (`data/parquet/`): Columnar format for C++/Rust consumption via Arrow
-- **metadata.json**: Instrument registry, date ranges, roll history
+
+Configure database via environment variables: `TSDB_HOST`, `TSDB_PORT`, `TSDB_DATABASE`, `TSDB_USER`, `TSDB_PASSWORD`.
 
 For complete documentation, see [Time Series Guide](docs/TIMESERIES.md).
 
@@ -381,16 +381,15 @@ LsegError (base)
 
 | Document | Description |
 |----------|-------------|
+| [Getting Started](docs/GETTING_STARTED.md) | Setup for all platforms (macOS, Windows, WSL) |
+| [Time Series Guide](docs/TIMESERIES.md) | Extraction, storage, module architecture |
 | [Scheduler Guide](docs/SCHEDULER.md) | Automated extraction daemon |
-| [Time Series Guide](docs/TIMESERIES.md) | Extraction, storage, and Python API |
 | [Instruments](docs/INSTRUMENTS.md) | 200+ validated RICs by asset class |
 | [Storage Schema](docs/STORAGE_SCHEMA.md) | TimescaleDB tables and data shapes |
 | [API Reference](docs/LSEG_API_REFERENCE.md) | LSEG fields and API patterns |
 | [Architecture](docs/ARCHITECTURE.md) | System design and data flow |
+| [Development](docs/DEVELOPMENT.md) | Testing, code quality, contributing |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [Development](docs/DEVELOPMENT.md) | Testing, code quality, setup |
-| [Contributing](docs/CONTRIBUTING.md) | How to contribute |
-| [WSL Setup](docs/WSL_SETUP.md) | WSL2 networking configuration |
 | [Changelog](docs/CHANGELOG.md) | Version history |
 
 ## Requirements

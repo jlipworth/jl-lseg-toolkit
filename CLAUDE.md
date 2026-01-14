@@ -6,7 +6,7 @@ Project context for Claude Code.
 
 **Package**: `jl-lseg-toolkit` - Python toolkit for LSEG financial data API.
 
-**CLI Tools**: `lseg-earnings`, `lseg-screener`
+**CLI Tools**: `lseg-earnings`, `lseg-screener`, `lseg-extract`, `lseg-scheduler`
 
 ## Quick Commands
 
@@ -21,11 +21,11 @@ uv run pre-commit run --all-files
 | Topic | File |
 |-------|------|
 | Quick start & CLI usage | [README.md](README.md) |
-| Development setup & testing | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| Setup (all platforms) | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
+| Timeseries module | [docs/TIMESERIES.md](docs/TIMESERIES.md) |
 | System architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | API patterns & fields | [docs/LSEG_API_REFERENCE.md](docs/LSEG_API_REFERENCE.md) |
-| WSL2 networking | [docs/WSL_SETUP.md](docs/WSL_SETUP.md) |
-| Contributing | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) |
+| Development & testing | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
 | Examples | [examples/](examples/) |
 
 ## Rules

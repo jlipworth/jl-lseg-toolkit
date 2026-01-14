@@ -332,11 +332,14 @@ Both pipelines follow a similar pattern:
 |--------|---------|
 | `cache.py` | Async cache layer with gap detection and batch fetching |
 | `client.py` | LSEG data client (wraps lseg.data API) |
-| `duckdb_storage.py` | DuckDB persistence with shape-specific tables |
+| `storage/` | TimescaleDB/PostgreSQL persistence with shape-specific tables |
 | `rolling.py` | Continuous contract construction and roll detection |
 | `constants.py` | CME↔LSEG symbol mappings (200+ validated RICs) |
 | `enums.py` | Asset classes, granularity, data shapes, roll methods |
 | `models/` | Dataclass models for instruments and time series |
+| `stir_futures/` | STIR futures contract RIC generation (FF, SRA, FEI, SON) |
+| `bond_basis/` | Treasury futures basis analysis |
+| `scheduler/` | APScheduler daemon for automated extraction |
 
 ### Utility Layer
 
@@ -480,270 +483,29 @@ Pipelines handle missing data gracefully:
 @pytest.mark.unit         # No external dependencies
 ```
 
-## Time Series Module Architecture
+## Time Series Module
 
-### Overview
+The timeseries module (`src/lseg_toolkit/timeseries/`) extracts historical market data for futures, FX, rates, and yields. Unlike earnings/screener which export to Excel, timeseries stores data in TimescaleDB/PostgreSQL with Parquet export for C++/Rust consumption.
 
-The timeseries module provides functionality for extracting, storing, and exporting historical market data for bond futures, FX, OIS curves, Treasury yields, and FRAs. Unlike the earnings/screener modules which export to Excel, timeseries data is stored in DuckDB with shape-specific tables and can be exported to Parquet for high-performance consumption by C++/Rust applications.
+**Key Components:**
 
-### Data Flow
+| Layer | Purpose |
+|-------|---------|
+| `cache.py` | Cache-first data access with async support |
+| `client.py` | LSEG API wrapper |
+| `constants.py` | 200+ validated RIC mappings |
+| `rolling.py` | Continuous contract construction |
+| `storage/` | TimescaleDB persistence |
+| `scheduler/` | Automated extraction jobs |
+| `bond_basis/` | Treasury futures basis analysis |
+| `stir_futures/` | STIR futures (Fed Funds, SOFR) |
 
-```mermaid
-flowchart TB
-    subgraph Input
-        Config[CacheConfig]
-        Symbols[Symbols: ZN, EURUSD, etc.]
-    end
+**Detailed Documentation:**
 
-    subgraph Cache["Cache Layer"]
-        DataCache[DataCache<br/>async/sync API]
-        GapDetect[Gap Detection<br/>granularity-aware]
-    end
-
-    subgraph Client["Client Layer"]
-        Registry[InstrumentRegistry<br/>200+ validated RICs]
-        API[LSEGDataClient<br/>lseg.data wrapper]
-    end
-
-    subgraph Storage["DuckDB Storage"]
-        DuckDB[(DuckDB<br/>timeseries.duckdb)]
-        ShapeRouter[Data Shape Router]
-        OHLCV[timeseries_ohlcv]
-        Quote[timeseries_quote]
-        Bond[timeseries_bond]
-        Rate[timeseries_rate]
-        Fixing[timeseries_fixing]
-    end
-
-    subgraph Export["Export Layer"]
-        Parquet[Parquet Files<br/>C++/Rust compatible]
-        Metadata[metadata.json]
-    end
-
-    Symbols --> DataCache
-    Config --> DataCache
-    DataCache --> GapDetect
-    GapDetect --> API
-    DataCache --> Registry
-    Registry --> API
-    API --> ShapeRouter
-    ShapeRouter --> OHLCV
-    ShapeRouter --> Quote
-    ShapeRouter --> Bond
-    ShapeRouter --> Rate
-    ShapeRouter --> Fixing
-    DuckDB --> Parquet
-    DuckDB --> Metadata
-```
-
-### Key Classes
-
-#### DataCache (Recommended Entry Point)
-
-Cache-first data access with async support:
-
-```python
-from lseg_toolkit.timeseries import DataCache, CacheConfig
-
-cache = DataCache(CacheConfig(db_path="data/timeseries.duckdb"))
-
-# Sync usage
-df = cache.get_or_fetch("TYc1", start="2024-01-01", end="2024-12-31")
-
-# Async batch usage
-results = await cache.async_get_or_fetch_many(
-    ["TYc1", "USc1", "EUR="],
-    start="2024-01-01",
-    end="2024-12-31"
-)
-```
-
-**Features:**
-- Granularity-aware gap detection (daily data doesn't satisfy 5min requests)
-- Instrument validation against 200+ known RICs
-- Async/await for parallel multi-RIC fetching
-- Progress tracking with callbacks
-
-#### InstrumentRegistry
-
-Validates RICs against known instruments from `constants.py`:
-
-```python
-from lseg_toolkit.timeseries import InstrumentRegistry, get_registry
-
-registry = get_registry()
-registry.validate_ric("TYc1")  # OK
-registry.validate_ric("INVALID")  # Raises InstrumentNotFoundError
-```
-
-### Storage Schema (DuckDB)
-
-Data is routed to shape-specific tables based on asset class:
-
-| Data Shape | Table | Asset Classes |
-|------------|-------|---------------|
-| OHLCV | `timeseries_ohlcv` | Futures, equities, commodities |
-| Quote | `timeseries_quote` | FX, OIS, IRS, FRA |
-| Bond | `timeseries_bond` | Government bonds (yields + analytics) |
-| Rate | `timeseries_rate` | Swaps, repos |
-| Fixing | `timeseries_fixing` | SOFR, ESTR, SONIA |
-
-**Instrument Tables:**
-- `instruments`: Master registry (symbol, asset_class, lseg_ric)
-- `instrument_future`: Futures metadata (expiry, tick size, point value)
-- `instrument_fx`: FX pair details (base/quote currency)
-- `instrument_rate`: Rate details (tenor, day count, payment frequency)
-- `instrument_bond`: Bond details (coupon, maturity, day count)
-
-For complete schema, see [STORAGE_SCHEMA.md](STORAGE_SCHEMA.md).
-
-### Continuous Contract Construction
-
-The `rolling.py` module implements several roll detection methods:
-
-**VOLUME_SWITCH** (default):
-- Roll when back month volume exceeds front month volume
-- Most common in industry practice
-
-**FIXED_DAYS**:
-- Roll N days before expiration
-- Predictable schedule, but may roll into illiquid contracts
-
-**EXPIRY**:
-- Roll on expiration day
-- Matches LSEG's default `c1` behavior
-
-**Price Adjustment Types:**
-
-1. **Ratio Adjusted** (recommended):
-   - Backward adjust prices by multiplying by roll ratio
-   - Preserves percentage returns
-   - Formula: `adj_price = raw_price * (to_price / from_price)`
-
-2. **Difference Adjusted**:
-   - Backward adjust by adding roll gap
-   - Preserves absolute price moves
-   - Formula: `adj_price = raw_price + (to_price - from_price)`
-
-3. **Unadjusted**:
-   - No adjustment, just stitch contracts
-   - Shows actual price levels but creates gaps at rolls
-
-### Symbol Resolution (CME ↔ LSEG)
-
-The `constants.py` module maintains bidirectional mappings:
-
-**US Treasury Futures:**
-```python
-ZN → TY   # 10-Year T-Note
-ZB → US   # 30-Year T-Bond
-ZF → FV   # 5-Year T-Note
-ZT → TU   # 2-Year T-Note
-UB → UB   # Ultra 30-Year
-```
-
-**FX Spot RICs:**
-```python
-EURUSD → EUR=
-GBPUSD → GBP=
-USDJPY → JPY=
-```
-
-**OIS Curve:**
-```python
-1M, 3M, 1Y, 5Y, 10Y → USD{tenor}OIS=
-```
-
-**Treasury Yields:**
-```python
-1M, 3M, 2Y, 10Y, 30Y → US{tenor}T=RRPS
-```
-
-### Export Layer (Parquet)
-
-**Why Parquet?**
-- Columnar storage (efficient for time series analysis)
-- Strong typing (preserves date/time/numeric precision)
-- Cross-language compatibility (C++/Rust via Arrow)
-- Compression (smaller files than CSV)
-
-**Export Structure:**
-```
-data/parquet/
-├── metadata.json           # Instrument registry, date ranges, granularity
-├── ZN_daily.parquet        # 10Y futures continuous
-├── EURUSD_daily.parquet    # EUR/USD spot
-└── USD1YOIS_daily.parquet  # 1Y OIS rate
-```
-
-**metadata.json** contains:
-- Instrument details (symbol, RIC, asset class)
-- Date range coverage
-- Granularity
-- Roll events (for continuous contracts)
-
-### Supported Granularities
-
-| Granularity | LSEG Interval | Retention | Use Case |
-|-------------|---------------|-----------|----------|
-| `TICK` | tick | ~30 days | HFT research |
-| `MINUTE_1` | 1min | ~90 days | Intraday analysis |
-| `MINUTE_5` | 5min | ~90 days | Intraday analysis |
-| `MINUTE_10` | 10min | ~90 days | Intraday analysis |
-| `MINUTE_30` | 30min | ~90 days | Intraday analysis |
-| `HOURLY` | hourly | ~90 days | Intraday analysis |
-| `DAILY` | daily | Full history | Standard analysis |
-| `WEEKLY` | weekly | Full history | Long-term trends |
-| `MONTHLY` | monthly | Full history | Macro analysis |
-
-**Note:** 15-minute intervals are NOT supported by LSEG API.
-
-### Asset Class Support
-
-| Asset Class | Symbols | RIC Pattern | Fields |
-|-------------|---------|-------------|--------|
-| Bond Futures | ZN, ZB, FGBL | `TYc1`, `USc1` | OHLCV + settle + OI |
-| FX Spot | EURUSD, USDJPY | `EUR=`, `JPY=` | Bid/Ask/High/Low |
-| OIS Rates | 1M, 3M, 1Y, 5Y | `USD1MOIS=` | Close (rate) |
-| Treasury Yields | 2Y, 10Y, 30Y | `US10YT=RRPS` | Close (yield) |
-| FRAs | 1X4, 3X6 | `USD3X6F=` | Bid/Ask |
-
-### Error Handling
-
-The timeseries module uses custom exceptions from `lseg_toolkit.exceptions`:
-
-- **`DataRetrievalError`**: API fetch failures, invalid RICs
-- **`StorageError`**: DuckDB operations (save/load failures)
-- **`InstrumentNotFoundError`**: Unknown symbol/RIC
-- **`ConfigurationError`**: Invalid config (date range, granularity mismatch)
-
-All extraction results are tracked in `ExtractionResult` dataclass:
-```python
-@dataclass
-class ExtractionResult:
-    symbol: str
-    rows_fetched: int
-    start_date: date | None
-    end_date: date | None
-    success: bool
-    error: str | None = None
-    roll_events: int = 0
-```
-
-### Performance Characteristics
-
-| Operation | Scale | Typical Time |
-|-----------|-------|--------------|
-| Fetch 1 year daily data | 1 symbol | 2-5 sec |
-| Fetch 1 year daily data | 5 symbols (async) | 3-8 sec |
-| Build continuous contract | 1 symbol | 1-3 sec |
-| DuckDB storage | 250 rows | <100 ms |
-| Parquet export | 1 year data | <500 ms |
-
-**Optimization:**
-- Async batch fetching with semaphore rate limiting
-- DuckDB transactions for bulk inserts
-- Shape-specific tables reduce query overhead
+- **[TIMESERIES.md](TIMESERIES.md)** - Quick start, CLI, Python API, module architecture
+- **[STORAGE_SCHEMA.md](STORAGE_SCHEMA.md)** - Database schema, table definitions
+- **[SCHEDULER.md](SCHEDULER.md)** - Automated extraction setup
+- **[INSTRUMENTS.md](INSTRUMENTS.md)** - Complete validated instrument list
 
 ## Future Considerations
 

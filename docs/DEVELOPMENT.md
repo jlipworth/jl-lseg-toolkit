@@ -2,36 +2,15 @@
 
 Developer documentation for contributing to and maintaining the LSEG Toolkit.
 
-## Development Environment
+## Setup
 
-### Prerequisites
-- Python 3.12+
-- uv (for dependency and environment management)
-- LSEG Workspace Desktop (running and authenticated)
+For environment setup and LSEG connection, see **[GETTING_STARTED.md](GETTING_STARTED.md)**.
 
-### Setup
-
+Quick reference:
 ```bash
-# Install dependencies and create virtual environment
-uv sync
-
-# Verify installation
-uv run lseg-earnings --help
-uv run lseg-screener --help
+uv sync                      # Install dependencies
+uv run lseg-earnings --help  # Verify installation
 ```
-
-### LSEG Configuration
-
-LSEG Workspace must be running with endpoints at:
-- `localhost:9000` (primary)
-- `localhost:9060` (alternative)
-
-To configure a custom app key:
-```bash
-uv run lseg-setup
-```
-
-**WSL2 users:** See [WSL_SETUP.md](WSL_SETUP.md) for networking configuration.
 
 ---
 

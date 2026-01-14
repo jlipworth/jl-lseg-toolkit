@@ -312,6 +312,17 @@ def get_repo_ric(tenor: str) -> str:
 # STIR Futures (Short-Term Interest Rate) - Validated 2026-01-06
 # =============================================================================
 
+# CME futures month codes (Jan=F, Feb=G, ... Dec=Z)
+FUTURES_MONTH_CODES: str = "FGHJKMNQUVXZ"
+
+# Month code to month number mapping
+FUTURES_MONTH_TO_INT: dict[str, int] = {
+    code: i + 1 for i, code in enumerate(FUTURES_MONTH_CODES)
+}
+
+# Quarterly month codes (Mar, Jun, Sep, Dec) - used by most STIR futures
+QUARTERLY_MONTH_CODES: str = "HMUZ"
+
 # CME Symbol → LSEG RIC Mapping:
 #   SR3 (3-Mo SOFR) → SRA
 #   SR1 (1-Mo SOFR) → SOFR (access denied, may need permissions)

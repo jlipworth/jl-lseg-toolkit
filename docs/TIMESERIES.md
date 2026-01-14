@@ -49,7 +49,6 @@ lseg-extract SYMBOLS... [OPTIONS]
 | `--continuous` | Build continuous contract (futures only) |
 | `--adjust` | Price adjustment: none, ratio, difference (default: ratio) |
 | `--roll-method` | Roll detection: volume, first-notice, fixed-days, expiry |
-| `--db PATH` | DuckDB database path (default: data/timeseries.duckdb) |
 | `--parquet DIR` | Parquet output directory (default: data/parquet) |
 | `--no-parquet` | Skip Parquet export |
 | `--list` | Show supported instruments |
@@ -67,8 +66,8 @@ lseg-extract EURUSD --interval 5min --start 2025-12-01
 # Full USD OIS curve
 lseg-extract 1M 2M 3M 6M 9M 1Y 2Y 3Y 5Y 7Y 10Y 15Y 20Y 30Y --asset-class ois
 
-# Custom output location
-lseg-extract ZN --db data/custom.duckdb --parquet output/
+# Custom parquet output location
+lseg-extract ZN --parquet output/
 ```
 
 ## Python API
@@ -78,7 +77,7 @@ lseg-extract ZN --db data/custom.duckdb --parquet output/
 ```python
 from lseg_toolkit.timeseries import DataCache, CacheConfig
 
-# Create cache with DuckDB backend
+# Create cache with TimescaleDB backend
 cache = DataCache()
 
 # Fetch single instrument (uses cache if available)
@@ -122,34 +121,49 @@ df = client.fetch_timeseries(
 )
 ```
 
-### DuckDB Storage
+### TimescaleDB Storage
 
 ```python
-from lseg_toolkit.timeseries import duckdb_storage
+from lseg_toolkit.timeseries.storage import (
+    get_connection,
+    load_timeseries,
+    get_data_range,
+    get_instruments,
+)
 
 # Query stored data directly
-with duckdb_storage.get_connection() as conn:
+with get_connection() as conn:
     # Load timeseries
-    df = duckdb_storage.load_timeseries(conn, "ZN")
+    df = load_timeseries(conn, "ZN")
 
     # Get date range
-    start, end = duckdb_storage.get_data_range(conn, "ZN")
+    start, end = get_data_range(conn, "ZN")
 
     # List all instruments
-    instruments = duckdb_storage.list_instruments(conn)
+    instruments = get_instruments(conn)
+```
+
+Configure the database via environment variables:
+```bash
+export TSDB_HOST=localhost
+export TSDB_PORT=5432
+export TSDB_DATABASE=timeseries
+export TSDB_USER=postgres
+export TSDB_PASSWORD=yourpassword
 ```
 
 ## Storage Architecture
 
-Data is stored in DuckDB with tables optimized for different data shapes:
+Data is stored in TimescaleDB (PostgreSQL with time-series extensions) using hypertables optimized for different data shapes:
 
-| Table | Data Shape | Asset Classes |
-|-------|------------|---------------|
-| `timeseries_ohlcv` | OHLCV bars | Futures, equities, commodities |
-| `timeseries_quote` | Bid/ask quotes | FX, OIS, IRS, FRA |
-| `timeseries_bond` | Yield + analytics | Government bonds |
-| `timeseries_rate` | Rate quotes | Swaps, repos |
-| `timeseries_fixing` | Daily fixings | SOFR, ESTR, SONIA |
+| Hypertable | Data Shape | Asset Classes |
+|------------|------------|---------------|
+| `ohlcv_daily` | Daily OHLCV bars | Futures, equities, commodities |
+| `ohlcv_intraday` | Intraday OHLCV | High-frequency data |
+| `quote_daily` | Bid/ask quotes | FX, OIS, IRS, FRA |
+| `bond_daily` | Yield + analytics | Government bonds |
+| `rate_daily` | Rate quotes | Swaps, repos |
+| `fixing_daily` | Daily fixings | SOFR, ESTR, SONIA |
 
 For complete schema details, see [STORAGE_SCHEMA.md](STORAGE_SCHEMA.md).
 
@@ -186,7 +200,7 @@ lseg-extract ZN --continuous --roll-method fixed-days --roll-days 5
 
 LSEG provides intraday data with these constraints:
 
-- **Retention**: ~90 days for most instruments
+- **Retention**: ~365 days for 5min/hourly (verified 2026-01-13)
 - **Request limit**: 50,000 bars per request
 - **Granularities**: tick, 1min, 5min, 10min, 30min, hourly
 
@@ -213,11 +227,11 @@ For explicit RICs, use the `--ric` flag or pass the RIC directly.
 
 ## Output Formats
 
-### DuckDB (Default)
+### TimescaleDB (Default)
 
-- **Location**: `data/timeseries.duckdb`
-- **Query**: Use DuckDB CLI or Python API
-- **Advantages**: Fast analytics, SQL support, native Parquet export
+- **Database**: PostgreSQL with TimescaleDB extension
+- **Query**: Use psql CLI, Python API, or any PostgreSQL client
+- **Advantages**: Time-series optimized hypertables, continuous aggregates, SQL support
 
 ### Parquet
 
@@ -225,13 +239,66 @@ For explicit RICs, use the `--ric` flag or pass the RIC directly.
 - **Format**: Apache Parquet (columnar)
 - **Advantages**: Cross-language (C++, Rust, Python), compressed
 
-### Metadata
+## Module Architecture
 
-Each extraction creates:
-- `metadata.json`: Instrument registry, date ranges, roll events
+The timeseries module is located at `src/lseg_toolkit/timeseries/` with this structure:
+
+```
+timeseries/
+├── __init__.py          # Public API exports
+├── cache.py             # DataCache - cache-first data access
+├── cli.py               # lseg-extract CLI entry point
+├── client.py            # LSEGDataClient - LSEG API wrapper
+├── config.py            # TimeSeriesConfig, CacheConfig
+├── constants.py         # ⭐ RIC mappings, field lists, month codes
+├── enums.py             # Granularity, AssetClass, DataShape enums
+├── fetch.py             # Raw data fetching from LSEG
+├── pipeline.py          # Extraction orchestration
+├── rolling.py           # Continuous contract construction
+│
+├── storage/             # TimescaleDB/PostgreSQL persistence
+│   ├── connection.py    # Database connection pooling
+│   ├── instruments.py   # Instrument registry CRUD
+│   ├── reader.py        # load_timeseries, get_data_range
+│   ├── writer.py        # save_timeseries, bulk inserts
+│   └── ...
+│
+├── scheduler/           # Automated extraction jobs
+│   ├── cli.py           # lseg-scheduler CLI
+│   ├── daemon.py        # APScheduler daemon
+│   ├── jobs.py          # Job execution logic
+│   └── universes.py     # Pre-defined instrument universes
+│
+├── bond_basis/          # Treasury futures basis analysis
+│   ├── conversion_factor.py  # CME conversion factor calc
+│   └── extractor.py     # Deliverable basket extraction
+│
+└── stir_futures/        # Short-Term Interest Rate futures
+    └── contracts.py     # Contract RIC generation (FF, SRA, FEI, SON)
+```
+
+### Key Files
+
+| File | Purpose | When to Read |
+|------|---------|--------------|
+| `constants.py` | **All RIC mappings** - CME→LSEG, field lists, month codes | Before adding new instruments |
+| `enums.py` | Asset classes, granularities, data shapes | Understanding data types |
+| `config.py` | Configuration dataclasses | Customizing behavior |
+| `storage/instruments.py` | Instrument registry | Adding new asset types |
+
+### Submodule Dependencies
+
+```
+constants.py
+    ↓
+stir_futures/contracts.py  (imports FUTURES_MONTH_CODES, STIR_FUTURES_RICS)
+bond_basis/extractor.py    (imports CME_TO_LSEG)
+scheduler/universes.py     (imports instrument lists)
+```
 
 ## Related Documentation
 
 - [INSTRUMENTS.md](INSTRUMENTS.md) - Complete instrument list (200+ RICs)
-- [STORAGE_SCHEMA.md](STORAGE_SCHEMA.md) - DuckDB schema details
+- [STORAGE_SCHEMA.md](STORAGE_SCHEMA.md) - Database schema details
+- [SCHEDULER.md](SCHEDULER.md) - Automated extraction setup
 - [LSEG_API_REFERENCE.md](LSEG_API_REFERENCE.md) - LSEG field mappings

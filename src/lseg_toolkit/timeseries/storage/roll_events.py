@@ -107,5 +107,5 @@ def get_roll_events(conn: psycopg.Connection, continuous_symbol: str) -> list[di
             """,
             [instrument_id],
         )
-        columns = [desc[0] for desc in cur.description]
-        return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+        # With dict_row, fetchall() returns list of dicts directly
+        return [dict(row) for row in cur.fetchall()]

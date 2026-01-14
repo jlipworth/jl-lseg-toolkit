@@ -265,11 +265,13 @@ class TestEndToEndIntegration:
     """End-to-end integration tests."""
 
     def test_full_extraction_pipeline(self, tmp_path, date_range):
-        """Test full extraction pipeline with storage."""
+        """Test full extraction pipeline with storage.
+
+        Note: This test requires a running TimescaleDB instance.
+        Configure via TSDB_* environment variables.
+        """
         from lseg_toolkit.timeseries.config import TimeSeriesConfig
         from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
-
-        db_path = str(tmp_path / "test.duckdb")
 
         config = TimeSeriesConfig(
             symbols=["ZN"],
@@ -277,7 +279,7 @@ class TestEndToEndIntegration:
             start_date=date_range["start"],
             end_date=date_range["end"],
             granularity=Granularity.DAILY,
-            db_path=db_path,
+            parquet_dir=str(tmp_path / "parquet"),
             export_parquet=False,
         )
 

@@ -21,6 +21,11 @@ import pandas as pd
 if TYPE_CHECKING:
     import psycopg
 
+from lseg_toolkit.timeseries.constants import (
+    FUTURES_MONTH_TO_INT,
+    QUARTERLY_MONTH_CODES,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,11 +39,11 @@ TREASURY_FUTURES = {
     "UB": {"cme": "UB", "name": "Ultra T-Bond", "deliverable_chain": "0#UBc1=DLV"},
 }
 
-# Quarterly contract months for treasuries
-CONTRACT_MONTHS = ["H", "M", "U", "Z"]  # Mar, Jun, Sep, Dec
+# Quarterly contract months for treasuries (from shared constants)
+CONTRACT_MONTHS = list(QUARTERLY_MONTH_CODES)  # ["H", "M", "U", "Z"]
 
-# Month code to calendar month mapping
-MONTH_CODE_MAP = {"H": 3, "M": 6, "U": 9, "Z": 12}
+# Month code to calendar month mapping (subset of shared FUTURES_MONTH_TO_INT)
+MONTH_CODE_MAP = {code: FUTURES_MONTH_TO_INT[code] for code in QUARTERLY_MONTH_CODES}
 
 
 @dataclass

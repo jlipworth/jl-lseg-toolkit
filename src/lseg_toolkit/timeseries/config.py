@@ -106,7 +106,6 @@ class TimeSeriesConfig:
         continuous_type: Type of continuous series to build
         roll_method: Method for determining roll dates
         roll_days_before: Days before expiry/notice for FIXED_DAYS roll
-        db_path: Path to SQLite database
         parquet_dir: Directory for Parquet exports
         export_parquet: Whether to export to Parquet
     """
