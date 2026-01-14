@@ -14,7 +14,8 @@ A Python toolkit for extracting and analyzing financial data from the LSEG (Lond
 
 - **Earnings Reports**: Screen 13 global indices by upcoming earnings dates with timezone conversion
 - **Equity Screener**: Filter stocks by market cap, valuation metrics, and financial criteria
-- **Time Series Extraction**: Bond futures, FX, OIS, Treasury yields with DuckDB storage and Parquet export
+- **Time Series Extraction**: Bond futures, FX, OIS, Treasury yields with TimescaleDB storage
+- **Scheduled Extraction**: APScheduler daemon for automated data collection with gap detection
 - **Continuous Contracts**: Build ratio/difference-adjusted continuous futures with configurable roll methods
 - **Financial Ratios**: 20+ valuation, debt, and performance metrics
 - **Consensus Estimates**: Analyst EPS/revenue estimates (NTM, FY1, FY2, FQ1, FQ2)
@@ -196,6 +197,47 @@ lseg-extract --list
 
 For complete documentation, see [Time Series Guide](docs/TIMESERIES.md).
 
+### lseg-scheduler
+
+Automated data extraction daemon with cron-based scheduling.
+
+```bash
+lseg-scheduler COMMAND [OPTIONS]
+```
+
+| Command | Description |
+|---------|-------------|
+| `groups` | List available instrument groups |
+| `add-job` | Create a new extraction job |
+| `jobs` | List configured jobs |
+| `run <name>` | Run a job manually |
+| `start` | Start the scheduler daemon |
+| `status` | Show daemon and job status |
+| `state` | Show extraction state per instrument |
+| `history` | Show job run history |
+
+**Examples:**
+
+```bash
+# List available instrument groups
+lseg-scheduler groups
+
+# Add a daily benchmark fixings job (weekdays 6 PM)
+lseg-scheduler add-job --name benchmark_daily \
+  --group benchmark_fixings --granularity daily --cron "0 18 * * 1-5"
+
+# Run job manually to test
+lseg-scheduler run benchmark_daily
+
+# Start daemon (foreground)
+lseg-scheduler start --foreground
+
+# Check extraction state
+lseg-scheduler state --job benchmark_daily
+```
+
+For complete documentation, see [Scheduler Guide](docs/SCHEDULER.md).
+
 ## Python API
 
 ```python
@@ -306,7 +348,12 @@ lseg_toolkit/
 ├── timeseries/             # Time Series Extraction Pipeline
 │   ├── cache.py            # Async cache layer with gap detection
 │   ├── client.py           # LSEG data client
-│   ├── duckdb_storage.py   # DuckDB persistence (shape-specific tables)
+│   ├── storage/            # TimescaleDB persistence (shape-specific hypertables)
+│   ├── scheduler/          # APScheduler daemon for automated extraction
+│   │   ├── daemon.py       # Long-running scheduler with session management
+│   │   ├── jobs.py         # Extraction job execution
+│   │   ├── universes.py    # Instrument group → RIC mapping
+│   │   └── cli.py          # lseg-scheduler CLI
 │   ├── rolling.py          # Continuous contract construction
 │   ├── constants.py        # Symbol mappings (CME↔LSEG, 200+ RICs)
 │   ├── enums.py            # Asset classes, granularities, data shapes
@@ -334,9 +381,10 @@ LsegError (base)
 
 | Document | Description |
 |----------|-------------|
+| [Scheduler Guide](docs/SCHEDULER.md) | Automated extraction daemon |
 | [Time Series Guide](docs/TIMESERIES.md) | Extraction, storage, and Python API |
 | [Instruments](docs/INSTRUMENTS.md) | 200+ validated RICs by asset class |
-| [Storage Schema](docs/STORAGE_SCHEMA.md) | DuckDB tables and data shapes |
+| [Storage Schema](docs/STORAGE_SCHEMA.md) | TimescaleDB tables and data shapes |
 | [API Reference](docs/LSEG_API_REFERENCE.md) | LSEG fields and API patterns |
 | [Architecture](docs/ARCHITECTURE.md) | System design and data flow |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
