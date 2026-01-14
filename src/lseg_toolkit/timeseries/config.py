@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from urllib.parse import quote_plus
 
 from lseg_toolkit.timeseries.enums import (
     AssetClass,
@@ -45,9 +46,10 @@ class DatabaseConfig:
 
     @property
     def dsn(self) -> str:
-        """Build PostgreSQL connection DSN."""
+        """Build PostgreSQL connection DSN with URL-encoded credentials."""
         if self.password:
-            return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+            encoded_password = quote_plus(self.password)
+            return f"postgresql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}"
         return f"postgresql://{self.user}@{self.host}:{self.port}/{self.database}"
 
     @classmethod
@@ -55,22 +57,24 @@ class DatabaseConfig:
         """
         Load configuration from environment variables.
 
-        Environment variables:
-            TSDB_HOST: Database host (default: localhost)
-            TSDB_PORT: Database port (default: 5432)
-            TSDB_DATABASE: Database name (default: timeseries)
-            TSDB_USER: Database user (default: postgres)
-            TSDB_PASSWORD: Database password (default: empty)
+        Environment variables (TSDB_* preferred, POSTGRES_* as fallback):
+            TSDB_HOST / POSTGRES_HOST: Database host (default: localhost)
+            TSDB_PORT / POSTGRES_PORT: Database port (default: 5432)
+            TSDB_DATABASE / POSTGRES_DB: Database name (default: timeseries)
+            TSDB_USER / POSTGRES_USER: Database user (default: postgres)
+            TSDB_PASSWORD / POSTGRES_PASSWORD: Database password (default: empty)
             TSDB_POOL_MIN: Min pool connections (default: 2)
             TSDB_POOL_MAX: Max pool connections (default: 10)
             TSDB_BATCH_SIZE: Rows per COPY batch (default: 50000)
         """
         return cls(
-            host=os.getenv("TSDB_HOST", "localhost"),
-            port=int(os.getenv("TSDB_PORT", "5432")),
-            database=os.getenv("TSDB_DATABASE", "timeseries"),
-            user=os.getenv("TSDB_USER", "postgres"),
-            password=os.getenv("TSDB_PASSWORD", ""),
+            host=os.getenv("TSDB_HOST", "") or os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("TSDB_PORT", "") or os.getenv("POSTGRES_PORT", "5432")),
+            database=os.getenv("TSDB_DATABASE", "")
+            or os.getenv("POSTGRES_DB", "timeseries"),
+            user=os.getenv("TSDB_USER", "") or os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("TSDB_PASSWORD", "")
+            or os.getenv("POSTGRES_PASSWORD", ""),
             pool_min_size=int(os.getenv("TSDB_POOL_MIN", "2")),
             pool_max_size=int(os.getenv("TSDB_POOL_MAX", "10")),
             batch_size=int(os.getenv("TSDB_BATCH_SIZE", "50000")),
