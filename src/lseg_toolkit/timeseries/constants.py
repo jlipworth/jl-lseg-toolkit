@@ -452,8 +452,8 @@ VALID_INTERVALS: list[str] = [
     "monthly",
 ]
 
-# Intraday data retention (approximate)
-INTRADAY_RETENTION_DAYS: int = 90
+# Intraday data retention (verified 2026-01-13: 365 days for 5min/hourly)
+INTRADAY_RETENTION_DAYS: int = 365
 
 
 # =============================================================================
@@ -580,21 +580,21 @@ EURIBOR_FIELDS: list[str] = [
 
 SOVEREIGN_YIELD_RICS: dict[str, dict[str, str]] = {
     # United States Treasury - 13 tenors
-    # Note: =RR works for snapshot, =RRPS needed for some history
+    # Note: =RRPS is required for historical data (=RR only works for snapshots)
     "US": {
-        "1M": "US1MT=RR",
-        "2M": "US2MT=RR",
-        "3M": "US3MT=RR",
-        "4M": "US4MT=RR",
-        "6M": "US6MT=RR",
-        "1Y": "US1YT=RR",
-        "2Y": "US2YT=RR",
-        "3Y": "US3YT=RR",
-        "5Y": "US5YT=RR",
-        "7Y": "US7YT=RR",
-        "10Y": "US10YT=RR",
-        "20Y": "US20YT=RR",
-        "30Y": "US30YT=RR",
+        "1M": "US1MT=RRPS",
+        "2M": "US2MT=RRPS",
+        "3M": "US3MT=RRPS",
+        "4M": "US4MT=RRPS",
+        "6M": "US6MT=RRPS",
+        "1Y": "US1YT=RRPS",
+        "2Y": "US2YT=RRPS",
+        "3Y": "US3YT=RRPS",
+        "5Y": "US5YT=RRPS",
+        "7Y": "US7YT=RRPS",
+        "10Y": "US10YT=RRPS",
+        "20Y": "US20YT=RRPS",
+        "30Y": "US30YT=RRPS",
     },
     # German Bund - 18 tenors (BUBIL short, BUND long)
     "DE": {

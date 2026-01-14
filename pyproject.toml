@@ -47,6 +47,8 @@ dependencies = [
     # Scheduler dependencies
     "apscheduler>=3.10",
     "pydantic>=2.0",
+    "xlrd>=2.0.2",
+    "pytreasurydirect>=0.1.1",
 ]
 
 [project.urls]
@@ -86,6 +88,7 @@ notebook = [
 dev = [
     { include-group = "test" },
     { include-group = "notebook" },
+    "types-requests>=2.32.4.20260107",
 ]
 
 [build-system]

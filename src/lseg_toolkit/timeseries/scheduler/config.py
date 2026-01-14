@@ -30,7 +30,9 @@ class SchedulerConfig:
     consecutive_failure_threshold: int = 5  # pause instrument after this many failures
 
     # Intraday constraints
-    intraday_retention_days: int = 90  # LSEG intraday data retention
+    intraday_retention_days: int = (
+        365  # LSEG intraday data retention (verified: 365 days for 5min/hourly)
+    )
 
     # Default job settings
     default_lookback_days: int = 5

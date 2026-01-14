@@ -480,7 +480,7 @@ def save_instrument(
                         lseg_ric,
                     ],
                 )
-                instrument_id = cur.fetchone()[0]
+                instrument_id = cur.fetchone()["id"]
 
         # Save type-specific details using unified function
         if kwargs:
@@ -505,10 +505,7 @@ def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM instruments WHERE symbol = %s", [symbol])
         result = cur.fetchone()
-        if result:
-            columns = [desc[0] for desc in cur.description]
-            return dict(zip(columns, result, strict=True))
-    return None
+        return dict(result) if result else None
 
 
 def get_instrument_id(conn: psycopg.Connection, symbol: str) -> int | None:
@@ -525,7 +522,7 @@ def get_instrument_id(conn: psycopg.Connection, symbol: str) -> int | None:
     with conn.cursor() as cur:
         cur.execute("SELECT id FROM instruments WHERE symbol = %s", [symbol])
         result = cur.fetchone()
-    return result[0] if result else None
+    return result["id"] if result else None
 
 
 def get_instrument_by_ric(conn: psycopg.Connection, lseg_ric: str) -> dict | None:
@@ -542,10 +539,7 @@ def get_instrument_by_ric(conn: psycopg.Connection, lseg_ric: str) -> dict | Non
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM instruments WHERE lseg_ric = %s", [lseg_ric])
         result = cur.fetchone()
-        if result:
-            columns = [desc[0] for desc in cur.description]
-            return dict(zip(columns, result, strict=True))
-    return None
+        return dict(result) if result else None
 
 
 def get_instruments(

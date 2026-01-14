@@ -75,7 +75,7 @@ def save_roll_event(
                     roll_method,
                 ],
             )
-            roll_id = cur.fetchone()[0]
+            roll_id = cur.fetchone()["id"]
         return roll_id
     except psycopg.Error as e:
         raise StorageError(f"Failed to save roll event: {e}") from e

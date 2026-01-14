@@ -58,7 +58,8 @@ def load_timeseries(
     if result is None:
         return pd.DataFrame()
 
-    instrument_id, instr_data_shape = result
+    instrument_id = result["id"]
+    instr_data_shape = result["data_shape"]
 
     # Auto-detect data_shape from instrument if not provided
     if data_shape is None:
@@ -293,7 +294,8 @@ def get_data_range(
     if result is None:
         return None, None
 
-    instrument_id, instr_data_shape = result
+    instrument_id = result["id"]
+    instr_data_shape = result["data_shape"]
 
     # Auto-detect data_shape from instrument if not provided
     if data_shape is None:
@@ -360,9 +362,9 @@ def get_data_range(
             )
         result = cur.fetchone()
 
-    if result and result[0] and result[1]:
-        min_date = result[0]
-        max_date = result[1]
+    if result and result["min"] and result["max"]:
+        min_date = result["min"]
+        max_date = result["max"]
         # Convert to date if needed
         if isinstance(min_date, datetime):
             min_date = min_date.date()
@@ -414,22 +416,7 @@ def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
         )
         result = cur.fetchone()
 
-    if result is None:
-        return None
-
-    return {
-        "id": result[0],
-        "symbol": result[1],
-        "name": result[2],
-        "asset_class": result[3],
-        "data_shape": result[4],
-        "lseg_ric": result[5],
-        "exchange": result[6],
-        "currency": result[7],
-        "description": result[8],
-        "created_at": result[9],
-        "updated_at": result[10],
-    }
+    return dict(result) if result else None
 
 
 def get_instrument_by_id(conn: psycopg.Connection, instrument_id: int) -> dict | None:
@@ -455,22 +442,7 @@ def get_instrument_by_id(conn: psycopg.Connection, instrument_id: int) -> dict |
         )
         result = cur.fetchone()
 
-    if result is None:
-        return None
-
-    return {
-        "id": result[0],
-        "symbol": result[1],
-        "name": result[2],
-        "asset_class": result[3],
-        "data_shape": result[4],
-        "lseg_ric": result[5],
-        "exchange": result[6],
-        "currency": result[7],
-        "description": result[8],
-        "created_at": result[9],
-        "updated_at": result[10],
-    }
+    return dict(result) if result else None
 
 
 def list_instruments(

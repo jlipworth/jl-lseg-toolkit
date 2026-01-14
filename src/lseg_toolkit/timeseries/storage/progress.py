@@ -82,7 +82,7 @@ def create_extraction_progress(
             """,
             [asset_class, instrument, start_date, end_date],
         )
-        progress_id = cur.fetchone()[0]
+        progress_id = cur.fetchone()["id"]
     return progress_id
 
 

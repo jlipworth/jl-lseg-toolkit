@@ -61,6 +61,7 @@ class Granularity(str, Enum):
 
     Note: 15min is NOT supported by LSEG API.
     Tick data requires recent dates (30-90 day retention).
+    5min/hourly have ~365 day retention (verified 2026-01-13).
     """
 
     TICK = "tick"
