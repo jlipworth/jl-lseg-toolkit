@@ -695,6 +695,6 @@ def check_timescaledb(conn: psycopg.Connection) -> bool:
                 "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')"
             )
             result = cur.fetchone()
-            return bool(result and result[0])
+            return bool(result and result["exists"])
     except psycopg.Error:
         return False

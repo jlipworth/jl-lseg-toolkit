@@ -77,7 +77,7 @@ class SaveContext:
                 "SELECT data_shape FROM instruments WHERE id = %s", [instrument_id]
             )
             result = cur.fetchone()
-        data_shape = DataShape(result[0]) if result else DataShape.OHLCV
+        data_shape = DataShape(result["data_shape"]) if result else DataShape.OHLCV
         return cls(
             instrument_id=instrument_id,
             granularity=granularity,
@@ -325,7 +325,7 @@ def save_timeseries(
                 )
                 result = cur.fetchone()
             if result:
-                data_shape = DataShape(result[0])
+                data_shape = DataShape(result["data_shape"])
             else:
                 data_shape = DataShape.OHLCV  # Default fallback
 

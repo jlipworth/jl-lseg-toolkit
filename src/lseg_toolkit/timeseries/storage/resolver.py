@@ -63,7 +63,7 @@ class SymbolResolver:
         if not result:
             raise StorageError(f"Unknown symbol/RIC: {symbol_or_ric}")
 
-        instrument_id = result[0]
+        instrument_id = result["id"]
         self._cache[symbol_or_ric] = instrument_id
         return instrument_id
 
