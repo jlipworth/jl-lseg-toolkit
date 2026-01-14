@@ -321,6 +321,58 @@ For US equities, intraday data includes pre-market and after-hours trading:
 | Fed Funds | ZQ | `FFc1` | ✅ | ✅ | ❓ | CME ZQ → LSEG FF |
 | Fed Funds Chain | - | `0#FF:` | ✅ | - | - | All contracts |
 
+### STIR Futures Fields
+
+STIR futures use **settlement prices**, not OHLC:
+
+```python
+fields=['SETTLE', 'OPEN_INT', 'VOLUME']  # Not OPEN/HIGH/LOW/CLOSE
+```
+
+### Continuous Contract Roll Dates
+
+LSEG continuous contracts are **unadjusted** (raw price jumps at rolls):
+
+| Contract | Roll Date | Pattern |
+|----------|-----------|---------|
+| `FFc1` (Fed Funds) | 1st business day of month | Monthly |
+| `SRAc1` (3M SOFR) | 3rd Wednesday of month (IMM date) | Monthly |
+| `FEIc1` (Euribor) | 3rd Wednesday of month (IMM date) | Monthly |
+| `SONc1` (SONIA) | 3rd Wednesday of month (IMM date) | Monthly |
+
+**Observed roll jumps (Oct-Dec 2024):**
+
+| Date | FFc1 Change | SRAc1 Change | Event |
+|------|-------------|--------------|-------|
+| 2024-10-01 | +0.3075 | - | FF roll (1st bus day) |
+| 2024-10-16 | - | +0.2225 | SRA roll (3rd Wed) |
+| 2024-11-01 | +0.1875 | - | FF roll |
+| 2024-11-20 | - | +0.2325 | SRA roll (3rd Wed) |
+| 2024-12-02 | +0.1225 | - | FF roll (Dec 1 = Sunday) |
+| 2024-12-18 | - | +0.1550 | SRA roll (3rd Wed) |
+
+### Historical Data Availability
+
+| Data Type | Availability | Notes |
+|-----------|--------------|-------|
+| Continuous (`FFc1`, `SRAc1`) | ✅ 2+ years | Full history, unadjusted |
+| Discrete active (`FFH26`) | ✅ | Current/future contracts |
+| Discrete expired (`FFH24`) | ⛔ | "Universe not found" error |
+
+### Reconstructing Expired Discrete Contracts
+
+Since LSEG doesn't provide history for expired discrete contracts, reconstruction options:
+
+1. **From continuous + c2 spread**: Use `FFc1` and `FFc2` to back out discrete prices
+   - At roll date: `c1` switches to new front, `c2` becomes what was `c1`
+   - Track the spread `c2 - c1` to identify contract boundaries
+
+2. **From roll jumps**: Work backwards from known prices
+   - Roll jump ≈ price difference between expiring and new contract
+   - Cumulative adjustment reconstructs historical discrete levels
+
+3. **Third-party data**: CME, Quandl, or Bloomberg for expired contracts
+
 ### EUR STIR
 
 | Instrument | Symbol | LSEG RIC | Status | Daily | Intraday | Notes |
