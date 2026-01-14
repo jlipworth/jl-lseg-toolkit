@@ -145,9 +145,9 @@ class TimeSeriesConfig:
             Granularity.HOURLY,
         ):
             days_range = (self.end_date - self.start_date).days
-            if days_range > 90:
+            if days_range > 365:
                 raise ValueError(
-                    f"Intraday data only available for ~90 days. "
+                    f"Intraday data only available for ~365 days. "
                     f"Requested range: {days_range} days"
                 )
 

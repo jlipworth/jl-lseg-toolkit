@@ -71,8 +71,17 @@ def main() -> int:
     add_parser.add_argument(
         "--granularity",
         required=True,
-        choices=["daily", "hourly", "5min", "1min"],
-        help="Data granularity",
+        choices=[
+            "daily",
+            "weekly",
+            "monthly",
+            "hourly",
+            "30min",
+            "10min",
+            "5min",
+            "1min",
+        ],
+        help="Data granularity (tick excluded - use lseg-extract for tick data)",
     )
     add_parser.add_argument(
         "--cron", "-c", required=True, help="Cron schedule (e.g., '0 18 * * 1-5')"

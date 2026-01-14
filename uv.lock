@@ -713,7 +713,9 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "python-dateutil" },
+    { name = "pytreasurydirect" },
     { name = "pytz" },
+    { name = "xlrd" },
     { name = "xlsxwriter" },
 ]
 
@@ -737,6 +739,7 @@ dev = [
     { name = "ruff" },
     { name = "testcontainers" },
     { name = "types-pytz" },
+    { name = "types-requests" },
 ]
 notebook = [
     { name = "ipykernel" },
@@ -773,7 +776,9 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=14.0.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "python-dateutil", specifier = ">=2.8.0" },
+    { name = "pytreasurydirect", specifier = ">=0.1.1" },
     { name = "pytz", specifier = ">=2024.1" },
+    { name = "xlrd", specifier = ">=2.0.2" },
     { name = "xlsxwriter", specifier = ">=3.1.0" },
 ]
 
@@ -797,6 +802,7 @@ dev = [
     { name = "ruff", specifier = ">=0.1.0" },
     { name = "testcontainers", extras = ["postgres"], specifier = ">=4.0.0" },
     { name = "types-pytz", specifier = ">=2025.2.0.20250809" },
+    { name = "types-requests", specifier = ">=2.32.4.20260107" },
 ]
 notebook = [
     { name = "ipykernel", specifier = ">=6.29.0" },
@@ -2087,6 +2093,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pytreasurydirect"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c4/31/bee2ce904642ae1914cac2cf163635ce659093786a4b94a8449606e97ed7/PyTreasuryDirect-0.1.1.tar.gz", hash = "sha256:1cffd816b1fb2999cb1c0a8656941a77ba877df8570a4d629a8e0ca08298104c", size = 2576, upload-time = "2017-12-01T02:05:19.412Z" }
+
+[[package]]
 name = "pytz"
 version = "2025.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2626,6 +2641,18 @@ wheels = [
 ]
 
 [[package]]
+name = "types-requests"
+version = "2.32.4.20260107"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0f/f3/a0663907082280664d745929205a89d41dffb29e89a50f753af7d57d0a96/types_requests-2.32.4.20260107.tar.gz", hash = "sha256:018a11ac158f801bfa84857ddec1650750e393df8a004a8a9ae2a9bec6fcb24f", size = 23165, upload-time = "2026-01-07T03:20:54.091Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1c/12/709ea261f2bf91ef0a26a9eed20f2623227a8ed85610c1e54c5805692ecb/types_requests-2.32.4.20260107-py3-none-any.whl", hash = "sha256:b703fe72f8ce5b31ef031264fe9395cac8f46a04661a79f7ed31a80fb308730d", size = 20676, upload-time = "2026-01-07T03:20:52.929Z" },
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2835,6 +2862,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/01/3a/07cd60a9d26fe73efead61c7830af975dfdba8537632d410462672e4432b/wrapt-2.0.1-cp314-cp314t-win_amd64.whl", hash = "sha256:61c4956171c7434634401db448371277d07032a81cc21c599c22953374781395", size = 64038, upload-time = "2025-11-07T00:45:00.948Z" },
     { url = "https://files.pythonhosted.org/packages/41/99/8a06b8e17dddbf321325ae4eb12465804120f699cd1b8a355718300c62da/wrapt-2.0.1-cp314-cp314t-win_arm64.whl", hash = "sha256:35cdbd478607036fee40273be8ed54a451f5f23121bd9d4be515158f9498f7ad", size = 60634, upload-time = "2025-11-07T00:45:02.087Z" },
     { url = "https://files.pythonhosted.org/packages/15/d1/b51471c11592ff9c012bd3e2f7334a6ff2f42a7aed2caffcf0bdddc9cb89/wrapt-2.0.1-py3-none-any.whl", hash = "sha256:4d2ce1bf1a48c5277d7969259232b57645aae5686dba1eaeade39442277afbca", size = 44046, upload-time = "2025-11-07T00:45:32.116Z" },
+]
+
+[[package]]
+name = "xlrd"
+version = "2.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/5a/377161c2d3538d1990d7af382c79f3b2372e880b65de21b01b1a2b78691e/xlrd-2.0.2.tar.gz", hash = "sha256:08b5e25de58f21ce71dc7db3b3b8106c1fa776f3024c54e45b45b374e89234c9", size = 100167, upload-time = "2025-06-14T08:46:39.039Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/62/c8d562e7766786ba6587d09c5a8ba9f718ed3fa8af7f4553e8f91c36f302/xlrd-2.0.2-py2.py3-none-any.whl", hash = "sha256:ea762c3d29f4cca48d82df517b6d89fbce4db3107f9d78713e48cd321d5c9aa9", size = 96555, upload-time = "2025-06-14T08:46:37.766Z" },
 ]
 
 [[package]]

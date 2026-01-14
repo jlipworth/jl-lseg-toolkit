@@ -66,6 +66,9 @@ htmlcov/
 # IDEs
 .vscode/
 .idea/
+
+# Claude Code local settings (may contain permission patterns with local passwords)
+.claude/settings.local.json
 *.swp
 *.swo
 *~
