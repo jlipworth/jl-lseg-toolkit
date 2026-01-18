@@ -18,6 +18,18 @@ if TYPE_CHECKING:
 # =============================================================================
 
 
+def get_all_jobs(conn: psycopg.Connection) -> list[dict]:
+    """Get all job definitions (enabled and disabled)."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT id, name, description, instrument_group, granularity,
+                   schedule_cron, priority, enabled, lookback_days, max_chunk_days
+            FROM scheduler_jobs
+            ORDER BY priority, name
+        """)
+        return list(cur.fetchall())
+
+
 def get_enabled_jobs(conn: psycopg.Connection) -> list[dict]:
     """Get all enabled job definitions."""
     with conn.cursor() as cur:
@@ -69,6 +81,7 @@ def create_job(
     schedule_cron: str,
     description: str | None = None,
     priority: int = 50,
+    enabled: bool = True,
     lookback_days: int = 5,
     max_chunk_days: int = 30,
 ) -> int:
@@ -78,8 +91,8 @@ def create_job(
             """
             INSERT INTO scheduler_jobs
                 (name, description, instrument_group, granularity, schedule_cron,
-                 priority, lookback_days, max_chunk_days)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 priority, enabled, lookback_days, max_chunk_days)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
             [
@@ -89,6 +102,7 @@ def create_job(
                 granularity,
                 schedule_cron,
                 priority,
+                enabled,
                 lookback_days,
                 max_chunk_days,
             ],

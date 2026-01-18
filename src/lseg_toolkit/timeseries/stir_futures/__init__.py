@@ -24,6 +24,8 @@ from lseg_toolkit.timeseries.stir_futures.contracts import (
     get_chain_ric,
     get_continuous_ric,
     get_contract_expiry_month,
+    get_front_month_contract,
+    get_futures_month_code,
 )
 
 __all__ = [
@@ -34,4 +36,6 @@ __all__ = [
     "get_chain_ric",
     "get_continuous_ric",
     "get_contract_expiry_month",
+    "get_front_month_contract",
+    "get_futures_month_code",
 ]

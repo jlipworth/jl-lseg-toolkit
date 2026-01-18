@@ -13,7 +13,7 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lseg_toolkit.client import LsegClient
+from lseg_toolkit.client import LsegEquityClient
 
 # ============================================================================
 # Client Fixtures
@@ -28,7 +28,7 @@ def lseg_client_session():
     Use this for read-only operations to minimize session overhead.
     The client is created once and reused for all tests.
     """
-    client = LsegClient()
+    client = LsegEquityClient()
     yield client
     client.close_session()
 
@@ -41,7 +41,7 @@ def lseg_client_class():
     Use this for test classes that need a fresh client but want to
     share it across multiple test methods.
     """
-    client = LsegClient()
+    client = LsegEquityClient()
     yield client
     client.close_session()
 
@@ -53,7 +53,7 @@ def lseg_client():
 
     Use this when tests need isolation or modify client state.
     """
-    client = LsegClient()
+    client = LsegEquityClient()
     yield client
     client.close_session()
 

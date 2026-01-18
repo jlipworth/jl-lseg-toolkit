@@ -6,7 +6,7 @@ import argparse
 import sys
 from datetime import datetime, timedelta
 
-from lseg_toolkit.client import LsegClient
+from lseg_toolkit.client import LsegEquityClient
 from lseg_toolkit.earnings.config import EarningsConfig
 from lseg_toolkit.earnings.pipeline import EarningsReportPipeline
 from lseg_toolkit.exceptions import ConfigurationError, LsegError
@@ -65,7 +65,7 @@ def get_date_range_for_timeframe(timeframe: str) -> tuple[datetime, datetime]:
 
 def list_indices():
     """Display list of available indices."""
-    indices = LsegClient.get_available_indices()
+    indices = LsegEquityClient.get_available_indices()
 
     print("=" * 80)
     print("AVAILABLE INDICES")
@@ -201,7 +201,7 @@ Examples:
         start_date, end_date = get_date_range_for_timeframe("week")
 
     # Validate index
-    available_indices = LsegClient.get_available_indices()
+    available_indices = LsegEquityClient.get_available_indices()
     if args.index.upper() not in available_indices:
         print(f"\nWarning: '{args.index}' not in standard index list.")
         print("It may still work if it's a valid LSEG index symbol.")

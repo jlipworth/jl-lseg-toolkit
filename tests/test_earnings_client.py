@@ -1,5 +1,5 @@
 """
-Unit tests for earnings data retrieval functionality in LsegClient.
+Unit tests for earnings data retrieval functionality in LsegEquityClient.
 
 These tests use the REAL LSEG API and require:
 - LSEG Workspace Desktop running and logged in
@@ -16,7 +16,7 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lseg_toolkit.client import LsegClient  # noqa: E402
+from lseg_toolkit.client import LsegEquityClient  # noqa: E402
 from lseg_toolkit.exceptions import DataRetrievalError  # noqa: E402
 
 pytestmark = pytest.mark.integration  # Skip in CI
@@ -154,7 +154,7 @@ class TestSessionManagement:
 
     def test_context_manager(self):
         """Test that context manager works properly."""
-        with LsegClient() as client:
+        with LsegEquityClient() as client:
             assert client._session_opened
 
             rics = client.get_index_constituents("SPX")
@@ -164,7 +164,7 @@ class TestSessionManagement:
 
     def test_manual_session_management(self):
         """Test manual session open/close."""
-        client = LsegClient(auto_open=False)
+        client = LsegEquityClient(auto_open=False)
         assert not client._session_opened
 
         client.open_session()

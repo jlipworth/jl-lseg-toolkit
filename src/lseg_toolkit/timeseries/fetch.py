@@ -21,6 +21,8 @@ from lseg_toolkit.timeseries.constants import (
     FUTURES_OHLCV_FIELDS,
     FX_SPOT_FIELDS,
     FX_SPOT_RICS,
+    USD_OIS_FIELDS,
+    UST_YIELD_FIELDS,
     get_fra_ric,
     get_ois_ric,
     get_treasury_yield_ric,
@@ -277,52 +279,8 @@ def fetch_futures(
     if df.empty:
         return {}
 
-    # Split results by symbol
-    results: dict[str, pd.DataFrame] = {}
-    ric_to_symbol = {v: k for k, v in symbol_to_ric.items()}
-
-    # Handle single vs multi-RIC response format
-    if len(all_rics) == 1:
-        # Single RIC - data is directly in df
-        symbol = symbols[0]
-        results[symbol] = df
-        logger.info(f"Fetched {len(df)} rows for {symbol}")
-    else:
-        # Multi-RIC - data may have 'Instrument' column or be MultiIndex
-        if "Instrument" in df.columns:
-            for ric in all_rics:
-                symbol = ric_to_symbol.get(ric, ric)
-                ric_df = df[df["Instrument"] == ric].drop(columns=["Instrument"])
-                if not ric_df.empty:
-                    results[symbol] = ric_df
-                    logger.info(f"Fetched {len(ric_df)} rows for {symbol}")
-        elif isinstance(df.index, pd.MultiIndex):
-            # MultiIndex format (date, ric)
-            for ric in all_rics:
-                symbol = ric_to_symbol.get(ric, ric)
-                try:
-                    if ric in df.index.get_level_values(1):
-                        xs_result = df.xs(ric, level=1)
-                        # xs can return Series or DataFrame; ensure DataFrame
-                        ric_df = (
-                            xs_result.to_frame().T
-                            if isinstance(xs_result, pd.Series)
-                            else xs_result
-                        )
-                    else:
-                        ric_df = pd.DataFrame()
-                    if not ric_df.empty:
-                        results[symbol] = ric_df
-                        logger.info(f"Fetched {len(ric_df)} rows for {symbol}")
-                except KeyError:
-                    pass
-        else:
-            # Single result format - return as-is for first symbol
-            if not df.empty:
-                results[symbols[0]] = df
-                logger.info(f"Fetched {len(df)} rows")
-
-    return results
+    # Split results by symbol using shared utility
+    return _split_multi_ric_response(df, symbol_to_ric)
 
 
 def fetch_fx(
@@ -416,7 +374,7 @@ def fetch_ois(
             rics=all_rics,
             start_date=start_date,
             end_date=end_date,
-            fields=["CLOSE"],  # OIS typically just has close
+            fields=USD_OIS_FIELDS,
             granularity=Granularity.DAILY,
             client=client,
         )
@@ -466,7 +424,7 @@ def fetch_treasury_yields(
             rics=all_rics,
             start_date=start_date,
             end_date=end_date,
-            fields=["CLOSE"],
+            fields=UST_YIELD_FIELDS,
             granularity=Granularity.DAILY,
             client=client,
         )
@@ -736,6 +694,23 @@ def _split_multi_ric_response(
                         logger.info(f"Fetched {len(ric_df)} rows for {key}")
                 except KeyError:
                     pass
+        return results
+
+    # Multi-RIC with MultiIndex columns (ric, field)
+    if isinstance(df.columns, pd.MultiIndex):
+        rics_in_data = df.columns.get_level_values(0).unique()
+        for ric in all_rics:
+            key = ric_to_key.get(ric, ric)
+            if ric in rics_in_data:
+                # Extract columns for this RIC and flatten
+                ric_data = df[ric].copy()
+                # Ensure we have a DataFrame (single field returns Series)
+                ric_df = (
+                    ric_data.to_frame() if isinstance(ric_data, pd.Series) else ric_data
+                )
+                if not ric_df.empty:
+                    results[key] = ric_df
+                    logger.info(f"Fetched {len(ric_df)} rows for {key}")
         return results
 
     # Fallback: single format, return for first key

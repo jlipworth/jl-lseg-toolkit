@@ -15,7 +15,7 @@ from typing import Any
 import lseg.data as rd
 import pandas as pd
 
-from ..client import LsegClient
+from ..client import LsegEquityClient
 from ..excel import ExcelExporter
 from ..exceptions import ConfigurationError, DataRetrievalError, DataValidationError
 from ..shared import calculate_sector_breakdown, calculate_summary_statistics
@@ -39,7 +39,7 @@ class EquityScreenerPipeline:
             config: EquityScreenerConfig with screening parameters
         """
         self.config = config
-        self.client = LsegClient()
+        self.client = LsegEquityClient()
 
     def run(self) -> Path:
         """

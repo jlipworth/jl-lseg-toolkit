@@ -9,7 +9,7 @@ Refactored Structure:
 - company.py: Company data
 - _legacy.py: Legacy methods (earnings, financial, consensus) - to be extracted later
 
-The LsegClient class provides the same interface as before, ensuring backwards compatibility.
+The LsegEquityClient class provides the same interface as before, ensuring backwards compatibility.
 """
 
 import pandas as pd
@@ -26,9 +26,9 @@ from .financial import get_financial_ratios
 from .session import SessionManager
 
 
-class LsegClient(SessionManager):
+class LsegEquityClient(SessionManager):
     """
-    Main client for accessing LSEG/Refinitiv financial data.
+    Client for accessing LSEG/Refinitiv equity and fundamental data.
 
     Provides methods for:
     - Session management (inherited from SessionManager)
@@ -119,9 +119,13 @@ class LsegClient(SessionManager):
         return _calculate_fiscal_period_label_simple(period_end_date)
 
 
+# Backwards compatibility alias
+LsegClient = LsegEquityClient
+
 # Re-export for convenience
 __all__ = [
-    "LsegClient",
+    "LsegEquityClient",
+    "LsegClient",  # Deprecated alias
     "SessionManager",
     "get_available_indices",
     "get_index_constituents",
