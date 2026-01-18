@@ -193,3 +193,85 @@ def get_chain_ric(product: StirProduct) -> str:
 def get_continuous_ric(product: StirProduct, month: int = 1) -> str:
     """Get continuous contract RIC (e.g., FFc1, SRAc2)."""
     return f"{product}c{month}"
+
+
+def get_futures_month_code(dt: date) -> tuple[str, str]:
+    """
+    Get the futures month code and year suffix for a date.
+
+    Args:
+        dt: The date
+
+    Returns:
+        Tuple of (month_code, year_suffix)
+
+    Example:
+        >>> get_futures_month_code(date(2024, 12, 15))
+        ('Z', '24')
+        >>> get_futures_month_code(date(2025, 1, 10))
+        ('F', '25')
+    """
+    month_code = FUTURES_MONTH_CODES[dt.month - 1]
+    year_suffix = str(dt.year)[-2:]
+    return (month_code, year_suffix)
+
+
+def get_front_month_contract(
+    product: StirProduct,
+    as_of: date,
+) -> str:
+    """
+    Get the front-month contract RIC for a given date.
+
+    For Fed Funds (FF), the front month rolls on the 1st business day of each
+    month to the next month's contract. So during October, after the roll,
+    the front month is the November contract.
+
+    For quarterly products (SRA, FEI, SON), the front month is the next
+    quarterly expiry (Mar, Jun, Sep, Dec).
+
+    Args:
+        product: Product code (FF, SRA, FEI, SON)
+        as_of: The date to check
+
+    Returns:
+        Contract RIC (e.g., 'FFX24' for November 2024)
+
+    Example:
+        >>> get_front_month_contract("FF", date(2024, 10, 15))
+        'FFX24'  # November contract is front during October
+        >>> get_front_month_contract("FF", date(2024, 12, 15))
+        'FFF25'  # January 2025 contract is front during December
+    """
+    spec = STIR_CONTRACT_SPECS.get(product)
+    if not spec:
+        raise ValueError(
+            f"Unknown product: {product}. Use one of {list(STIR_CONTRACT_SPECS.keys())}"
+        )
+
+    is_quarterly = spec["months"] == "quarterly"
+
+    if is_quarterly:
+        # Find next quarterly month (Mar=3, Jun=6, Sep=9, Dec=12)
+        quarterly_months = [3, 6, 9, 12]
+        year = as_of.year
+        month = as_of.month
+
+        # Find the next quarterly month
+        for qm in quarterly_months:
+            if qm > month:
+                front_month = qm
+                break
+        else:
+            # Past December, roll to next year's March
+            front_month = 3
+            year += 1
+    else:
+        # Monthly products (FF): front month is next month after roll
+        # Roll happens on 1st business day, so during month M, front = M+1
+        front_month = as_of.month % 12 + 1
+        year = as_of.year + (1 if as_of.month == 12 else 0)
+
+    month_code = FUTURES_MONTH_CODES[front_month - 1]
+    year_suffix = str(year)[-2:]
+    return f"{product}{month_code}{year_suffix}"

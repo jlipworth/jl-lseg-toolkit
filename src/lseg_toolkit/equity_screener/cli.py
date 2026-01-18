@@ -159,9 +159,9 @@ def main():
 
     # Handle --list-indices
     if args.list_indices:
-        from ..client import LsegClient
+        from ..client import LsegEquityClient
 
-        indices = LsegClient.get_available_indices()
+        indices = LsegEquityClient.get_available_indices()
         print("\nAvailable Indices:")
         print("=" * 80)
         for code, info in sorted(indices.items()):

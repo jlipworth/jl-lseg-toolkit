@@ -15,7 +15,7 @@ import pytest
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from lseg_toolkit.client import LsegClient  # noqa: E402
+from lseg_toolkit.client import LsegEquityClient  # noqa: E402
 
 pytestmark = pytest.mark.integration  # Skip in CI
 
@@ -26,7 +26,7 @@ class TestIndexAvailability:
     @pytest.fixture(scope="class")
     def all_indices(self):
         """Get all available indices."""
-        return LsegClient.get_available_indices()
+        return LsegEquityClient.get_available_indices()
 
     def test_all_indices_have_required_fields(self, all_indices):
         """Test that all indices have required metadata fields."""

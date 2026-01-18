@@ -21,10 +21,10 @@ from typing import TypeVar
 import lseg.data as rd
 import pandas as pd
 
+from lseg_toolkit.client.session import SessionManager
 from lseg_toolkit.exceptions import (
     DataRetrievalError,
     DataValidationError,
-    SessionError,
 )
 from lseg_toolkit.timeseries.constants import VALID_INTERVALS
 
@@ -70,6 +70,7 @@ class LSEGDataClient:
 
     config: ClientConfig = field(default_factory=ClientConfig)
     _last_request_time: float = field(default=0.0, init=False, repr=False)
+    _session: SessionManager | None = field(default=None, init=False, repr=False)
 
     def _rate_limit(self) -> None:
         """Enforce rate limiting between requests."""
@@ -168,29 +169,15 @@ class LSEGDataClient:
                 f"Invalid interval '{interval}'. Valid options: {VALID_INTERVALS}"
             )
 
-    def _check_session(self) -> None:
+    def _ensure_session(self) -> None:
         """
-        Check if LSEG session is available.
+        Ensure LSEG session is open, opening it if necessary.
 
-        Note: LSEG library doesn't expose session state directly,
-        so we attempt a lightweight call to verify connectivity.
-
-        Raises:
-            SessionError: If session is not open.
+        Uses SessionManager for consistent session handling across the toolkit.
+        Auto-opens on first use.
         """
-        try:
-            # Attempt to fetch metadata for a known test RIC
-            # This will fail fast if session isn't open
-            rd.get_data("EUR=", fields=["DSPLY_NAME"])
-        except Exception as e:
-            error_str = str(e).lower()
-            if "session" in error_str or "not opened" in error_str:
-                raise SessionError(
-                    "LSEG session is not open. Ensure LSEG Workspace Desktop "
-                    "is running and call rd.open_session() first."
-                ) from e
-            # If it's another error (like network), the RIC exists but failed
-            # That's OK - we just wanted to check session connectivity
+        if self._session is None:
+            self._session = SessionManager(auto_open=True)
 
     def get_history(
         self,
@@ -242,6 +229,9 @@ class LSEGDataClient:
         # Batch large RIC lists
         if len(rics) > self.config.max_rics_per_request:
             return self._batch_get_history(rics, start, end, fields, interval)
+
+        # Ensure session is open
+        self._ensure_session()
 
         # Rate limit
         self._rate_limit()
@@ -357,6 +347,9 @@ class LSEGDataClient:
         # Batch large RIC lists
         if len(rics) > self.config.max_rics_per_request:
             return self._batch_get_data(rics, fields)
+
+        # Ensure session is open
+        self._ensure_session()
 
         # Rate limit
         self._rate_limit()

@@ -10,7 +10,7 @@ from typing import Any
 
 import pandas as pd
 
-from lseg_toolkit.client import LsegClient
+from lseg_toolkit.client import LsegEquityClient
 from lseg_toolkit.earnings.config import EarningsConfig
 from lseg_toolkit.excel import ExcelExporter
 from lseg_toolkit.shared import calculate_sector_breakdown, calculate_summary_statistics
@@ -41,7 +41,7 @@ class EarningsReportPipeline:
             config: Earnings report configuration
         """
         self.config = config
-        self.client = LsegClient()
+        self.client = LsegEquityClient()
 
     def run(self) -> Path:
         """
