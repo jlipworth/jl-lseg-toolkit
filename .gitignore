@@ -85,6 +85,12 @@ pyrightconfig.json
 
 # LSEG credentials (local project config)
 .lseg-config.json
+lseg-data.config.json
+
+# Nextcloud sync databases
+.sync_*.db
+.sync_*.db-wal
+.sync_*.db-shm
 
 # Exports directory (generated reports)
 exports/
