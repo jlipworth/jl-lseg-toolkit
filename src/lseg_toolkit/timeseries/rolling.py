@@ -28,6 +28,48 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
+def _to_contract_label_date(value) -> date:
+    """Normalize a session/timestamp value to a Python date."""
+    if isinstance(value, pd.Timestamp):
+        return value.date()
+    if hasattr(value, "date"):
+        return value.date()
+    return pd.Timestamp(value).date()
+
+
+def label_continuous_data(
+    df: pd.DataFrame,
+    get_contract: callable,
+    date_col: str = "session_date",
+) -> pd.DataFrame:
+    """
+    Label continuous-contract rows with the corresponding discrete contract.
+
+    Args:
+        df: Continuous-contract DataFrame.
+        get_contract: Callable that maps a date to a contract code.
+        date_col: Preferred column containing the labeling date. If absent,
+            the DataFrame index is used.
+
+    Returns:
+        Copy of ``df`` with a ``source_contract`` column added.
+    """
+    if df.empty:
+        return df.copy()
+
+    result = df.copy()
+    if date_col in result.columns:
+        label_dates = result[date_col].map(_to_contract_label_date)
+    else:
+        label_dates = pd.Series(
+            (_to_contract_label_date(idx) for idx in result.index),
+            index=result.index,
+        )
+
+    result["source_contract"] = label_dates.map(get_contract)
+    return result
+
+
 def build_continuous(
     contracts_data: dict[str, pd.DataFrame],
     roll_method: RollMethod = RollMethod.VOLUME_SWITCH,

@@ -377,6 +377,7 @@ def _save_ohlcv_data(
     columns = [
         "instrument_id",
         "ts",
+        "session_date",
         "granularity",
         "open",
         "high",
@@ -385,6 +386,10 @@ def _save_ohlcv_data(
         "volume",
         "settle",
         "open_interest",
+        "bid",
+        "ask",
+        "mid",
+        "implied_rate",
         "vwap",
         "source_contract",
         "adjustment_factor",
@@ -399,6 +404,7 @@ def _save_ohlcv_data(
         values = [
             _format_copy_value(instrument_id),
             _format_copy_value(ts),
+            _format_copy_value(extracted.get("session_date")),
             _format_copy_value(granularity.value),
             _format_copy_value(extracted.get("open")),
             _format_copy_value(extracted.get("high")),
@@ -407,9 +413,13 @@ def _save_ohlcv_data(
             _format_copy_value(extracted.get("volume")),
             _format_copy_value(extracted.get("settle")),
             _format_copy_value(extracted.get("open_interest")),
+            _format_copy_value(extracted.get("bid")),
+            _format_copy_value(extracted.get("ask")),
+            _format_copy_value(extracted.get("mid")),
+            _format_copy_value(extracted.get("implied_rate")),
             _format_copy_value(extracted.get("vwap")),
-            _format_copy_value(source_contract),
-            _format_copy_value(adjustment_factor),
+            _format_copy_value(row.get("source_contract", source_contract)),
+            _format_copy_value(row.get("adjustment_factor", adjustment_factor)),
         ]
         buffer.write("\t".join(values) + "\n")
 

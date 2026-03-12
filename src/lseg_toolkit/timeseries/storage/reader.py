@@ -128,7 +128,8 @@ def _load_ohlcv_data(
 ) -> pd.DataFrame:
     """Load OHLCV data from timeseries_ohlcv."""
     query = """
-        SELECT ts, open, high, low, close, volume, settle, open_interest, vwap,
+        SELECT ts, session_date, open, high, low, close, volume, settle,
+               open_interest, bid, ask, mid, implied_rate, vwap,
                source_contract, adjustment_factor
         FROM timeseries_ohlcv
         WHERE instrument_id = %s AND granularity = %s

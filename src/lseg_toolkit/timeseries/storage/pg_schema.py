@@ -190,6 +190,7 @@ CREATE TABLE IF NOT EXISTS instrument_option (
 CREATE TABLE IF NOT EXISTS timeseries_ohlcv (
     instrument_id INTEGER NOT NULL REFERENCES instruments(id),
     ts TIMESTAMPTZ NOT NULL,
+    session_date DATE,
     granularity TEXT NOT NULL,
     open DOUBLE PRECISION,
     high DOUBLE PRECISION,
@@ -198,6 +199,10 @@ CREATE TABLE IF NOT EXISTS timeseries_ohlcv (
     volume DOUBLE PRECISION,
     settle DOUBLE PRECISION,
     open_interest DOUBLE PRECISION,
+    bid DOUBLE PRECISION,
+    ask DOUBLE PRECISION,
+    mid DOUBLE PRECISION,
+    implied_rate DOUBLE PRECISION,
     vwap DOUBLE PRECISION,
     source_contract TEXT,
     adjustment_factor DOUBLE PRECISION DEFAULT 1.0,
@@ -640,6 +645,19 @@ SELECT
 FROM instruments i;
 """
 
+MIGRATION_SQL = """
+ALTER TABLE IF EXISTS timeseries_ohlcv
+    ADD COLUMN IF NOT EXISTS session_date DATE;
+ALTER TABLE IF EXISTS timeseries_ohlcv
+    ADD COLUMN IF NOT EXISTS bid DOUBLE PRECISION;
+ALTER TABLE IF EXISTS timeseries_ohlcv
+    ADD COLUMN IF NOT EXISTS ask DOUBLE PRECISION;
+ALTER TABLE IF EXISTS timeseries_ohlcv
+    ADD COLUMN IF NOT EXISTS mid DOUBLE PRECISION;
+ALTER TABLE IF EXISTS timeseries_ohlcv
+    ADD COLUMN IF NOT EXISTS implied_rate DOUBLE PRECISION;
+"""
+
 
 def init_schema(conn: psycopg.Connection) -> None:
     """
@@ -658,6 +676,7 @@ def init_schema(conn: psycopg.Connection) -> None:
         with conn.cursor() as cur:
             # Create base tables
             cur.execute(SCHEMA_SQL)
+            cur.execute(MIGRATION_SQL)
 
             # Convert to hypertables (idempotent with if_not_exists)
             cur.execute(HYPERTABLE_SQL)
