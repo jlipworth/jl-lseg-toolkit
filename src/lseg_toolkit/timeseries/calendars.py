@@ -1,8 +1,8 @@
 """
 Exchange calendar utilities for trading day calculations.
 
-Provides helpers for determining trading days and LSEG continuous
-contract roll dates for CME and other exchanges.
+Provides helpers for determining trading days, LSEG continuous
+contract roll dates, and LSEG/CME session dates for intraday data.
 """
 
 from __future__ import annotations
@@ -63,10 +63,54 @@ def first_trading_day_of_month(
         >>> first_trading_day_of_month(2025, 1, "CME")
         datetime.date(2025, 1, 2)  # Jan 1 is New Year's
         >>> first_trading_day_of_month(2025, 9, "CME")
-        datetime.date(2025, 9, 2)  # Sep 1 is Labor Day
+        datetime.date(2025, 9, 1)  # CME has a Sep 1 session
     """
     first_of_month = date(year, month, 1)
     return _next_trading_day(first_of_month, exchange)
+
+
+def get_lseg_cme_session_date(ts: pd.Timestamp | str) -> date:
+    """
+    Map an LSEG hourly CME timestamp to its session date.
+
+    LSEG intraday CME bars are returned as timezone-naive UTC timestamps.
+    For the observed Fed Funds (`FFc1`) hourly history, the contract/session
+    cutover behaves like a 22:00 UTC day boundary. A robust way to express this
+    is: session_date = (timestamp_utc + 2 hours).date().
+
+    This helper is intentionally LSEG-specific and should be used for
+    intraday contract labeling/storage, not for exact exchange matching logic.
+
+    Args:
+        ts: Timestamp-like value from LSEG intraday history.
+
+    Returns:
+        CME/LSEG session date.
+    """
+    timestamp = pd.Timestamp(ts)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.tz_localize("UTC")
+    else:
+        timestamp = timestamp.tz_convert("UTC")
+    return (timestamp + pd.Timedelta(hours=2)).date()
+
+
+def get_lseg_cme_session_dates(index: pd.Index) -> pd.Series:
+    """
+    Vectorized CME session-date mapping for an LSEG intraday index.
+
+    Args:
+        index: Datetime-like index from LSEG intraday history.
+
+    Returns:
+        Series of Python ``date`` objects aligned to the input index.
+    """
+    timestamps = pd.to_datetime(index)
+    if getattr(timestamps, "tz", None) is None:
+        timestamps = timestamps.tz_localize("UTC")
+    else:
+        timestamps = timestamps.tz_convert("UTC")
+    return pd.Series((timestamps + pd.Timedelta(hours=2)).date, index=index)
 
 
 def get_lseg_continuous_roll_dates(

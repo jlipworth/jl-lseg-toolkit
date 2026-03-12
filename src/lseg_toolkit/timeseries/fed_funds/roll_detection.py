@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
 import pandas as pd
+
+from lseg_toolkit.timeseries.calendars import first_trading_day_of_month
 
 logger = logging.getLogger(__name__)
 
@@ -120,26 +122,16 @@ def _get_expected_roll_date(ref_date: date) -> date:
     """
     Get the expected roll date for a given month.
 
-    Fed Funds continuous contracts roll on the 1st business day of each month.
+    Fed Funds continuous contracts roll on the 1st CME session day of each month.
     The front contract during month M is actually the M+1 contract.
 
     Args:
         ref_date: A date in the month to find the roll date for.
 
     Returns:
-        Expected roll date (1st business day of the month).
+        Expected roll date (1st CME session day of the month).
     """
-    # First day of the month
-    first_of_month = date(ref_date.year, ref_date.month, 1)
-
-    # Adjust for weekends (Mon=0, Sun=6)
-    weekday = first_of_month.weekday()
-    if weekday == 5:  # Saturday
-        return first_of_month + timedelta(days=2)
-    elif weekday == 6:  # Sunday
-        return first_of_month + timedelta(days=1)
-    else:
-        return first_of_month
+    return first_trading_day_of_month(ref_date.year, ref_date.month, "CME")
 
 
 def get_expected_roll_dates(
@@ -154,7 +146,7 @@ def get_expected_roll_dates(
         end: End date.
 
     Returns:
-        List of expected roll dates (1st business day of each month).
+        List of expected roll dates (1st CME session day of each month).
 
     Example:
         >>> get_expected_roll_dates(date(2024, 1, 1), date(2024, 3, 31))

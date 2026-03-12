@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from lseg_toolkit.timeseries.calendars import get_lseg_cme_session_dates
 from lseg_toolkit.timeseries.rolling import label_continuous_data
 from lseg_toolkit.timeseries.stir_futures.contracts import get_front_month_contract
 
@@ -25,6 +26,20 @@ logger = logging.getLogger(__name__)
 # OPINT_1 = Open interest, IMP_YIELD = Implied yield (100 - price)
 FF_DAILY_FIELDS = ["SETTLE", "OPINT_1", "ACVOL_UNS"]
 FF_HOURLY_FIELDS = ["BID", "ASK", "TRDPRC_1", "HIGH_1", "LOW_1"]
+
+
+def _add_daily_session_date(df: pd.DataFrame) -> pd.DataFrame:
+    """Add session_date for daily LSEG history rows."""
+    result = df.copy()
+    result["session_date"] = pd.Series(pd.to_datetime(result.index).date, index=result.index)
+    return result
+
+
+def _add_hourly_session_date(df: pd.DataFrame) -> pd.DataFrame:
+    """Add CME/LSEG session_date for hourly LSEG history rows."""
+    result = df.copy()
+    result["session_date"] = get_lseg_cme_session_dates(result.index)
+    return result
 
 
 def fetch_fed_funds_daily(
@@ -81,9 +96,16 @@ def fetch_fed_funds_daily(
     }
     df = df.rename(columns=column_map)
 
+    # Daily rows are already on the correct trade/session date.
+    df = _add_daily_session_date(df)
+
     # Add implied rate
     if compute_implied_rate and "settle" in df.columns:
         df["implied_rate"] = 100.0 - df["settle"]
+
+    # Persist a usable close for generic OHLCV storage.
+    if "close" not in df.columns and "settle" in df.columns:
+        df["close"] = df["settle"]
 
     # Label with discrete contract codes
     if label_contracts:
@@ -155,9 +177,16 @@ def fetch_fed_funds_hourly(
     if "bid" in df.columns and "ask" in df.columns:
         df["mid"] = (df["bid"] + df["ask"]) / 2
 
+    # Hourly contract labeling must use session_date, not raw UTC calendar date.
+    df = _add_hourly_session_date(df)
+
     # Add implied rate from mid
     if compute_implied_rate and "mid" in df.columns:
         df["implied_rate"] = 100.0 - df["mid"]
+
+    # Persist a usable close for generic OHLCV storage/backtests.
+    if "close" not in df.columns and "mid" in df.columns:
+        df["close"] = df["mid"]
 
     # Label with discrete contract codes
     if label_contracts:
@@ -208,6 +237,7 @@ def prepare_for_storage(
     schema_columns = [
         "instrument_id",
         "ts",
+        "session_date",
         "granularity",
         "open",
         "high",

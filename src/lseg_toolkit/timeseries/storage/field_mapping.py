@@ -45,10 +45,15 @@ class FieldMapper:
         FieldMapping("open", ["open", "OPEN_PRC"]),
         FieldMapping("high", ["high", "HIGH_1"]),
         FieldMapping("low", ["low", "LOW_1"]),
-        FieldMapping("close", ["close", "settle", "TRDPRC_1"], required=True),
+        FieldMapping("close", ["close", "mid", "last", "settle", "TRDPRC_1"], required=True),
         FieldMapping("volume", ["volume", "ACVOL_UNS"]),
         FieldMapping("settle", ["settle", "SETTLE"]),
         FieldMapping("open_interest", ["open_interest", "OPINT_1"]),
+        FieldMapping("bid", ["bid", "BID"]),
+        FieldMapping("ask", ["ask", "ASK"]),
+        FieldMapping("mid", ["mid", "MID_PRICE"]),
+        FieldMapping("implied_rate", ["implied_rate", "IMP_YIELD"]),
+        FieldMapping("session_date", ["session_date"]),
         FieldMapping("vwap", ["vwap", "VWAP"]),
     ]
 
