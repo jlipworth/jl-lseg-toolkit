@@ -17,8 +17,13 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from lseg_toolkit.client import SessionManager
+from lseg_toolkit.timeseries.client import get_client
 from lseg_toolkit.timeseries.config import TimeSeriesConfig
 from lseg_toolkit.timeseries.enums import AssetClass
+from lseg_toolkit.timeseries.fed_funds import (
+    fetch_fed_funds_daily,
+    fetch_fed_funds_hourly,
+)
 from lseg_toolkit.timeseries.fetch import (
     fetch_fras,
     fetch_futures,
@@ -140,6 +145,8 @@ class TimeSeriesExtractionPipeline:
                 extraction_results = self._extract_futures()
             elif asset_class == AssetClass.FX_SPOT:
                 extraction_results = self._extract_fx()
+            elif asset_class == AssetClass.STIR_FUTURES:
+                extraction_results = self._extract_stir_futures()
             elif asset_class == AssetClass.OIS:
                 extraction_results = self._extract_ois()
             elif asset_class == AssetClass.GOVT_YIELD:
@@ -188,6 +195,9 @@ class TimeSeriesExtractionPipeline:
         if len(sample) == 6 and sample.isalpha():
             return AssetClass.FX_SPOT
 
+        if sample in {"FF_CONTINUOUS", "FF"}:
+            return AssetClass.STIR_FUTURES
+
         # Check for FRA pattern (contains X)
         if "X" in sample and sample.endswith("F"):
             return AssetClass.FRA
@@ -198,6 +208,66 @@ class TimeSeriesExtractionPipeline:
 
         # Default to futures
         return AssetClass.BOND_FUTURES
+
+    def _extract_stir_futures(self) -> list[ExtractionResult]:
+        """Extract STIR futures. Currently supports FF continuous."""
+        results: list[ExtractionResult] = []
+
+        client = get_client()
+
+        for symbol in self.config.symbols:
+            symbol_upper = symbol.upper()
+            if symbol_upper not in {"FF_CONTINUOUS", "FF", "ZQ"}:
+                results.append(
+                    ExtractionResult(
+                        symbol=symbol,
+                        rows_fetched=0,
+                        start_date=None,
+                        end_date=None,
+                        success=False,
+                        error="Unsupported STIR symbol (currently only FF_CONTINUOUS)",
+                    )
+                )
+                continue
+
+            if self.config.granularity.value == "daily":
+                df = fetch_fed_funds_daily(
+                    client,
+                    self.config.start_date,
+                    self.config.end_date,
+                )
+            elif self.config.granularity.value == "hourly":
+                df = fetch_fed_funds_hourly(
+                    client,
+                    self.config.start_date,
+                    self.config.end_date,
+                )
+            else:
+                results.append(
+                    ExtractionResult(
+                        symbol="FF_CONTINUOUS",
+                        rows_fetched=0,
+                        start_date=None,
+                        end_date=None,
+                        success=False,
+                        error="FF_CONTINUOUS currently supports only daily/hourly extraction",
+                    )
+                )
+                continue
+
+            result = self._store_timeseries(
+                symbol="FF_CONTINUOUS",
+                df=df,
+                asset_class=AssetClass.STIR_FUTURES,
+                ric="FFc1",
+                name="30-Day Fed Funds Continuous",
+                underlying="FF",
+                exchange="CME",
+                continuous_type="continuous",
+            )
+            results.append(result)
+
+        return results
 
     def _extract_futures(self) -> list[ExtractionResult]:
         """Extract futures data."""
@@ -427,11 +497,12 @@ class TimeSeriesExtractionPipeline:
 
         try:
             with get_connection() as conn:
+                instrument_name = kwargs.pop("name", symbol)
                 # Save instrument
                 inst_id = save_instrument(
                     conn,
                     symbol=symbol,
-                    name=symbol,  # TODO: Get proper name
+                    name=instrument_name,
                     asset_class=asset_class,
                     lseg_ric=ric,
                     **kwargs,

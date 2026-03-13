@@ -69,6 +69,11 @@ class TestResolveRic:
         assert resolve_ric("USD1MOIS") == "USD1MOIS="
         assert resolve_ric("USD10YOIS") == "USD10YOIS="
 
+    def test_stir_symbol_resolution(self):
+        """Fed Funds continuous internal symbol should resolve to FFc1."""
+        assert resolve_ric("FF_CONTINUOUS") == "FFc1"
+        assert resolve_ric("ff_continuous") == "FFc1"
+
 
 class TestNormalizeColumns:
     """Test column name normalization from LSEG to storage schema."""

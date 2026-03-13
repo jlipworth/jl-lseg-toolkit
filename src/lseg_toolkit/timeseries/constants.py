@@ -336,6 +336,7 @@ STIR_FUTURES_RICS: dict[str, str] = {
     "SOFR_1M_CHAIN": "0#SOFR:",  # 1-Month SOFR contract chain (snapshot only)
     # Fed Funds
     "FF": "FFc1",  # 30-Day Fed Funds continuous (CME ZQ → LSEG FF)
+    "FF_CONTINUOUS": "FFc1",  # Canonical internal symbol for stored FF continuous
     "FF_CHAIN": "0#FF:",  # Fed Funds contract chain
     # EUR Euribor
     "EURIBOR_3M": "FEIc1",  # 3-Month Euribor continuous
