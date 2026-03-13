@@ -26,6 +26,7 @@ lseg-extract --list
 | Asset Class | Examples | Description |
 |-------------|----------|-------------|
 | `futures` | ZN, ZB, FGBL, ES | Bond and index futures |
+| `stir` | FF_CONTINUOUS | STIR futures (Fed Funds, SOFR family) |
 | `fx` | EURUSD, USDJPY | FX spot rates |
 | `ois` | 1M, 1Y, 5Y | OIS swap rates (SOFR) |
 | `govt-yield` | 2Y, 10Y, 30Y | US Treasury yields |
@@ -42,7 +43,7 @@ lseg-extract SYMBOLS... [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `--asset-class` | Asset class: futures, fx, ois, govt-yield, fra (auto-detected if omitted) |
+| `--asset-class` | Asset class: futures, stir, fx, ois, govt-yield, fra (auto-detected if omitted) |
 | `--start DATE` | Start date (YYYY-MM-DD, default: 1 year ago) |
 | `--end DATE` | End date (YYYY-MM-DD, default: today) |
 | `--interval` | Granularity: tick, 1min, 5min, 10min, 30min, hourly, daily, weekly, monthly |
@@ -62,6 +63,9 @@ lseg-extract ZN --continuous --adjust ratio
 
 # Intraday FX (5-minute bars, last 30 days)
 lseg-extract EURUSD --interval 5min --start 2025-12-01
+
+# Fed Funds continuous (stored as FF_CONTINUOUS)
+lseg-extract FF_CONTINUOUS --asset-class stir --interval hourly --start 2026-03-01 --end 2026-03-03
 
 # Full USD OIS curve
 lseg-extract 1M 2M 3M 6M 9M 1Y 2Y 3Y 5Y 7Y 10Y 15Y 20Y 30Y --asset-class ois
@@ -220,6 +224,7 @@ Common CME symbols are automatically mapped to LSEG RICs:
 | ZN | TYc1 | 10-Year Treasury |
 | ZB | USc1 | 30-Year Treasury |
 | ZF | FVc1 | 5-Year Treasury |
+| FF_CONTINUOUS | FFc1 | 30-Day Fed Funds continuous |
 | EURUSD | EUR= | EUR/USD spot |
 | USDJPY | JPY= | USD/JPY spot |
 

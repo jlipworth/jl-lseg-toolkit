@@ -129,6 +129,7 @@ erDiagram
     timeseries_ohlcv {
         INTEGER instrument_id PK,FK
         TIMESTAMP ts PK
+        DATE session_date
         VARCHAR granularity PK
         DOUBLE open
         DOUBLE high
@@ -137,6 +138,10 @@ erDiagram
         DOUBLE volume
         DOUBLE settle
         DOUBLE open_interest
+        DOUBLE bid
+        DOUBLE ask
+        DOUBLE mid
+        DOUBLE implied_rate
         DOUBLE vwap
         VARCHAR source_contract
         DOUBLE adjustment_factor
@@ -258,6 +263,25 @@ The `data_shape` column in the `instruments` table determines which timeseries t
 ### Asset Class to Data Shape Mapping
 
 The system automatically determines the correct data shape based on the asset class:
+
+## OHLCV Notes for STIR / Fed Funds
+
+`timeseries_ohlcv` now also carries the fields needed for Fed Funds continuous
+storage and downstream backtests:
+
+- `session_date` — trading/session date used for contract labeling
+- `bid`, `ask`, `mid` — intraday quote-derived fields
+- `implied_rate` — computed as `100 - price`
+- `source_contract` — discrete contract code (for example `FFH26`, `FFJ26`)
+
+For `FF_CONTINUOUS` specifically:
+
+- **daily** rows use `session_date = ts::date`
+- **hourly** rows use the LSEG/CME session-date convention rather than raw UTC date
+- downstream consumers should use:
+  - `ts` for ordering/time
+  - `session_date` for trading-day logic
+  - `source_contract` for contract-aware analytics
 
 ```python
 ASSET_CLASS_TO_DATA_SHAPE = {
