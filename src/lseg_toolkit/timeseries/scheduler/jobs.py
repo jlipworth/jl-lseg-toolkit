@@ -12,6 +12,10 @@ from typing import TYPE_CHECKING
 
 from lseg_toolkit.timeseries.cache import detect_gaps
 from lseg_toolkit.timeseries.enums import Granularity
+from lseg_toolkit.timeseries.fed_funds import (
+    fetch_fed_funds_daily,
+    fetch_fed_funds_hourly,
+)
 from lseg_toolkit.timeseries.scheduler.config import SchedulerConfig
 from lseg_toolkit.timeseries.scheduler.models import (
     ExtractionResult,
@@ -306,13 +310,7 @@ class ExtractionJob:
                 f"{spec.symbol}: Fetching {current} to {chunk_end} ({granularity.value})"
             )
 
-            # Fetch from LSEG API
-            df = self.client.get_history(
-                rics=spec.ric,
-                start=current.isoformat(),
-                end=chunk_end.isoformat(),
-                interval=granularity.value,
-            )
+            df = self._fetch_timeseries(spec, current, chunk_end, granularity)
 
             if df is not None and not df.empty:
                 # Save to database
@@ -331,6 +329,35 @@ class ExtractionJob:
             current = chunk_end + timedelta(days=1)
 
         return total_rows
+
+    def _fetch_timeseries(
+        self,
+        spec: InstrumentSpec,
+        start_date: date,
+        end_date: date,
+        granularity: Granularity,
+    ):
+        """
+        Fetch timeseries for one instrument/date chunk.
+
+        FF_CONTINUOUS must use the dedicated Fed Funds extraction path so
+        session_date and source_contract are populated correctly.
+        """
+        if spec.symbol == "FF_CONTINUOUS":
+            if granularity == Granularity.DAILY:
+                return fetch_fed_funds_daily(self.client, start_date, end_date)
+            if granularity == Granularity.HOURLY:
+                return fetch_fed_funds_hourly(self.client, start_date, end_date)
+            raise ValueError(
+                "FF_CONTINUOUS scheduler jobs currently support only daily/hourly granularity"
+            )
+
+        return self.client.get_history(
+            rics=spec.ric,
+            start=start_date.isoformat(),
+            end=end_date.isoformat(),
+            interval=granularity.value,
+        )
 
 
 def run_job_now(

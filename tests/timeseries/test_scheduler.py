@@ -15,8 +15,9 @@ import pandas as pd
 import pytest
 
 from lseg_toolkit.timeseries.config import DatabaseConfig
-from lseg_toolkit.timeseries.enums import AssetClass, DataShape
+from lseg_toolkit.timeseries.enums import AssetClass, DataShape, Granularity
 from lseg_toolkit.timeseries.scheduler.config import SchedulerConfig
+from lseg_toolkit.timeseries.scheduler.jobs import ExtractionJob
 from lseg_toolkit.timeseries.scheduler.models import InstrumentSpec, JobRunResult
 from lseg_toolkit.timeseries.scheduler.universes import (
     build_universe,
@@ -34,6 +35,7 @@ class TestUniverseBuilding:
         assert "benchmark_fixings" in groups
         assert "fx_spot" in groups
         assert "treasury_futures" in groups
+        assert "stir_ff" in groups
 
     def test_build_universe_benchmark_fixings(self):
         """Build benchmark fixings universe."""
@@ -267,6 +269,62 @@ class TestExtractionMocked:
         assert df is not None
         assert not df.empty
         assert "FIXING" in df.columns
+
+    @patch("lseg_toolkit.timeseries.scheduler.jobs.save_timeseries")
+    @patch("lseg_toolkit.timeseries.scheduler.jobs.fetch_fed_funds_hourly")
+    def test_ff_continuous_hourly_uses_special_fetcher(
+        self, mock_fetch_hourly, mock_save_timeseries
+    ):
+        """FF_CONTINUOUS hourly scheduler path should use Fed Funds fetcher."""
+        dates = pd.date_range("2026-03-01 22:00", periods=2, freq="h")
+        mock_fetch_hourly.return_value = pd.DataFrame(
+            {
+                "mid": [96.37, 96.36],
+                "close": [96.37, 96.36],
+                "session_date": [pd.Timestamp("2026-03-02").date()] * 2,
+                "source_contract": ["FFJ26", "FFJ26"],
+            },
+            index=dates,
+        )
+        mock_save_timeseries.return_value = 2
+
+        job = ExtractionJob(job_id=1, client=MagicMock(), config=SchedulerConfig())
+        spec = InstrumentSpec(
+            symbol="FF_CONTINUOUS",
+            ric="FFc1",
+            asset_class=AssetClass.STIR_FUTURES,
+            data_shape=DataShape.OHLCV,
+            name="30-Day Fed Funds Continuous",
+        )
+
+        rows = job._fetch_gap(
+            conn=MagicMock(),
+            spec=spec,
+            instrument_id=123,
+            start_date=pd.Timestamp("2026-03-01").date(),
+            end_date=pd.Timestamp("2026-03-03").date(),
+            granularity=Granularity.HOURLY,
+            max_chunk_days=30,
+        )
+
+        assert rows == 2
+        mock_fetch_hourly.assert_called_once()
+        mock_save_timeseries.assert_called_once()
+
+    def test_stir_universe_includes_ff_continuous(self):
+        """STIR universe should include the canonical FF continuous symbol."""
+        instruments = build_universe("stir_futures")
+        ff = next((i for i in instruments if i.symbol == "FF_CONTINUOUS"), None)
+        assert ff is not None
+        assert ff.ric == "FFc1"
+        assert ff.asset_class == AssetClass.STIR_FUTURES
+
+    def test_stir_ff_universe_only_contains_ff_continuous(self):
+        """FF-only universe should contain exactly the canonical FF symbol."""
+        instruments = build_universe("stir_ff")
+        assert len(instruments) == 1
+        assert instruments[0].symbol == "FF_CONTINUOUS"
+        assert instruments[0].ric == "FFc1"
 
 
 class TestJobRunResult:
