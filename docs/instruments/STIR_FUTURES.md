@@ -20,6 +20,21 @@
 | Fed Funds | ZQ | `FFc1` | ✅ | ✅ | ❓ | CME ZQ → LSEG FF |
 | Fed Funds Chain | - | `0#FF:` | ✅ | - | - | All contracts |
 
+### Internal Stored Symbol Convention
+
+The toolkit stores the Fed Funds continuous contract under the canonical internal
+symbol:
+
+- `FF_CONTINUOUS` → LSEG `FFc1`
+
+Stored hourly and daily rows also include:
+
+- `session_date`
+- `source_contract`
+- `implied_rate`
+
+This is the symbol downstream consumers (for example `fin-kit`) should query.
+
 ### STIR Futures Fields
 
 STIR futures use **settlement prices**, not OHLC:
@@ -27,6 +42,16 @@ STIR futures use **settlement prices**, not OHLC:
 ```python
 fields=['SETTLE', 'OPEN_INT', 'VOLUME']  # Not OPEN/HIGH/LOW/CLOSE
 ```
+
+For the implemented Fed Funds storage path:
+
+- **daily**
+  - `close = settle`
+  - `implied_rate = 100 - settle`
+- **hourly**
+  - `mid = (bid + ask) / 2`
+  - `close = mid`
+  - `implied_rate = 100 - mid`
 
 ### Continuous Contract Roll Dates
 
@@ -38,6 +63,22 @@ LSEG continuous contracts are **unadjusted** (raw price jumps at rolls):
 | `SRAc1` (3M SOFR) | 3rd Wednesday of month (IMM date) | Monthly |
 | `FEIc1` (Euribor) | 3rd Wednesday of month (IMM date) | Monthly |
 | `SONc1` (SONIA) | 3rd Wednesday of month (IMM date) | Monthly |
+
+### Session-Date Rule for Fed Funds Hourly Data
+
+For `FF_CONTINUOUS` hourly rows, contract labeling is based on `session_date`,
+not plain UTC calendar date.
+
+Observed LSEG/CME behavior:
+
+- the new monthly contract is already active in the evening session
+- practical stored rule:
+  - `session_date = (timestamp_utc + 2 hours).date()`
+
+Example:
+
+- `2026-03-01 22:00 UTC` maps to `session_date = 2026-03-02`
+- that row is labeled with the March front contract `FFJ26`
 
 **Observed roll jumps (Oct-Dec 2024):**
 
