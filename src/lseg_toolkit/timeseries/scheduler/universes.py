@@ -65,6 +65,7 @@ def build_universe(group: str) -> list[InstrumentSpec]:
         "fx_futures": _build_fx_futures,
         "commodity_futures": _build_commodity_futures,
         "stir_futures": _build_stir_futures,
+        "stir_ff": _build_stir_ff,
         # FX
         "fx_spot": _build_fx_spot,
         # Rates - OIS
@@ -113,6 +114,7 @@ def get_available_groups() -> list[str]:
         "fx_futures",
         "commodity_futures",
         "stir_futures",
+        "stir_ff",
         "fx_spot",
         "ois_usd",
         "ois_eur",
@@ -241,6 +243,19 @@ def _build_stir_futures() -> list[InstrumentSpec]:
                 )
             )
     return specs
+
+
+def _build_stir_ff() -> list[InstrumentSpec]:
+    """Build FF-only STIR universe for scheduler jobs."""
+    return [
+        InstrumentSpec(
+            symbol="FF_CONTINUOUS",
+            ric="FFc1",
+            asset_class=AssetClass.STIR_FUTURES,
+            data_shape=DataShape.OHLCV,
+            name="30-Day Fed Funds Continuous",
+        )
+    ]
 
 
 # =============================================================================

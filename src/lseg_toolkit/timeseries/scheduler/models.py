@@ -34,6 +34,7 @@ class InstrumentGroup(str, Enum):
 
     # Futures - STIR
     STIR_FUTURES = "stir_futures"
+    STIR_FF = "stir_ff"
 
     # FX Spot
     FX_SPOT = "fx_spot"

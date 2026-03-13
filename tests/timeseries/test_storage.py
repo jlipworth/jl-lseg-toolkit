@@ -76,6 +76,28 @@ class TestInitDb:
         mock_init_schema.assert_called_once_with(mock_conn)
 
 
+class TestMaintenance:
+    """Tests for storage maintenance helpers."""
+
+    def test_backfill_ff_continuous_session_dates(self):
+        """FF historical backfill should update NULL session_date rows."""
+        from lseg_toolkit.timeseries.storage import backfill_ff_continuous_session_dates
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 123
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        updated = backfill_ff_continuous_session_dates(mock_conn)
+
+        assert updated == 123
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "FF_CONTINUOUS" in sql
+        assert "INTERVAL '2 hours'" in sql
+        assert "session_date IS NULL" in sql
+
+
 class TestSaveInstrument:
     """Tests for instrument save operations."""
 

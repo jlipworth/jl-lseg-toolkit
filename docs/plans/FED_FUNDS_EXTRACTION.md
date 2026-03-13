@@ -149,7 +149,7 @@ Calendar-based labeling (1st business day of month) is validated by the data.
   ```
 - [ ] **3.2** Add to `instrument_futures` detail table
 
-### Phase 4: Extraction Pipeline (IN PROGRESS)
+### Phase 4: Extraction Pipeline (MOSTLY COMPLETE)
 
 - [x] **4.1** Create `fetch_fed_funds_daily()` - 10 years, SETTLE/OI/VOL + implied_rate
   - Implemented in `fed_funds/extraction.py`
@@ -161,13 +161,26 @@ Calendar-based labeling (1st business day of month) is validated by the data.
   - Fields: BID, ASK, TRDPRC_1, HIGH_1, LOW_1, IMP_YIELD
   - **Note:** Only available for last 370 days (older dates return empty)
 - [ ] **4.3** Add `--label-contracts` flag to `lseg-extract` CLI
-- [ ] **4.4** Integration test with small date range
+- [x] **4.4** Integration test with small date range
+  - Verified with live DB-backed daily/hourly loads under Infisical-injected credentials
+  - Confirmed hourly rows store `session_date` and `source_contract` correctly across month boundary
 
 ### Phase 5: Scheduler Integration
 
-- [ ] **5.1** Add `STIR_FF_DAILY` job to scheduler
-- [ ] **5.2** Add `STIR_FF_HOURLY` job to scheduler
-- [ ] **5.3** Configure appropriate `max_chunk_days` for each
+- [x] **5.1** Add `STIR_FF_DAILY` job to scheduler
+- [x] **5.2** Add `STIR_FF_HOURLY` job to scheduler
+- [x] **5.3** Configure appropriate `max_chunk_days` for each
+  - Added dedicated `stir_ff` scheduler universe for `FF_CONTINUOUS`
+  - Scheduler extraction path now uses the Fed Funds-specific fetchers
+  - Initial job settings:
+    - `STIR_FF_DAILY`: cron `30 18 * * 1-5`, `lookback_days=10`, `max_chunk_days=30`
+    - `STIR_FF_HOURLY`: cron `5 * * * 0-5`, `lookback_days=3`, `max_chunk_days=7`
+
+### Phase 6: Historical Data Hygiene
+
+- [x] Backfill `session_date` for existing historical `FF_CONTINUOUS` rows
+  - Updated 1,258 existing rows in TimescaleDB
+  - Remaining `NULL session_date` rows for daily/hourly FF data: 0
 
 ---
 

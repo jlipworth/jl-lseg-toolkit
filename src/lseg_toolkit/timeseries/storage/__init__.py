@@ -39,6 +39,7 @@ from .instruments import (
     get_instruments,
     save_instrument,
 )
+from .maintenance import backfill_ff_continuous_session_dates
 from .pg_schema import SCHEMA_SQL
 from .progress import (
     create_extraction_progress,
@@ -69,6 +70,7 @@ __all__ = [
     "init_db",
     # Schema
     "SCHEMA_SQL",
+    "backfill_ff_continuous_session_dates",
     # Instruments
     "ASSET_CLASS_TO_DATA_SHAPE",
     "DETAIL_TABLES",
