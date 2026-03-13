@@ -21,6 +21,7 @@ from lseg_toolkit.timeseries.constants import (
     FUTURES_OHLCV_FIELDS,
     FX_SPOT_FIELDS,
     FX_SPOT_RICS,
+    STIR_FUTURES_RICS,
     USD_OIS_FIELDS,
     UST_YIELD_FIELDS,
     get_fra_ric,
@@ -90,6 +91,10 @@ def resolve_ric(symbol: str, asset_class: AssetClass | None = None) -> str:
     # Try FX spot (e.g., EURUSD -> EUR=)
     if symbol_upper in FX_SPOT_RICS:
         return FX_SPOT_RICS[symbol_upper]
+
+    # Try STIR futures symbolic mapping (e.g., FF_CONTINUOUS -> FFc1)
+    if symbol_upper in STIR_FUTURES_RICS:
+        return STIR_FUTURES_RICS[symbol_upper]
 
     # Auto-detect asset class patterns
     if asset_class == AssetClass.OIS or "OIS" in symbol_upper:

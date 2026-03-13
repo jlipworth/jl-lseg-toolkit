@@ -51,6 +51,11 @@ def list_instruments():
     print("  FGBM  Euro-Bobl 5Y")
     print()
 
+    print("STIR FUTURES:")
+    print("-" * 40)
+    print("  FF_CONTINUOUS    30-Day Fed Funds continuous (FFc1)")
+    print()
+
     print("FX SPOT (use pair symbols):")
     print("-" * 40)
     print("  EURUSD, GBPUSD, USDJPY, USDCHF")
@@ -94,6 +99,9 @@ Examples:
   # Extract FX data
   lseg-extract EURUSD USDJPY --asset-class fx
 
+  # Extract Fed Funds continuous futures
+  lseg-extract FF_CONTINUOUS --asset-class stir
+
   # Extract OIS curve
   lseg-extract 1M 3M 6M 1Y 5Y 10Y --asset-class ois
 
@@ -128,7 +136,7 @@ Examples:
     # Asset class
     parser.add_argument(
         "--asset-class",
-        choices=["futures", "fx", "ois", "govt-yield", "fra"],
+        choices=["futures", "stir", "fx", "ois", "govt-yield", "fra"],
         help="Asset class (auto-detected if not specified)",
     )
 
@@ -235,6 +243,7 @@ Examples:
     # Map asset class
     asset_class_map = {
         "futures": AssetClass.BOND_FUTURES,
+        "stir": AssetClass.STIR_FUTURES,
         "fx": AssetClass.FX_SPOT,
         "ois": AssetClass.OIS,
         "govt-yield": AssetClass.GOVT_YIELD,
