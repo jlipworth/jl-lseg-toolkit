@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+import re
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from lseg_toolkit.exceptions import DataRetrievalError, InstrumentNotFoundError
 from lseg_toolkit.timeseries.client import LSEGDataClient, get_client
+from lseg_toolkit.timeseries.fed_funds import parse_ff_continuous_rank
 from lseg_toolkit.timeseries.constants import (
     ALL_FUTURES_MAPPING,
     COLUMN_MAPPING,
@@ -34,6 +36,7 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+CONTINUOUS_RIC_PATTERN = re.compile(r"^[A-Za-z]+c\d+$")
 
 
 # =============================================================================
@@ -79,8 +82,8 @@ def resolve_ric(symbol: str, asset_class: AssetClass | None = None) -> str:
     """
     symbol_upper = symbol.upper()
 
-    # Check if it's already a RIC (ends with = or contains c1/c2)
-    if symbol.endswith("=") or "c1" in symbol or "c2" in symbol:
+    # Check if it's already a RIC
+    if symbol.endswith("=") or CONTINUOUS_RIC_PATTERN.match(symbol):
         return symbol
 
     # Try futures mapping first (e.g., ZN -> TYc1)
@@ -95,6 +98,10 @@ def resolve_ric(symbol: str, asset_class: AssetClass | None = None) -> str:
     # Try STIR futures symbolic mapping (e.g., FF_CONTINUOUS -> FFc1)
     if symbol_upper in STIR_FUTURES_RICS:
         return STIR_FUTURES_RICS[symbol_upper]
+
+    ff_rank = parse_ff_continuous_rank(symbol_upper)
+    if ff_rank is not None:
+        return f"FFc{ff_rank}"
 
     # Auto-detect asset class patterns
     if asset_class == AssetClass.OIS or "OIS" in symbol_upper:
@@ -115,7 +122,7 @@ def resolve_ric(symbol: str, asset_class: AssetClass | None = None) -> str:
 
     # If symbol looks like a continuous futures RIC pattern
     # (root + c + number), pass through
-    if len(symbol) >= 3 and symbol[-2] == "c" and symbol[-1].isdigit():
+    if CONTINUOUS_RIC_PATTERN.match(symbol):
         return symbol
 
     # Pass through if we can't identify it

@@ -73,6 +73,8 @@ class TestResolveRic:
         """Fed Funds continuous internal symbol should resolve to FFc1."""
         assert resolve_ric("FF_CONTINUOUS") == "FFc1"
         assert resolve_ric("ff_continuous") == "FFc1"
+        assert resolve_ric("FF_CONTINUOUS_12") == "FFc12"
+        assert resolve_ric("FFc12") == "FFc12"
 
 
 class TestNormalizeColumns:

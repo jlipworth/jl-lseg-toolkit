@@ -12,6 +12,7 @@ from lseg_toolkit.timeseries.enums import DataShape, Granularity
 from lseg_toolkit.timeseries.fed_funds.extraction import (
     fetch_fed_funds_daily,
     fetch_fed_funds_hourly,
+    fetch_fed_funds_strip,
     prepare_for_storage,
 )
 from lseg_toolkit.timeseries.fed_funds.roll_detection import (
@@ -88,6 +89,65 @@ class TestFedFundsExtraction:
         assert list(df["source_contract"]) == ["FFV25", "FFX25"]
         assert df.iloc[1]["source_contract"] != "FFV25"
         assert list(df["close"]) == list(df["mid"])
+
+    def test_fetch_fed_funds_hourly_drops_rows_without_usable_close(self):
+        client = MagicMock()
+        client.get_history.return_value = pd.DataFrame(
+            {
+                "BID": [pd.NA, 95.9200],
+                "ASK": [pd.NA, 95.9225],
+                "TRDPRC_1": [pd.NA, 95.9225],
+                "HIGH_1": [pd.NA, 95.9300],
+                "LOW_1": [pd.NA, 95.9150],
+            },
+            index=pd.to_datetime(["2025-09-30 21:00:00", "2025-09-30 23:00:00"]),
+        )
+
+        df = fetch_fed_funds_hourly(client, "2025-09-30", "2025-10-01")
+
+        assert len(df) == 1
+        assert list(df["source_contract"]) == ["FFX25"]
+        assert list(df["close"]) == [95.92125]
+
+    def test_fetch_fed_funds_daily_rank_two_labels_second_contract(self):
+        client = MagicMock()
+        client.get_history.return_value = pd.DataFrame(
+            {
+                "SETTLE": [95.7750, 95.9225],
+                "OPINT_1": [100, 110],
+                "ACVOL_UNS": [10, 11],
+            },
+            index=pd.to_datetime(["2025-09-30", "2025-10-01"]),
+        )
+
+        df = fetch_fed_funds_daily(client, "2025-09-30", "2025-10-01", rank=2)
+
+        client.get_history.assert_called_once()
+        assert client.get_history.call_args.kwargs["rics"] == "FFc2"
+        assert list(df["source_contract"]) == ["FFX25", "FFZ25"]
+
+    def test_fetch_fed_funds_strip_fetches_multiple_ranks(self):
+        client = MagicMock()
+        client.get_history.return_value = pd.DataFrame(
+            {
+                "SETTLE": [95.7750],
+                "OPINT_1": [100],
+                "ACVOL_UNS": [10],
+            },
+            index=pd.to_datetime(["2025-09-30"]),
+        )
+
+        result = fetch_fed_funds_strip(
+            client,
+            "2025-09-30",
+            "2025-09-30",
+            ranks=[1, 2, 3],
+        )
+
+        assert list(result.keys()) == ["FFc1", "FFc2", "FFc3"]
+        called_rics = [call.kwargs["rics"] for call in client.get_history.call_args_list]
+        assert called_rics == ["FFc1", "FFc2", "FFc3"]
+        assert result["FFc3"].iloc[0]["source_contract"] == "FFZ25"
 
     def test_prepare_for_storage_keeps_session_date_and_localizes_ts(self):
         df = pd.DataFrame(

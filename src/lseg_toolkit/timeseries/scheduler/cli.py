@@ -12,6 +12,7 @@ import sys
 
 from lseg_toolkit.timeseries.config import DatabaseConfig
 from lseg_toolkit.timeseries.scheduler.config import SchedulerConfig
+from lseg_toolkit.timeseries.scheduler.default_jobs import ensure_ff_strip_jobs
 from lseg_toolkit.timeseries.scheduler.state import (
     create_job,
     delete_job,
@@ -101,6 +102,12 @@ def main() -> int:
         "--chunk-days", type=int, default=30, help="Max days per extraction chunk"
     )
 
+    # Seed default FF strip jobs
+    subparsers.add_parser(
+        "seed-ff-strip",
+        help="Create the default FF strip daily/hourly jobs if missing",
+    )
+
     # Enable/disable job
     enable_parser = subparsers.add_parser("enable", help="Enable a job")
     enable_parser.add_argument("name", help="Job name")
@@ -161,6 +168,8 @@ def main() -> int:
             return cmd_groups(args)
         elif args.command == "add-job":
             return cmd_add_job(args)
+        elif args.command == "seed-ff-strip":
+            return cmd_seed_ff_strip(args)
         elif args.command == "enable":
             return cmd_enable(args)
         elif args.command == "disable":
@@ -335,6 +344,22 @@ def cmd_add_job(args) -> int:
     print(f"  Schedule: {args.cron}")
     print(f"  Priority: {args.priority}")
 
+    return 0
+
+
+def cmd_seed_ff_strip(args) -> int:
+    """Create the default FF strip jobs if they do not exist."""
+    db_config = DatabaseConfig.from_env()
+
+    with get_connection(config=db_config) as conn:
+        results = ensure_ff_strip_jobs(conn)
+        conn.commit()
+
+    for name, action in results.items():
+        print(f"{name}: {action}")
+
+    created = sum(1 for action in results.values() if action == "created")
+    print(f"\nFF strip jobs ready ({created} created, {len(results) - created} existing)")
     return 0
 
 
