@@ -107,3 +107,6 @@ data/
 # Rendered diagrams (generated from markdown)
 # Run: python scripts/render_diagrams.py
 docs/diagrams/
+
+# Git worktrees
+.worktrees/
