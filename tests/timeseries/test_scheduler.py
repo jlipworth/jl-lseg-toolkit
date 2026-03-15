@@ -17,6 +17,7 @@ import pytest
 from lseg_toolkit.timeseries.config import DatabaseConfig
 from lseg_toolkit.timeseries.enums import AssetClass, DataShape, Granularity
 from lseg_toolkit.timeseries.scheduler.config import SchedulerConfig
+from lseg_toolkit.timeseries.scheduler.default_jobs import ensure_ff_strip_jobs
 from lseg_toolkit.timeseries.scheduler.jobs import ExtractionJob
 from lseg_toolkit.timeseries.scheduler.models import InstrumentSpec, JobRunResult
 from lseg_toolkit.timeseries.scheduler.universes import (
@@ -148,6 +149,38 @@ class TestInstrumentSpec:
         )
 
         assert spec.name == "10-Year T-Note Future"
+
+
+class TestDefaultJobs:
+    """Tests for default scheduler job helpers."""
+
+    @patch("lseg_toolkit.timeseries.scheduler.default_jobs.create_job")
+    @patch("lseg_toolkit.timeseries.scheduler.default_jobs.get_job_by_name")
+    def test_ensure_ff_strip_jobs_creates_missing_jobs(
+        self, mock_get_job_by_name, mock_create_job
+    ):
+        """Missing FF strip jobs should be created."""
+        mock_get_job_by_name.return_value = None
+
+        result = ensure_ff_strip_jobs(MagicMock())
+
+        assert result["STIR_FF_STRIP_DAILY"] == "created"
+        assert result["STIR_FF_STRIP_HOURLY"] == "created"
+        assert mock_create_job.call_count == 2
+
+    @patch("lseg_toolkit.timeseries.scheduler.default_jobs.create_job")
+    @patch("lseg_toolkit.timeseries.scheduler.default_jobs.get_job_by_name")
+    def test_ensure_ff_strip_jobs_skips_existing_jobs(
+        self, mock_get_job_by_name, mock_create_job
+    ):
+        """Existing FF strip jobs should not be recreated."""
+        mock_get_job_by_name.return_value = {"id": 1}
+
+        result = ensure_ff_strip_jobs(MagicMock())
+
+        assert result["STIR_FF_STRIP_DAILY"] == "exists"
+        assert result["STIR_FF_STRIP_HOURLY"] == "exists"
+        mock_create_job.assert_not_called()
 
 
 @pytest.mark.skipif(
@@ -309,6 +342,49 @@ class TestExtractionMocked:
 
         assert rows == 2
         mock_fetch_hourly.assert_called_once()
+        assert mock_fetch_hourly.call_args.kwargs["rank"] == 1
+        mock_save_timeseries.assert_called_once()
+
+    @patch("lseg_toolkit.timeseries.scheduler.jobs.save_timeseries")
+    @patch("lseg_toolkit.timeseries.scheduler.jobs.fetch_fed_funds_hourly")
+    def test_ff_continuous_rank_two_hourly_uses_special_fetcher(
+        self, mock_fetch_hourly, mock_save_timeseries
+    ):
+        """FF_CONTINUOUS_2 should route to the FF rank-2 fetcher."""
+        dates = pd.date_range("2026-03-01 22:00", periods=2, freq="h")
+        mock_fetch_hourly.return_value = pd.DataFrame(
+            {
+                "mid": [96.37, 96.36],
+                "close": [96.37, 96.36],
+                "session_date": [pd.Timestamp("2026-03-02").date()] * 2,
+                "source_contract": ["FFK26", "FFK26"],
+            },
+            index=dates,
+        )
+        mock_save_timeseries.return_value = 2
+
+        job = ExtractionJob(job_id=1, client=MagicMock(), config=SchedulerConfig())
+        spec = InstrumentSpec(
+            symbol="FF_CONTINUOUS_2",
+            ric="FFc2",
+            asset_class=AssetClass.STIR_FUTURES,
+            data_shape=DataShape.OHLCV,
+            name="30-Day Fed Funds Continuous Rank 2",
+        )
+
+        rows = job._fetch_gap(
+            conn=MagicMock(),
+            spec=spec,
+            instrument_id=123,
+            start_date=pd.Timestamp("2026-03-01").date(),
+            end_date=pd.Timestamp("2026-03-03").date(),
+            granularity=Granularity.HOURLY,
+            max_chunk_days=30,
+        )
+
+        assert rows == 2
+        mock_fetch_hourly.assert_called_once()
+        assert mock_fetch_hourly.call_args.kwargs["rank"] == 2
         mock_save_timeseries.assert_called_once()
 
     def test_stir_universe_includes_ff_continuous(self):
@@ -320,11 +396,13 @@ class TestExtractionMocked:
         assert ff.asset_class == AssetClass.STIR_FUTURES
 
     def test_stir_ff_universe_only_contains_ff_continuous(self):
-        """FF-only universe should contain exactly the canonical FF symbol."""
+        """FF-only universe should contain the full 12-rank FF strip."""
         instruments = build_universe("stir_ff")
-        assert len(instruments) == 1
+        assert len(instruments) == 12
         assert instruments[0].symbol == "FF_CONTINUOUS"
         assert instruments[0].ric == "FFc1"
+        assert instruments[-1].symbol == "FF_CONTINUOUS_12"
+        assert instruments[-1].ric == "FFc12"
 
 
 class TestJobRunResult:

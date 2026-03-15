@@ -275,3 +275,45 @@ def get_front_month_contract(
     month_code = FUTURES_MONTH_CODES[front_month - 1]
     year_suffix = str(year)[-2:]
     return f"{product}{month_code}{year_suffix}"
+
+
+def get_continuous_rank_contract(
+    product: StirProduct,
+    as_of: date,
+    rank: int = 1,
+) -> str:
+    """
+    Get the discrete contract corresponding to a continuous rank on a date.
+
+    For example, if FFc1 is ``FFX26`` on 2026-10-15, then FFc2 is ``FFZ26``,
+    FFc3 is ``FFF27``, etc.
+
+    Args:
+        product: Product code (FF, SRA, FEI, SON)
+        as_of: The date to check
+        rank: Continuous rank (1-based)
+
+    Returns:
+        Contract RIC (e.g. ``FFZ26`` for FFc2 on 2026-10-15)
+    """
+    if rank < 1:
+        raise ValueError(f"rank must be >= 1, got {rank}")
+
+    front_contract = get_front_month_contract(product, as_of)
+    expiry = get_contract_expiry_month(front_contract)
+    if expiry is None:
+        raise ValueError(f"Could not parse front contract: {front_contract}")
+
+    year, month = expiry
+    spec = STIR_CONTRACT_SPECS[product]
+    is_quarterly = spec["months"] == "quarterly"
+    step = 3 if is_quarterly else 1
+    month += (rank - 1) * step
+
+    while month > 12:
+        month -= 12
+        year += 1
+
+    month_code = FUTURES_MONTH_CODES[month - 1]
+    year_suffix = str(year)[-2:]
+    return f"{product}{month_code}{year_suffix}"

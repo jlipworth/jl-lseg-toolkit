@@ -15,6 +15,7 @@ from lseg_toolkit.timeseries.enums import Granularity
 from lseg_toolkit.timeseries.fed_funds import (
     fetch_fed_funds_daily,
     fetch_fed_funds_hourly,
+    parse_ff_continuous_rank,
 )
 from lseg_toolkit.timeseries.scheduler.config import SchedulerConfig
 from lseg_toolkit.timeseries.scheduler.models import (
@@ -340,16 +341,21 @@ class ExtractionJob:
         """
         Fetch timeseries for one instrument/date chunk.
 
-        FF_CONTINUOUS must use the dedicated Fed Funds extraction path so
+        FF continuous ranks must use the dedicated Fed Funds extraction path so
         session_date and source_contract are populated correctly.
         """
-        if spec.symbol == "FF_CONTINUOUS":
+        ff_rank = parse_ff_continuous_rank(spec.symbol)
+        if ff_rank is not None:
             if granularity == Granularity.DAILY:
-                return fetch_fed_funds_daily(self.client, start_date, end_date)
+                return fetch_fed_funds_daily(
+                    self.client, start_date, end_date, rank=ff_rank
+                )
             if granularity == Granularity.HOURLY:
-                return fetch_fed_funds_hourly(self.client, start_date, end_date)
+                return fetch_fed_funds_hourly(
+                    self.client, start_date, end_date, rank=ff_rank
+                )
             raise ValueError(
-                "FF_CONTINUOUS scheduler jobs currently support only daily/hourly granularity"
+                f"{spec.symbol} scheduler jobs currently support only daily/hourly granularity"
             )
 
         return self.client.get_history(

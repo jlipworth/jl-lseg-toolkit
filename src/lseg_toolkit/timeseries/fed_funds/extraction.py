@@ -8,14 +8,19 @@ with discrete contract labels and implied rates.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from lseg_toolkit.timeseries.calendars import get_lseg_cme_session_dates
 from lseg_toolkit.timeseries.rolling import label_continuous_data
-from lseg_toolkit.timeseries.stir_futures.contracts import get_front_month_contract
+from lseg_toolkit.timeseries.stir_futures.contracts import (
+    get_continuous_rank_contract,
+    get_continuous_ric,
+)
 
 if TYPE_CHECKING:
     from lseg_toolkit.timeseries.client import LSEGDataClient
@@ -26,6 +31,52 @@ logger = logging.getLogger(__name__)
 # OPINT_1 = Open interest, IMP_YIELD = Implied yield (100 - price)
 FF_DAILY_FIELDS = ["SETTLE", "OPINT_1", "ACVOL_UNS"]
 FF_HOURLY_FIELDS = ["BID", "ASK", "TRDPRC_1", "HIGH_1", "LOW_1"]
+FF_CONTINUOUS_SYMBOL_PATTERN = re.compile(r"^FF_CONTINUOUS(?:_(\d{1,2}))?$", re.IGNORECASE)
+FF_CONTINUOUS_RIC_PATTERN = re.compile(r"^FFc(\d{1,2})$", re.IGNORECASE)
+
+
+def _validate_rank(rank: int) -> int:
+    """Validate a Fed Funds continuous rank."""
+    if rank < 1:
+        raise ValueError(f"rank must be >= 1, got {rank}")
+    return rank
+
+
+def get_ff_continuous_symbol(rank: int = 1) -> str:
+    """Return the canonical internal symbol for a Fed Funds continuous rank."""
+    rank = _validate_rank(rank)
+    return "FF_CONTINUOUS" if rank == 1 else f"FF_CONTINUOUS_{rank}"
+
+
+def _get_rank_ric(rank: int) -> str:
+    """Get the LSEG continuous RIC for a Fed Funds rank."""
+    return get_continuous_ric("FF", month=_validate_rank(rank))
+
+
+def parse_ff_continuous_rank(symbol: str) -> int | None:
+    """
+    Parse a Fed Funds continuous rank from an internal symbol or LSEG RIC.
+
+    Supported inputs:
+    - FF_CONTINUOUS
+    - FF_CONTINUOUS_2
+    - FF
+    - ZQ
+    - FFc3
+    """
+    symbol_upper = symbol.upper()
+    if symbol_upper in {"FF", "ZQ"}:
+        return 1
+
+    symbol_match = FF_CONTINUOUS_SYMBOL_PATTERN.match(symbol_upper)
+    if symbol_match:
+        return int(symbol_match.group(1) or 1)
+
+    ric_match = FF_CONTINUOUS_RIC_PATTERN.match(symbol)
+    if ric_match:
+        return int(ric_match.group(1))
+
+    return None
 
 
 def _add_daily_session_date(df: pd.DataFrame) -> pd.DataFrame:
@@ -42,10 +93,25 @@ def _add_hourly_session_date(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _drop_rows_without_close(df: pd.DataFrame, ric: str) -> pd.DataFrame:
+    """Drop rows that still lack any usable close/price value."""
+    if "close" not in df.columns:
+        return df
+
+    missing_close = df["close"].isna()
+    if not missing_close.any():
+        return df
+
+    dropped = int(missing_close.sum())
+    logger.warning(f"Dropping {dropped} {ric} rows without usable close price")
+    return df.loc[~missing_close].copy()
+
+
 def fetch_fed_funds_daily(
     client: LSEGDataClient,
     start: str | date,
     end: str | date,
+    rank: int = 1,
     label_contracts: bool = True,
     compute_implied_rate: bool = True,
 ) -> pd.DataFrame:
@@ -56,6 +122,7 @@ def fetch_fed_funds_daily(
         client: LSEG data client instance.
         start: Start date (ISO format or date object).
         end: End date (ISO format or date object).
+        rank: Continuous rank to fetch (1=FFc1, 2=FFc2, ...).
         label_contracts: If True, add source_contract column with discrete codes.
         compute_implied_rate: If True, add implied_rate = 100 - settle.
 
@@ -72,10 +139,11 @@ def fetch_fed_funds_daily(
         >>> df = fetch_fed_funds_daily(client, "2020-01-01", "2024-12-31")
         >>> df.head()
     """
-    logger.info(f"Fetching FF daily data from {start} to {end}")
+    ric = _get_rank_ric(rank)
+    logger.info(f"Fetching {ric} daily data from {start} to {end}")
 
     df = client.get_history(
-        rics="FFc1",
+        rics=ric,
         start=start,
         end=end,
         fields=FF_DAILY_FIELDS,
@@ -83,7 +151,7 @@ def fetch_fed_funds_daily(
     )
 
     if df.empty:
-        logger.warning("No data returned for FFc1")
+        logger.warning(f"No data returned for {ric}")
         return df
 
     # Normalize column names to lowercase
@@ -107,11 +175,16 @@ def fetch_fed_funds_daily(
     if "close" not in df.columns and "settle" in df.columns:
         df["close"] = df["settle"]
 
+    df = _drop_rows_without_close(df, ric)
+
     # Label with discrete contract codes
     if label_contracts:
-        df = label_continuous_data(df, lambda d: get_front_month_contract("FF", d))
+        df = label_continuous_data(
+            df,
+            lambda d: get_continuous_rank_contract("FF", d, rank=rank),
+        )
 
-    logger.info(f"Fetched {len(df)} daily rows for FFc1")
+    logger.info(f"Fetched {len(df)} daily rows for {ric}")
     return df
 
 
@@ -119,6 +192,7 @@ def fetch_fed_funds_hourly(
     client: LSEGDataClient,
     start: str | date,
     end: str | date,
+    rank: int = 1,
     label_contracts: bool = True,
     compute_implied_rate: bool = True,
 ) -> pd.DataFrame:
@@ -131,6 +205,7 @@ def fetch_fed_funds_hourly(
         client: LSEG data client instance.
         start: Start date (ISO format or date object).
         end: End date (ISO format or date object).
+        rank: Continuous rank to fetch (1=FFc1, 2=FFc2, ...).
         label_contracts: If True, add source_contract column with discrete codes.
         compute_implied_rate: If True, add implied_rate = 100 - mid.
 
@@ -148,10 +223,11 @@ def fetch_fed_funds_hourly(
         >>> client = LSEGDataClient()
         >>> df = fetch_fed_funds_hourly(client, "2024-01-01", "2024-12-31")
     """
-    logger.info(f"Fetching FF hourly data from {start} to {end}")
+    ric = _get_rank_ric(rank)
+    logger.info(f"Fetching {ric} hourly data from {start} to {end}")
 
     df = client.get_history(
-        rics="FFc1",
+        rics=ric,
         start=start,
         end=end,
         fields=FF_HOURLY_FIELDS,
@@ -159,7 +235,7 @@ def fetch_fed_funds_hourly(
     )
 
     if df.empty:
-        logger.warning("No hourly data returned for FFc1")
+        logger.warning(f"No hourly data returned for {ric}")
         return df
 
     # Normalize column names to lowercase
@@ -187,13 +263,116 @@ def fetch_fed_funds_hourly(
     # Persist a usable close for generic OHLCV storage/backtests.
     if "close" not in df.columns and "mid" in df.columns:
         df["close"] = df["mid"]
+    if "close" not in df.columns and "last" in df.columns:
+        df["close"] = df["last"]
+
+    df = _drop_rows_without_close(df, ric)
 
     # Label with discrete contract codes
     if label_contracts:
-        df = label_continuous_data(df, lambda d: get_front_month_contract("FF", d))
+        df = label_continuous_data(
+            df,
+            lambda d: get_continuous_rank_contract("FF", d, rank=rank),
+        )
 
-    logger.info(f"Fetched {len(df)} hourly rows for FFc1")
+    logger.info(f"Fetched {len(df)} hourly rows for {ric}")
     return df
+
+
+def fetch_fed_funds_strip(
+    client: LSEGDataClient,
+    start: str | date,
+    end: str | date,
+    ranks: Iterable[int] = range(1, 13),
+    interval: str = "daily",
+    label_contracts: bool = True,
+    compute_implied_rate: bool = True,
+) -> dict[str, pd.DataFrame]:
+    """
+    Fetch a strip of Fed Funds continuous ranks.
+
+    This is intentionally lightweight scaffolding for scraping FFc1..FFcN
+    without yet committing to a storage model.
+
+    Args:
+        client: LSEG data client instance.
+        start: Start date (ISO format or date object).
+        end: End date (ISO format or date object).
+        ranks: Continuous ranks to fetch.
+        interval: "daily" or "hourly".
+        label_contracts: If True, add source_contract labels.
+        compute_implied_rate: If True, compute implied rates.
+
+    Returns:
+        Mapping of continuous RIC (e.g. ``FFc3``) to fetched DataFrame.
+    """
+    results: dict[str, pd.DataFrame] = {}
+
+    for rank in ranks:
+        ric = _get_rank_ric(rank)
+        if interval == "daily":
+            results[ric] = fetch_fed_funds_daily(
+                client,
+                start,
+                end,
+                rank=rank,
+                label_contracts=label_contracts,
+                compute_implied_rate=compute_implied_rate,
+            )
+        elif interval == "hourly":
+            results[ric] = fetch_fed_funds_hourly(
+                client,
+                start,
+                end,
+                rank=rank,
+                label_contracts=label_contracts,
+                compute_implied_rate=compute_implied_rate,
+            )
+        else:
+            raise ValueError(
+                f"Unsupported interval '{interval}'. Use 'daily' or 'hourly'."
+            )
+
+    return results
+
+
+def extract_contract_life_from_strip(
+    strip_data: dict[str, pd.DataFrame],
+    contract_code: str,
+) -> pd.DataFrame:
+    """
+    Reconstruct the life of one discrete FF contract from rank-series data.
+
+    Args:
+        strip_data: Mapping of continuous symbol/RIC -> DataFrame.
+        contract_code: Discrete contract code to extract (e.g. ``FFZ24``).
+
+    Returns:
+        Concatenated DataFrame containing all rows whose ``source_contract``
+        matches ``contract_code``, sorted by timestamp/index. Adds a
+        ``continuous_symbol`` column so callers can see which rank each
+        segment came from.
+    """
+    segments: list[pd.DataFrame] = []
+
+    for continuous_symbol, df in strip_data.items():
+        if df.empty or "source_contract" not in df.columns:
+            continue
+
+        segment = df[df["source_contract"] == contract_code].copy()
+        if segment.empty:
+            continue
+
+        segment["continuous_symbol"] = continuous_symbol
+        segments.append(segment)
+
+    if not segments:
+        return pd.DataFrame()
+
+    result = pd.concat(segments).sort_index()
+    if result.index.has_duplicates:
+        result = result[~result.index.duplicated(keep="last")]
+    return result
 
 
 def prepare_for_storage(

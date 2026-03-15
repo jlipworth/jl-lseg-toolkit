@@ -40,7 +40,9 @@ from lseg_toolkit.timeseries.constants import (
     get_usd_irs_ric,
 )
 from lseg_toolkit.timeseries.enums import AssetClass, DataShape
+from lseg_toolkit.timeseries.fed_funds import get_ff_continuous_symbol
 from lseg_toolkit.timeseries.scheduler.models import InstrumentSpec
+from lseg_toolkit.timeseries.stir_futures import get_continuous_ric
 
 
 def build_universe(group: str) -> list[InstrumentSpec]:
@@ -249,12 +251,17 @@ def _build_stir_ff() -> list[InstrumentSpec]:
     """Build FF-only STIR universe for scheduler jobs."""
     return [
         InstrumentSpec(
-            symbol="FF_CONTINUOUS",
-            ric="FFc1",
+            symbol=get_ff_continuous_symbol(rank),
+            ric=get_continuous_ric("FF", month=rank),
             asset_class=AssetClass.STIR_FUTURES,
             data_shape=DataShape.OHLCV,
-            name="30-Day Fed Funds Continuous",
+            name=(
+                "30-Day Fed Funds Continuous"
+                if rank == 1
+                else f"30-Day Fed Funds Continuous Rank {rank}"
+            ),
         )
+        for rank in range(1, 13)
     ]
 
 

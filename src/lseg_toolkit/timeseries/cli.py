@@ -54,6 +54,8 @@ def list_instruments():
     print("STIR FUTURES:")
     print("-" * 40)
     print("  FF_CONTINUOUS    30-Day Fed Funds continuous (FFc1)")
+    print("  FF_CONTINUOUS_2  30-Day Fed Funds continuous rank 2 (FFc2)")
+    print("  FF_CONTINUOUS_12 30-Day Fed Funds continuous rank 12 (FFc12)")
     print()
 
     print("FX SPOT (use pair symbols):")
@@ -101,6 +103,9 @@ Examples:
 
   # Extract Fed Funds continuous futures
   lseg-extract FF_CONTINUOUS --asset-class stir
+
+  # Extract deferred Fed Funds continuous ranks
+  lseg-extract FF_CONTINUOUS_2 FF_CONTINUOUS_12 --asset-class stir
 
   # Extract OIS curve
   lseg-extract 1M 3M 6M 1Y 5Y 10Y --asset-class ois

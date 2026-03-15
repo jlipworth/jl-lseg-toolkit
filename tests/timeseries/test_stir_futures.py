@@ -14,6 +14,7 @@ from lseg_toolkit.timeseries.stir_futures import (
     get_active_contracts,
     get_chain_ric,
     get_continuous_ric,
+    get_continuous_rank_contract,
     get_contract_expiry_month,
 )
 
@@ -326,6 +327,18 @@ class TestContinuousRics:
         for product in products:
             ric = get_continuous_ric(product, month=1)
             assert ric == f"{product}c1"
+
+    def test_get_continuous_rank_contract_ff(self):
+        """Fed Funds rank contracts should step through monthly contracts."""
+        assert get_continuous_rank_contract("FF", date(2025, 9, 30), rank=1) == "FFV25"
+        assert get_continuous_rank_contract("FF", date(2025, 9, 30), rank=2) == "FFX25"
+        assert get_continuous_rank_contract("FF", date(2025, 9, 30), rank=3) == "FFZ25"
+
+    def test_get_continuous_rank_contract_ff_wraps_year(self):
+        """Fed Funds rank contracts should wrap year boundaries."""
+        assert get_continuous_rank_contract("FF", date(2025, 10, 1), rank=1) == "FFX25"
+        assert get_continuous_rank_contract("FF", date(2025, 10, 1), rank=2) == "FFZ25"
+        assert get_continuous_rank_contract("FF", date(2025, 10, 1), rank=3) == "FFF26"
 
 
 class TestContractSpecs:

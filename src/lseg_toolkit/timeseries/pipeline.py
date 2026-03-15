@@ -23,6 +23,8 @@ from lseg_toolkit.timeseries.enums import AssetClass
 from lseg_toolkit.timeseries.fed_funds import (
     fetch_fed_funds_daily,
     fetch_fed_funds_hourly,
+    get_ff_continuous_symbol,
+    parse_ff_continuous_rank,
 )
 from lseg_toolkit.timeseries.fetch import (
     fetch_fras,
@@ -195,7 +197,7 @@ class TimeSeriesExtractionPipeline:
         if len(sample) == 6 and sample.isalpha():
             return AssetClass.FX_SPOT
 
-        if sample in {"FF_CONTINUOUS", "FF"}:
+        if parse_ff_continuous_rank(sample) is not None:
             return AssetClass.STIR_FUTURES
 
         # Check for FRA pattern (contains X)
@@ -210,14 +212,14 @@ class TimeSeriesExtractionPipeline:
         return AssetClass.BOND_FUTURES
 
     def _extract_stir_futures(self) -> list[ExtractionResult]:
-        """Extract STIR futures. Currently supports FF continuous."""
+        """Extract STIR futures. Currently supports Fed Funds continuous ranks."""
         results: list[ExtractionResult] = []
 
         client = get_client()
 
         for symbol in self.config.symbols:
-            symbol_upper = symbol.upper()
-            if symbol_upper not in {"FF_CONTINUOUS", "FF", "ZQ"}:
+            rank = parse_ff_continuous_rank(symbol)
+            if rank is None:
                 results.append(
                     ExtractionResult(
                         symbol=symbol,
@@ -225,42 +227,58 @@ class TimeSeriesExtractionPipeline:
                         start_date=None,
                         end_date=None,
                         success=False,
-                        error="Unsupported STIR symbol (currently only FF_CONTINUOUS)",
+                        error=(
+                            "Unsupported STIR symbol "
+                            "(currently only FF_CONTINUOUS / FF_CONTINUOUS_<rank>)"
+                        ),
                     )
                 )
                 continue
+
+            canonical_symbol = get_ff_continuous_symbol(rank)
+            ric = f"FFc{rank}"
+            instrument_name = (
+                "30-Day Fed Funds Continuous"
+                if rank == 1
+                else f"30-Day Fed Funds Continuous Rank {rank}"
+            )
 
             if self.config.granularity.value == "daily":
                 df = fetch_fed_funds_daily(
                     client,
                     self.config.start_date,
                     self.config.end_date,
+                    rank=rank,
                 )
             elif self.config.granularity.value == "hourly":
                 df = fetch_fed_funds_hourly(
                     client,
                     self.config.start_date,
                     self.config.end_date,
+                    rank=rank,
                 )
             else:
                 results.append(
                     ExtractionResult(
-                        symbol="FF_CONTINUOUS",
+                        symbol=canonical_symbol,
                         rows_fetched=0,
                         start_date=None,
                         end_date=None,
                         success=False,
-                        error="FF_CONTINUOUS currently supports only daily/hourly extraction",
+                        error=(
+                            f"{canonical_symbol} currently supports only "
+                            "daily/hourly extraction"
+                        ),
                     )
                 )
                 continue
 
             result = self._store_timeseries(
-                symbol="FF_CONTINUOUS",
+                symbol=canonical_symbol,
                 df=df,
                 asset_class=AssetClass.STIR_FUTURES,
-                ric="FFc1",
-                name="30-Day Fed Funds Continuous",
+                ric=ric,
+                name=instrument_name,
                 underlying="FF",
                 exchange="CME",
                 continuous_type="continuous",
