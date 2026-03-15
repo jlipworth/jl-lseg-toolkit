@@ -462,6 +462,34 @@ CREATE TABLE IF NOT EXISTS scheduler_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_scheduler_runs_job ON scheduler_runs(job_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_scheduler_runs_status ON scheduler_runs(status) WHERE status = 'running';
+
+-- =============================================================================
+-- FOMC Tables
+-- =============================================================================
+
+-- FOMC meetings and rate decisions
+CREATE TABLE IF NOT EXISTS fomc_meetings (
+    id SERIAL PRIMARY KEY,
+    meeting_date DATE NOT NULL UNIQUE,        -- Announcement date (day 2 of meeting)
+    meeting_start_date DATE,                  -- First day of 2-day meeting (if applicable)
+    rate_upper DOUBLE PRECISION,              -- FFR target upper bound after decision
+    rate_lower DOUBLE PRECISION,              -- FFR target lower bound after decision
+    rate_change_bps INTEGER,                  -- Change in bps: +25, -50, 0, etc.
+    decision TEXT,                            -- 'cut', 'hike', 'hold'
+    dissent_count INTEGER DEFAULT 0,          -- Number of dissenting votes
+    vote_for INTEGER,                         -- Votes for decision
+    vote_against INTEGER,                     -- Votes against decision
+    statement_url TEXT,                       -- Link to official statement
+    minutes_url TEXT,                         -- Link to meeting minutes
+    is_scheduled BOOLEAN DEFAULT TRUE,        -- FALSE for emergency meetings
+    has_sep BOOLEAN DEFAULT FALSE,            -- TRUE if SEP/dot plot released
+    has_presser BOOLEAN DEFAULT FALSE,        -- TRUE if press conference
+    source TEXT DEFAULT 'fedtools',           -- 'fedtools', 'fed_calendar', 'fred', 'manual'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_fomc_meetings_date ON fomc_meetings(meeting_date DESC);
+CREATE INDEX IF NOT EXISTS idx_fomc_meetings_decision ON fomc_meetings(decision);
 """
 
 # =============================================================================

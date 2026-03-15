@@ -49,7 +49,8 @@ dependencies = [
     "pydantic>=2.0",
     "xlrd>=2.0.2",
     "pytreasurydirect>=0.1.1",
-    "exchange-calendars>=4.5",
+    "exchange-calendars>=4.13.2",
+    "fedtools>=0.0.7",
 ]
 
 [project.urls]
