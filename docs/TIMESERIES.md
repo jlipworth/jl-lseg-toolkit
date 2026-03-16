@@ -165,6 +165,16 @@ export TSDB_PASSWORD=yourpassword
 These are example values only; you can point the toolkit at your own TimescaleDB/PostgreSQL
 instance via `TSDB_*` or the compatible `POSTGRES_*` environment variables.
 
+### Prediction Market Freshness Notes
+
+For Kalshi rate markets (`KXFED`, `KXFEDDECISION`, `KXRATECUTCOUNT`), treat the
+source `updated_time` field with caution. In practice, those products can show
+stale `updated_time` values even when trades are still printing.
+
+Use `pm_markets.last_trade_time` as the primary freshness signal for active
+Kalshi markets. That field is populated from the most recent trade seen during
+`daily_refresh()`.
+
 ## Storage Architecture
 
 Data is stored in TimescaleDB (PostgreSQL with time-series extensions) using hypertables optimized for different data shapes:
