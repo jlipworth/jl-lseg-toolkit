@@ -24,6 +24,9 @@ lseg-extract 1M 3M 1Y 5Y 10Y --asset-class ois
 lseg-extract --list
 ```
 
+For prediction-market specific reference notes, see
+[PREDICTION_MARKETS.md](PREDICTION_MARKETS.md).
+
 ## Supported Asset Classes
 
 | Asset Class | Examples | Description |
