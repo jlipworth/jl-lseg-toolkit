@@ -1,5 +1,6 @@
 """Tests for Kalshi HTTP client."""
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from lseg_toolkit.timeseries.prediction_markets.kalshi.client import KalshiClient
@@ -152,6 +153,59 @@ class TestGetCandlesticks:
         )
 
         assert candles == []
+
+
+class TestGetTrades:
+    """Tests for trade history helpers."""
+
+    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.client.httpx.get")
+    def test_get_trades(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "trades": [
+                {
+                    "created_time": "2026-03-15T19:12:07.189355Z",
+                    "yes_price_dollars": "0.0100",
+                }
+            ]
+        }
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = KalshiClient()
+        trades = client.get_trades("KXFED-26MAR-T4.50")
+
+        assert len(trades) == 1
+        assert trades[0]["created_time"] == "2026-03-15T19:12:07.189355Z"
+
+    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.client.httpx.get")
+    def test_get_last_trade_time(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "trades": [{"created_time": "2026-03-15T19:12:07.189355Z"}]
+        }
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = KalshiClient()
+        result = client.get_last_trade_time("KXFED-26MAR-T4.50")
+
+        assert result == datetime(2026, 3, 15, 19, 12, 7, 189355, tzinfo=UTC)
+
+    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.client.httpx.get")
+    def test_get_last_trade_time_none_when_no_trades(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"trades": []}
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        client = KalshiClient()
+        result = client.get_last_trade_time("KXFED-26MAR-T4.50")
+
+        assert result is None
 
 
 class TestRetryBehavior:

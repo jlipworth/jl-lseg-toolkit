@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS pm_markets (
     status TEXT DEFAULT 'active',
     result TEXT,
     last_price DOUBLE PRECISION,
+    last_trade_time TIMESTAMPTZ,
     volume INTEGER,
     open_interest INTEGER,
     fomc_meeting_id INTEGER REFERENCES fomc_meetings(id),
@@ -54,6 +55,10 @@ CREATE INDEX IF NOT EXISTS idx_pm_markets_series ON pm_markets(series_id);
 CREATE INDEX IF NOT EXISTS idx_pm_markets_fomc ON pm_markets(fomc_meeting_id);
 CREATE INDEX IF NOT EXISTS idx_pm_markets_status ON pm_markets(status);
 CREATE INDEX IF NOT EXISTS idx_pm_markets_event_ticker ON pm_markets(event_ticker);
+ALTER TABLE pm_markets
+    ADD COLUMN IF NOT EXISTS last_trade_time TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_pm_markets_last_trade_time
+    ON pm_markets(last_trade_time);
 
 -- Daily OHLC candlesticks
 CREATE TABLE IF NOT EXISTS pm_candlesticks (

@@ -55,6 +55,15 @@ def parse_market(
     if raw.get("close_time"):
         close_time = datetime.fromisoformat(raw["close_time"].replace("Z", "+00:00"))
 
+    last_trade_time = None
+    last_trade_time_raw = raw.get("last_trade_time")
+    if isinstance(last_trade_time_raw, datetime):
+        last_trade_time = last_trade_time_raw
+    elif isinstance(last_trade_time_raw, str):
+        last_trade_time = datetime.fromisoformat(
+            last_trade_time_raw.replace("Z", "+00:00")
+        )
+
     # Kalshi API v2 uses _dollars/_fp suffixes; fall back to legacy names
     last_price = raw.get("last_price_dollars") or raw.get("last_price")
     volume = raw.get("volume_fp") or raw.get("volume")
@@ -82,6 +91,7 @@ def parse_market(
         status=status,
         result=raw.get("result"),
         last_price=float(last_price) if last_price is not None else None,
+        last_trade_time=last_trade_time,
         volume=int(float(volume)) if volume is not None else None,
         open_interest=int(float(open_interest)) if open_interest is not None else None,
     )
@@ -359,6 +369,7 @@ def daily_refresh(conn: psycopg.Connection) -> dict:
         market_ids: list[int] = []
         market_tickers: list[str] = []
         for raw in raw_markets:
+            raw["last_trade_time"] = client.get_last_trade_time(raw["ticker"])
             market = parse_market(raw, platform_id=platform_id, series_id=series_id)
             if market.close_time:
                 market.fomc_meeting_id = link_fomc_meeting(conn, market.close_time)

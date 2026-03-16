@@ -90,6 +90,7 @@ class TestMarketModel:
         assert m.close_time is None
         assert m.result is None
         assert m.last_price is None
+        assert m.last_trade_time is None
         assert m.volume is None
         assert m.open_interest is None
         assert m.fomc_meeting_id is None
