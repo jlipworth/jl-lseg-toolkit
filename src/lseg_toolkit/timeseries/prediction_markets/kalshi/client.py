@@ -2,6 +2,7 @@
 
 import logging
 import time
+from datetime import datetime
 
 import httpx
 
@@ -158,3 +159,24 @@ class KalshiClient:
         if candles:
             logger.debug("Fetched %d candlesticks for %s", len(candles), market_ticker)
         return candles
+
+    def get_trades(self, market_ticker: str, limit: int = 1) -> list[dict]:
+        """Fetch recent trades for a market, newest first."""
+        data = self._request(
+            "/markets/trades",
+            params={"ticker": market_ticker, "limit": limit},
+        )
+        trades = data.get("trades", [])
+        if trades:
+            logger.debug("Fetched %d trades for %s", len(trades), market_ticker)
+        return trades
+
+    def get_last_trade_time(self, market_ticker: str) -> datetime | None:
+        """Fetch the most recent trade timestamp for a market, if any."""
+        trades = self.get_trades(market_ticker=market_ticker, limit=1)
+        if not trades:
+            return None
+        created_time = trades[0].get("created_time")
+        if not created_time:
+            return None
+        return datetime.fromisoformat(created_time.replace("Z", "+00:00"))

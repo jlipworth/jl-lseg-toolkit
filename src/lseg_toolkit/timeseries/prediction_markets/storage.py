@@ -52,13 +52,13 @@ def upsert_market(conn: psycopg.Connection, market: Market) -> int:
                 platform_id, series_id, market_ticker, platform_market_id,
                 event_ticker, title, subtitle, strike_value,
                 open_time, close_time, status, result,
-                last_price, volume, open_interest, fomc_meeting_id,
+                last_price, last_trade_time, volume, open_interest, fomc_meeting_id,
                 updated_at
             ) VALUES (
                 %(platform_id)s, %(series_id)s, %(market_ticker)s, %(platform_market_id)s,
                 %(event_ticker)s, %(title)s, %(subtitle)s, %(strike_value)s,
                 %(open_time)s, %(close_time)s, %(status)s, %(result)s,
-                %(last_price)s, %(volume)s, %(open_interest)s, %(fomc_meeting_id)s,
+                %(last_price)s, %(last_trade_time)s, %(volume)s, %(open_interest)s, %(fomc_meeting_id)s,
                 NOW()
             )
             ON CONFLICT (platform_id, market_ticker) DO UPDATE SET
@@ -72,6 +72,7 @@ def upsert_market(conn: psycopg.Connection, market: Market) -> int:
                 status = EXCLUDED.status,
                 result = EXCLUDED.result,
                 last_price = EXCLUDED.last_price,
+                last_trade_time = EXCLUDED.last_trade_time,
                 volume = EXCLUDED.volume,
                 open_interest = EXCLUDED.open_interest,
                 fomc_meeting_id = EXCLUDED.fomc_meeting_id,
@@ -92,6 +93,7 @@ def upsert_market(conn: psycopg.Connection, market: Market) -> int:
                 "status": market.status,
                 "result": market.result,
                 "last_price": market.last_price,
+                "last_trade_time": market.last_trade_time,
                 "volume": market.volume,
                 "open_interest": market.open_interest,
                 "fomc_meeting_id": market.fomc_meeting_id,

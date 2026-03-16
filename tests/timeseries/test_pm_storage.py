@@ -94,6 +94,24 @@ class TestUpsertMarket:
         params = cursor.execute.call_args[0][1]
         assert params["fomc_meeting_id"] == 10
 
+    def test_upsert_includes_last_trade_time(self):
+        """Should include last_trade_time in upsert."""
+        conn, cursor = _mock_conn()
+        cursor.fetchone.return_value = {"id": 1}
+
+        ts = datetime(2026, 3, 15, 19, 12, 7, tzinfo=UTC)
+        market = Market(
+            platform_id=1,
+            market_ticker="TEST",
+            platform_market_id="test",
+            title="Test",
+            last_trade_time=ts,
+        )
+        upsert_market(conn, market)
+
+        params = cursor.execute.call_args[0][1]
+        assert params["last_trade_time"] == ts
+
 
 class TestUpsertCandlestick:
     """Tests for candlestick upsert."""

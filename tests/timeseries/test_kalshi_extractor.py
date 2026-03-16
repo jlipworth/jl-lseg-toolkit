@@ -47,6 +47,7 @@ class TestParseMarket:
             "open_time": "2025-12-01T14:00:00Z",
             "close_time": "2026-01-29T18:55:00Z",
             "event_ticker": "KXFED-26JAN",
+            "last_trade_time": "2026-01-28T19:12:07.189355Z",
         }
         market = parse_market(raw, platform_id=1, series_id=5)
 
@@ -57,6 +58,9 @@ class TestParseMarket:
         assert market.strike_value == 4.50
         assert market.status == "settled"  # finalized → settled
         assert market.last_price == 0.97
+        assert market.last_trade_time == datetime(
+            2026, 1, 28, 19, 12, 7, 189355, tzinfo=UTC
+        )
         assert market.volume == 1000
 
     def test_parse_extracts_strike_from_ticker(self):
@@ -262,3 +266,36 @@ class TestDailyRefresh:
         # Every list_markets call should have status="active"
         for c in mock_client.list_markets.call_args_list:
             assert c.kwargs.get("status") == "active"
+
+    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.upsert_market")
+    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.sync_fomc_meetings")
+    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.KalshiClient")
+    def test_daily_refresh_populates_last_trade_time(
+        self, mock_client_cls, mock_sync_fomc, mock_upsert_market
+    ):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = {"id": 1}
+
+        mock_client = MagicMock()
+        mock_client.list_markets.return_value = [
+            {
+                "ticker": "KXFED-26MAR-T4.50",
+                "title": "Fed rate above 4.50%",
+                "status": "open",
+                "open_time": "2025-12-01T14:00:00Z",
+                "close_time": "2026-03-18T18:55:00Z",
+            }
+        ]
+        trade_ts = datetime(2026, 3, 15, 19, 12, 7, tzinfo=UTC)
+        mock_client.get_last_trade_time.return_value = trade_ts
+        mock_client.get_candlesticks.return_value = []
+        mock_client_cls.return_value = mock_client
+        mock_upsert_market.return_value = 123
+
+        daily_refresh(mock_conn)
+
+        market = mock_upsert_market.call_args[0][1]
+        assert market.last_trade_time == trade_ts

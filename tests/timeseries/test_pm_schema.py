@@ -40,6 +40,12 @@ class TestSchemaSQL:
     def test_pm_markets_has_status_index(self):
         assert "idx_pm_markets_status" in PM_SCHEMA_SQL
 
+    def test_pm_markets_has_last_trade_time(self):
+        assert "last_trade_time TIMESTAMPTZ" in PM_SCHEMA_SQL
+
+    def test_pm_markets_migrates_last_trade_time_for_existing_tables(self):
+        assert "ADD COLUMN IF NOT EXISTS last_trade_time" in PM_SCHEMA_SQL
+
     def test_hypertable_creates_candlesticks(self):
         assert "pm_candlesticks" in PM_HYPERTABLE_SQL
 

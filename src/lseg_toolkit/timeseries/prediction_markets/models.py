@@ -44,6 +44,7 @@ class Market(BaseModel):
     status: str = "active"
     result: str | None = None
     last_price: float | None = None
+    last_trade_time: datetime | None = None
     volume: int | None = None
     open_interest: int | None = None
     fomc_meeting_id: int | None = None
