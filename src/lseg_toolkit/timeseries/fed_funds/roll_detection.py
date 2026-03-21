@@ -122,8 +122,8 @@ def _get_expected_roll_date(ref_date: date) -> date:
     """
     Get the expected roll date for a given month.
 
-    Fed Funds continuous contracts roll on the 1st CME session day of each month.
-    The front contract during month M is actually the M+1 contract.
+    Fed Funds continuous contracts roll on the 1st CME session day of each month,
+    switching from the prior month contract to the current month contract.
 
     Args:
         ref_date: A date in the month to find the roll date for.

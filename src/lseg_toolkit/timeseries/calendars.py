@@ -122,8 +122,8 @@ def get_lseg_continuous_roll_dates(
     """
     Get LSEG continuous contract roll dates for a range of years.
 
-    LSEG continuous contracts (e.g., FFc1, SRAc1) switch to the next
-    discrete contract on the first trading day of each roll period.
+    LSEG continuous contracts (e.g., FFc1, SRAc1) switch to the new
+    front contract on the first trading day of each roll period.
     This is NOT the same as actual exchange roll conventions.
 
     Monthly products (Fed Funds) roll every month.
