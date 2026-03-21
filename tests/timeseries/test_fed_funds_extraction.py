@@ -67,7 +67,7 @@ class TestFedFundsExtraction:
         df = fetch_fed_funds_daily(client, "2025-09-30", "2025-10-01")
 
         assert list(df["session_date"]) == [date(2025, 9, 30), date(2025, 10, 1)]
-        assert list(df["source_contract"]) == ["FFV25", "FFX25"]
+        assert list(df["source_contract"]) == ["FFU25", "FFV25"]
         assert list(df["close"]) == list(df["settle"])
 
     def test_fetch_fed_funds_hourly_labels_by_session_date_not_utc_date(self):
@@ -86,8 +86,8 @@ class TestFedFundsExtraction:
         df = fetch_fed_funds_hourly(client, "2025-09-30", "2025-10-01")
 
         assert list(df["session_date"]) == [date(2025, 9, 30), date(2025, 10, 1)]
-        assert list(df["source_contract"]) == ["FFV25", "FFX25"]
-        assert df.iloc[1]["source_contract"] != "FFV25"
+        assert list(df["source_contract"]) == ["FFU25", "FFV25"]
+        assert df.iloc[1]["source_contract"] != "FFU25"
         assert list(df["close"]) == list(df["mid"])
 
     def test_fetch_fed_funds_hourly_drops_rows_without_usable_close(self):
@@ -106,7 +106,7 @@ class TestFedFundsExtraction:
         df = fetch_fed_funds_hourly(client, "2025-09-30", "2025-10-01")
 
         assert len(df) == 1
-        assert list(df["source_contract"]) == ["FFX25"]
+        assert list(df["source_contract"]) == ["FFV25"]
         assert list(df["close"]) == [95.92125]
 
     def test_fetch_fed_funds_daily_rank_two_labels_second_contract(self):
@@ -124,7 +124,7 @@ class TestFedFundsExtraction:
 
         client.get_history.assert_called_once()
         assert client.get_history.call_args.kwargs["rics"] == "FFc2"
-        assert list(df["source_contract"]) == ["FFX25", "FFZ25"]
+        assert list(df["source_contract"]) == ["FFV25", "FFX25"]
 
     def test_fetch_fed_funds_strip_fetches_multiple_ranks(self):
         client = MagicMock()
@@ -147,7 +147,22 @@ class TestFedFundsExtraction:
         assert list(result.keys()) == ["FFc1", "FFc2", "FFc3"]
         called_rics = [call.kwargs["rics"] for call in client.get_history.call_args_list]
         assert called_rics == ["FFc1", "FFc2", "FFc3"]
-        assert result["FFc3"].iloc[0]["source_contract"] == "FFZ25"
+        assert result["FFc3"].iloc[0]["source_contract"] == "FFX25"
+
+    def test_fetch_fed_funds_daily_preserves_december_contract_through_month_end(self):
+        client = MagicMock()
+        client.get_history.return_value = pd.DataFrame(
+            {
+                "SETTLE": [96.10, 96.12, 96.20],
+                "OPINT_1": [100, 110, 120],
+                "ACVOL_UNS": [10, 11, 12],
+            },
+            index=pd.to_datetime(["2025-12-01", "2025-12-31", "2026-01-02"]),
+        )
+
+        df = fetch_fed_funds_daily(client, "2025-12-01", "2026-01-02")
+
+        assert list(df["source_contract"]) == ["FFZ25", "FFZ25", "FFF26"]
 
     def test_prepare_for_storage_keeps_session_date_and_localizes_ts(self):
         df = pd.DataFrame(

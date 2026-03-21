@@ -223,9 +223,10 @@ def get_front_month_contract(
     """
     Get the front-month contract RIC for a given date.
 
-    For Fed Funds (FF), the front month rolls on the 1st business day of each
-    month to the next month's contract. So during October, after the roll,
-    the front month is the November contract.
+    For Fed Funds (FF), the front month during a given month is the contract
+    for that same calendar month. For example, during December 2025 the
+    front contract remains ``FFZ25`` through month-end, then rolls to
+    ``FFF26`` on the first trading day of January 2026.
 
     For quarterly products (SRA, FEI, SON), the front month is the next
     quarterly expiry (Mar, Jun, Sep, Dec).
@@ -239,42 +240,11 @@ def get_front_month_contract(
 
     Example:
         >>> get_front_month_contract("FF", date(2024, 10, 15))
-        'FFX24'  # November contract is front during October
+        'FFV24'  # October contract is front during October
         >>> get_front_month_contract("FF", date(2024, 12, 15))
-        'FFF25'  # January 2025 contract is front during December
+        'FFZ24'  # December 2024 contract is front during December
     """
-    spec = STIR_CONTRACT_SPECS.get(product)
-    if not spec:
-        raise ValueError(
-            f"Unknown product: {product}. Use one of {list(STIR_CONTRACT_SPECS.keys())}"
-        )
-
-    is_quarterly = spec["months"] == "quarterly"
-
-    if is_quarterly:
-        # Find next quarterly month (Mar=3, Jun=6, Sep=9, Dec=12)
-        quarterly_months = [3, 6, 9, 12]
-        year = as_of.year
-        month = as_of.month
-
-        # Find the next quarterly month
-        for qm in quarterly_months:
-            if qm > month:
-                front_month = qm
-                break
-        else:
-            # Past December, roll to next year's March
-            front_month = 3
-            year += 1
-    else:
-        # Monthly products (FF): front month is next month after roll
-        # Roll happens on 1st business day, so during month M, front = M+1
-        front_month = as_of.month % 12 + 1
-        year = as_of.year + (1 if as_of.month == 12 else 0)
-
-    month_code = FUTURES_MONTH_CODES[front_month - 1]
-    year_suffix = str(year)[-2:]
-    return f"{product}{month_code}{year_suffix}"
+    return get_active_contracts(product, as_of=as_of, num_contracts=1)[0]
 
 
 def get_continuous_rank_contract(
@@ -285,8 +255,8 @@ def get_continuous_rank_contract(
     """
     Get the discrete contract corresponding to a continuous rank on a date.
 
-    For example, if FFc1 is ``FFX26`` on 2026-10-15, then FFc2 is ``FFZ26``,
-    FFc3 is ``FFF27``, etc.
+    For example, if FFc1 is ``FFV25`` on 2025-10-15, then FFc2 is ``FFX25``,
+    FFc3 is ``FFZ25``, etc.
 
     Args:
         product: Product code (FF, SRA, FEI, SON)
@@ -294,26 +264,9 @@ def get_continuous_rank_contract(
         rank: Continuous rank (1-based)
 
     Returns:
-        Contract RIC (e.g. ``FFZ26`` for FFc2 on 2026-10-15)
+        Contract RIC for the requested continuous rank on that date.
     """
     if rank < 1:
         raise ValueError(f"rank must be >= 1, got {rank}")
 
-    front_contract = get_front_month_contract(product, as_of)
-    expiry = get_contract_expiry_month(front_contract)
-    if expiry is None:
-        raise ValueError(f"Could not parse front contract: {front_contract}")
-
-    year, month = expiry
-    spec = STIR_CONTRACT_SPECS[product]
-    is_quarterly = spec["months"] == "quarterly"
-    step = 3 if is_quarterly else 1
-    month += (rank - 1) * step
-
-    while month > 12:
-        month -= 12
-        year += 1
-
-    month_code = FUTURES_MONTH_CODES[month - 1]
-    year_suffix = str(year)[-2:]
-    return f"{product}{month_code}{year_suffix}"
+    return get_active_contracts(product, as_of=as_of, num_contracts=rank)[rank - 1]
