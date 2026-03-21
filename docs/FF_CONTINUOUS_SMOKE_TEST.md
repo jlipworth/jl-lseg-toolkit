@@ -77,9 +77,11 @@ For the **hourly** rows:
 
 - rows at `2026-03-01 22:00 UTC` and later should have:
   - `session_date = 2026-03-02`
-  - `source_contract = FFJ26`
+  - `source_contract = FFH26`
 
 This proves the consumer is not grouping hourly rows by raw UTC date.
+It also reflects the corrected Fed Funds front-month convention:
+the front contract is the **same settlement month**, not M+1.
 
 ---
 
@@ -102,8 +104,8 @@ ORDER BY t.ts;
 
 ### Expected behavior
 
-- `2026-02-25` to `2026-02-27` should label to `FFH26`
-- `2026-03-02` onward should label to `FFJ26`
+- `2026-02-25` to `2026-02-27` should label to `FFG26`
+- `2026-03-02` onward should label to `FFH26`
 
 ---
 
@@ -134,8 +136,8 @@ At minimum:
 
 1. query returns non-empty rows for the boundary window
 2. hourly rows after `2026-03-01 22:00 UTC` have `session_date = 2026-03-02`
-3. those same rows have `source_contract = FFJ26`
-4. daily rows switch from `FFH26` to `FFJ26` on `2026-03-02`
+3. those same rows have `source_contract = FFH26`
+4. daily rows switch from `FFG26` to `FFH26` on `2026-03-02`
 5. `implied_rate` is approximately `100 - close`
 
 Example tolerance:
@@ -148,8 +150,8 @@ Example tolerance:
 
 Repeat the same test around another observed hard boundary:
 
-- `2025-09-30 23:00 UTC`
-- `2025-11-02 22:00 UTC`
-- `2026-01-01 22:00 UTC`
+- `2025-09-30 23:00 UTC` → expect `session_date = 2025-10-01`, `source_contract = FFV25`
+- `2025-11-02 22:00 UTC` → expect `session_date = 2025-11-03`, `source_contract = FFX25`
+- `2026-01-01 22:00 UTC` → expect `session_date = 2026-01-02`, `source_contract = FFF26`
 
 If all of these pass, the consumer-side date handling is very likely correct.
