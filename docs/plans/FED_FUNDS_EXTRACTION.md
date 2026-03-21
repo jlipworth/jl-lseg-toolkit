@@ -1,6 +1,6 @@
 # Fed Funds Futures Extraction Plan
 
-**Status:** Planning
+**Status:** Implemented / validating
 **Created:** 2026-01-22
 **Branch:** `feature/timeseries-extraction`
 
@@ -9,6 +9,13 @@
 ## Objective
 
 Extract Fed Funds futures continuous contract data from LSEG, label each row with the discrete contract code, and store for downstream fed funds rate prediction work.
+
+Current implementation supports:
+- `FF_CONTINUOUS` (`FFc1`)
+- `FF_CONTINUOUS_2` through `FF_CONTINUOUS_12` (`FFc2` ... `FFc12`)
+- daily and hourly extraction
+- scheduler integration
+- `session_date` + `source_contract` storage for downstream consumers
 
 ---
 
@@ -47,7 +54,7 @@ PRIMARY KEY (instrument_id, ts, granularity)
 ### Key Observations
 - Hourly uses BID/ASK (no SETTLE) → store `mid = (bid + ask) / 2` as price
 - `EXPIR_DATE` from metadata gives last trade date
-- `get_front_month_contract("FF", date)` works for contract identification
+- Fed Funds continuous rank symbols are exposed as `FF_CONTINUOUS` / `FF_CONTINUOUS_<rank>`
 - Chunking infrastructure exists in `scheduler/jobs.py` (30-day chunks default)
 
 ---
@@ -138,18 +145,23 @@ Calendar-based labeling (1st business day of month) is validated by the data.
 - [N/A] **2.4** Adjust labeling if discrepancies found
   - No discrepancies: roll dates match 1st business day of month exactly
 
-### Phase 3: Instrument Registration
+### Phase 3: Instrument Registration ✅ DONE
 
-- [ ] **3.1** Register `FF_CONTINUOUS` in `instruments` table
+- [x] **3.1** Register `FF_CONTINUOUS` in `instruments` table
   ```python
   symbol='FF_CONTINUOUS',
   asset_class='STIR_FUTURES',
   data_shape='ohlcv',
   lseg_ric='FFc1'
   ```
-- [ ] **3.2** Add to `instrument_futures` detail table
+- [x] **3.2** Add to `instrument_futures` detail table
+  - Pipeline stores Fed Funds continuous instruments with:
+    - `underlying='FF'`
+    - `exchange='CME'`
+    - `continuous_type='continuous'`
+  - Same pattern applies to deferred ranks (`FF_CONTINUOUS_2` ... `FF_CONTINUOUS_12`)
 
-### Phase 4: Extraction Pipeline (MOSTLY COMPLETE)
+### Phase 4: Extraction Pipeline ✅ DONE
 
 - [x] **4.1** Create `fetch_fed_funds_daily()` - 10 years, SETTLE/OI/VOL + implied_rate
   - Implemented in `fed_funds/extraction.py`
@@ -160,7 +172,10 @@ Calendar-based labeling (1st business day of month) is validated by the data.
   - Implemented in `fed_funds/extraction.py`
   - Fields: BID, ASK, TRDPRC_1, HIGH_1, LOW_1, IMP_YIELD
   - **Note:** Only available for last 370 days (older dates return empty)
-- [ ] **4.3** Add `--label-contracts` flag to `lseg-extract` CLI
+- [N/A] **4.3** Add `--label-contracts` flag to `lseg-extract` CLI
+  - Not needed: Fed Funds contract labeling is automatic for
+    `FF_CONTINUOUS` daily/hourly extraction
+  - CLI already exposes `FF_CONTINUOUS` and deferred ranks directly
 - [x] **4.4** Integration test with small date range
   - Verified with live DB-backed daily/hourly loads under Infisical-injected credentials
   - Confirmed hourly rows store `session_date` and `source_contract` correctly across month boundary
@@ -227,7 +242,17 @@ Fed Funds continuous contract (`FFc1`) rolls monthly. The discrete contract code
 
 **Example:** `FFG26` = February 2026 contract
 
-The contract that is "front" on a given date settles to the **average effective fed funds rate for that month**. So on January 15, 2026, FFc1 shows the February contract (FFG26) because January (FFF26) already rolled off.
+The front contract follows the settlement month of the current front month and
+rolls on the first trading day of the next month. Example:
+
+- on **2026-01-15**, `FFc1` maps to **`FFF26`** (January 2026)
+- on **2026-02-02** (first trading day of February 2026), `FFc1` maps to
+  **`FFG26`** (February 2026)
+
+Deferred ranks follow the same convention:
+- `FFc2` / `FF_CONTINUOUS_2` = second monthly rank
+- ...
+- `FFc12` / `FF_CONTINUOUS_12` = twelfth monthly rank
 
 ---
 
