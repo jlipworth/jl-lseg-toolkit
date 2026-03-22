@@ -12,6 +12,7 @@ Use this skill when you need a working database shell or command context for thi
 - The Python code prefers `TSDB_*` and falls back to `POSTGRES_*`.
 - Local `.env` may define `POSTGRES_*`.
 - Credentials may also be injected at runtime with `infisical run ... -- <command>`.
+- The repo does **not** require a specific shared database; users can point it at their own TimescaleDB/PostgreSQL instance.
 - Never print secret values. Only show key presence or redact values.
 
 ## Workflow
@@ -23,7 +24,8 @@ Use this skill when you need a working database shell or command context for thi
 2. **Prefer existing env over re-fetching secrets**
    - If the shell already has valid DB env, use it.
    - Otherwise, check whether a local `.env` is present.
-   - If neither is sufficient, wrap the command with Infisical using the repo's documented project/env/path rather than hardcoding anything new.
+   - If neither is sufficient, use the caller's own secret-management flow (for example `infisical run ... -- <command>`).
+   - Repo docs may contain maintainer-specific Infisical examples; treat those as examples, not requirements.
 
 3. **Normalize env names before using tools**
    - Export all three namespaces consistently:
@@ -48,7 +50,7 @@ Use this skill when you need a working database shell or command context for thi
 - Never echo raw passwords, DSNs, or full secret env values.
 - Avoid putting passwords directly on command lines when `PG*` env vars will work.
 - Prefer read-only verification before write operations.
-- If the documented Infisical location is ambiguous or missing, search the repo/docs/shell history and then ask the user instead of guessing.
+- If the documented secret-manager flow is ambiguous or missing, search the repo/docs/shell history and then ask the user instead of guessing.
 
 ## Quick patterns
 
@@ -61,9 +63,11 @@ env | rg '^(TSDB|POSTGRES|PG)' | sed -E 's/=.*/=***REDACTED***/'
 ### Normalize whichever namespace is available
 
 ```bash
-set -a
-[ -f .env ] && source .env
-set +a
+if [[ -z "${TSDB_HOST:-}${POSTGRES_HOST:-}${PGHOST:-}" ]]; then
+  set -a
+  [ -f .env ] && source .env
+  set +a
+fi
 
 export TSDB_HOST="${TSDB_HOST:-${POSTGRES_HOST:-$PGHOST}}"
 export TSDB_PORT="${TSDB_PORT:-${POSTGRES_PORT:-${PGPORT:-5432}}}"
@@ -87,9 +91,11 @@ export PGPASSWORD="${PGPASSWORD:-$TSDB_PASSWORD}"
 ### Read-only connectivity check
 
 ```bash
-set -a
-[ -f .env ] && source .env
-set +a
+if [[ -z "${TSDB_HOST:-}${POSTGRES_HOST:-}${PGHOST:-}" ]]; then
+  set -a
+  [ -f .env ] && source .env
+  set +a
+fi
 
 export TSDB_HOST="${TSDB_HOST:-${POSTGRES_HOST:-$PGHOST}}"
 export TSDB_PORT="${TSDB_PORT:-${POSTGRES_PORT:-${PGPORT:-5432}}}"
@@ -116,9 +122,11 @@ psql -c 'select current_database(), current_user;'
 
 ```bash
 infisical run ... -- zsh -lc '
-  set -a
-  [ -f .env ] && source .env
-  set +a
+  if [[ -z "${TSDB_HOST:-}${POSTGRES_HOST:-}${PGHOST:-}" ]]; then
+    set -a
+    [ -f .env ] && source .env
+    set +a
+  fi
   export TSDB_HOST="${TSDB_HOST:-${POSTGRES_HOST:-$PGHOST}}"
   export TSDB_PORT="${TSDB_PORT:-${POSTGRES_PORT:-${PGPORT:-5432}}}"
   export TSDB_DATABASE="${TSDB_DATABASE:-${POSTGRES_DB:-$PGDATABASE}}"
@@ -138,4 +146,4 @@ infisical run ... -- zsh -lc '
 '
 ```
 
-Use the concrete `infisical run` arguments already documented in the repo or already present in the user’s environment; do not invent new ones.
+Use the caller's existing secret-management configuration; do not hardcode project-specific secret paths or values into repo files.

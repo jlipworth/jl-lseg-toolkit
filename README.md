@@ -193,7 +193,10 @@ lseg-extract --list
 - **TimescaleDB**: PostgreSQL with time-series hypertables for analytics-optimized storage
 - **Parquet files** (`data/parquet/`): Columnar format for C++/Rust consumption via Arrow
 
-Configure database via environment variables: `TSDB_HOST`, `TSDB_PORT`, `TSDB_DATABASE`, `TSDB_USER`, `TSDB_PASSWORD`.
+Configure database via environment variables: `TSDB_HOST`, `TSDB_PORT`, `TSDB_DATABASE`, `TSDB_USER`, `TSDB_PASSWORD` (or the compatible `POSTGRES_*` equivalents).
+
+Repo note: the storage layer is bring-your-own-database. Point it at your own TimescaleDB/PostgreSQL instance; no shared DB is required.
+Agent note: repo-local TSDB access guidance lives in `skills/timescaledb-access/SKILL.md`.
 
 For complete documentation, see [Time Series Guide](docs/TIMESERIES.md).
 
