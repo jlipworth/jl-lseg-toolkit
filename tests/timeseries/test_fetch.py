@@ -11,6 +11,11 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from lseg_toolkit.timeseries.constants import (
+    BOND_COLUMN_MAPPING,
+    QUOTE_COLUMN_MAPPING,
+    RATE_COLUMN_MAPPING,
+)
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.fetch import (
     GRANULARITY_TO_INTERVAL,
@@ -106,11 +111,53 @@ class TestNormalizeColumns:
             {
                 "BID": [1.0850],
                 "ASK": [1.0852],
+                "BID_HIGH_1": [1.0860],
+                "BID_LOW_1": [1.0840],
             }
         )
 
-        result = _normalize_columns(df)
+        result = _normalize_columns(df, QUOTE_COLUMN_MAPPING)
 
+        assert "bid" in result.columns
+        assert "ask" in result.columns
+        assert "bid_high" in result.columns
+        assert "bid_low" in result.columns
+
+    def test_normalize_rate_columns(self):
+        """Rate columns should normalize to rate-specific names."""
+        df = pd.DataFrame(
+            {
+                "BID": [4.10],
+                "ASK": [4.12],
+                "PRIMACT_1": [4.11],
+                "BID_HIGH_1": [4.15],
+                "BID_LOW_1": [4.05],
+            }
+        )
+
+        result = _normalize_columns(df, RATE_COLUMN_MAPPING)
+
+        assert "bid" in result.columns
+        assert "ask" in result.columns
+        assert "rate" in result.columns
+        assert "high_rate" in result.columns
+        assert "low_rate" in result.columns
+
+    def test_normalize_bond_columns(self):
+        """Bond/yield columns should normalize to bond-specific names."""
+        df = pd.DataFrame(
+            {
+                "OPEN_PRC": [99.5],
+                "MID_YLD_1": [4.25],
+                "BID": [99.4],
+                "ASK": [99.6],
+            }
+        )
+
+        result = _normalize_columns(df, BOND_COLUMN_MAPPING)
+
+        assert "open_price" in result.columns
+        assert "yield" in result.columns
         assert "bid" in result.columns
         assert "ask" in result.columns
 
