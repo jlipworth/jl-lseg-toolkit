@@ -11,6 +11,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from lseg_toolkit.timeseries import get_client
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.fetch import (
     fetch_futures,
@@ -19,6 +20,7 @@ from lseg_toolkit.timeseries.fetch import (
     fetch_treasury_yields,
     resolve_ric,
 )
+from lseg_toolkit.timeseries.fed_funds import fetch_fed_funds_hourly
 
 
 @pytest.fixture(scope="module")
@@ -35,6 +37,22 @@ def short_date_range():
     end = date.today() - timedelta(days=1)
     start = end - timedelta(days=5)  # 5 days of data
     return {"start": start, "end": end}
+
+
+@pytest.fixture(scope="module")
+def intraday_date_range():
+    """Get a recent date range for intraday tests."""
+    end = date.today() - timedelta(days=1)
+    start = end - timedelta(days=7)
+    return {"start": start, "end": end}
+
+
+def assert_intraday_frame(df, required_columns: list[str]) -> None:
+    """Assert basic intraday fetch invariants when data is available."""
+    assert df.index.is_monotonic_increasing
+    assert df.index.is_unique
+    for col in required_columns:
+        assert col in df.columns, f"Missing column: {col}"
 
 
 @pytest.mark.integration
@@ -201,16 +219,12 @@ class TestTreasuryYieldsIntegration:
 class TestIntradayIntegration:
     """Integration tests for intraday data."""
 
-    def test_fetch_hourly_futures(self):
+    def test_fetch_hourly_futures(self, intraday_date_range):
         """Fetch hourly Treasury futures data."""
-        # Use very recent data for intraday (last 5 days)
-        end = date.today() - timedelta(days=1)
-        start = end - timedelta(days=5)
-
         result = fetch_futures(
             ["ZN"],
-            start_date=start,
-            end_date=end,
+            start_date=intraday_date_range["start"],
+            end_date=intraday_date_range["end"],
             granularity=Granularity.HOURLY,
         )
 
@@ -219,23 +233,42 @@ class TestIntradayIntegration:
         # Hourly data should have more rows than daily
         # (assuming market is open)
         if not df.empty:
+            assert_intraday_frame(df, ["open", "high", "low", "close"])
             assert len(df) > 5  # Should have multiple bars per day
 
-    def test_fetch_5min_fx(self):
+    def test_fetch_5min_fx(self, intraday_date_range):
         """Fetch 5-minute FX data."""
-        # Use very recent data for intraday
-        end = date.today() - timedelta(days=1)
-        start = end - timedelta(days=2)
-
         result = fetch_fx(
             ["EURUSD"],
-            start_date=start,
-            end_date=end,
+            start_date=intraday_date_range["start"],
+            end_date=intraday_date_range["end"],
             granularity=Granularity.MINUTE_5,
         )
 
         # May not have data if market was closed
         assert "EURUSD" in result
+        df = result["EURUSD"]
+        if not df.empty:
+            assert_intraday_frame(df, ["bid", "ask"])
+            assert len(df) > 10
+
+    def test_fetch_hourly_fed_funds_continuous(self, intraday_date_range):
+        """Fetch hourly FFc1 data with session-date-aware labeling."""
+        client = get_client()
+        df = fetch_fed_funds_hourly(
+            client,
+            intraday_date_range["start"],
+            intraday_date_range["end"],
+            rank=1,
+        )
+
+        if not df.empty:
+            assert_intraday_frame(
+                df,
+                ["bid", "ask", "mid", "close", "implied_rate", "session_date", "source_contract"],
+            )
+            assert df["source_contract"].str.startswith("FF").all()
+            assert (df["implied_rate"] - (100.0 - df["mid"])).abs().max() < 1e-9
 
 
 @pytest.mark.integration
