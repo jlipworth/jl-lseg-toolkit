@@ -6,6 +6,17 @@ Active TODOs and feature requests for jl-lseg-toolkit.
 
 ## Features & Research
 
+### Prediction Markets / Polymarket
+**Priority:** Medium
+**Status:** In progress
+
+- finalize conservative Polymarket family-resolution implementation from
+  `docs/POLYMARKET_RESOLUTION.md`
+- add regression tests for representative resolved Polymarket market families
+- implement trade-derived Polymarket candlesticks
+- tighten Polymarket ↔ FOMC linkage rules before writing `fomc_meeting_id`
+- add durable troubleshooting examples for Polymarket vs Kalshi comparisons
+
 ### Credit Instruments (CDS)
 **Priority:** Low
 **Status:** Partial - daily only, intraday not available

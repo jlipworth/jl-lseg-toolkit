@@ -18,6 +18,7 @@ This plan is grounded in:
 - the current prediction-markets schema/models/storage layer
 - live TSDB inspection of how Kalshi data is actually stored
 - live verification that public Polymarket endpoints are reachable for market data
+- the normalization/resolution rules in `docs/POLYMARKET_RESOLUTION.md`
 
 ---
 
@@ -441,6 +442,8 @@ for finding the contracts we actually care about in the rates workflow.
   - matched titles
   - close dates
   - candidate FOMC linkage opportunities
+- [ ] **3b.8** Ensure discovery outputs can be passed through the documented
+  resolution spec in `docs/POLYMARKET_RESOLUTION.md`
 
 Implementation note:
 
@@ -499,7 +502,9 @@ Current recommendation after live validation:
 
 ### Phase 7: Optional macro/Fed linkage
 
-- [ ] **7.1** Add market classification for Fed/macro-related Polymarket contracts
+- [ ] **7.0** Implement conservative Polymarket family resolver matching
+  `docs/POLYMARKET_RESOLUTION.md`
+- [ ] **7.1** Add market-family resolution for Fed/macro-related Polymarket contracts
 - [ ] **7.2** Link those to `fomc_meetings` when the mapping is high-confidence
 - [ ] **7.3** Keep all linkage nullable and optional
 

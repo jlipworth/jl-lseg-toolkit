@@ -8,6 +8,7 @@ from lseg_toolkit.timeseries.prediction_markets.polymarket.extractor import (
     backfill_fed_discovery,
     build_market_ticker,
     daily_refresh,
+    discover_fed_event_summaries,
     discover_fed_events,
     discover_fed_markets,
     extract_event_markets,
@@ -166,6 +167,37 @@ class TestDiscovery:
         assert len(markets) == 1
         assert markets[0]["events"][0]["slug"] == "fed-decision-in-april"
         assert markets[0]["conditionId"] == "cond-1"
+
+    @patch(
+        "lseg_toolkit.timeseries.prediction_markets.polymarket.extractor.get_fomc_meetings"
+    )
+    def test_discover_fed_event_summaries_adds_resolution_and_fomc_suggestion(
+        self,
+        mock_get_fomc_meetings,
+    ):
+        client = MagicMock()
+        client.search_public.return_value = {
+            "events": [sample_fed_event()],
+            "tags": [{"id": 159, "slug": "fed", "label": "Fed"}],
+        }
+        client.list_tags.return_value = []
+        client.list_events.return_value = []
+        mock_get_fomc_meetings.return_value = [
+            {"id": 1149, "meeting_date": datetime(2026, 4, 29, tzinfo=UTC).date()}
+        ]
+
+        summaries = discover_fed_event_summaries(
+            conn=MagicMock(),
+            client=client,
+            queries=("fed decision",),
+            limit_per_type=5,
+            max_event_pages=1,
+        )
+
+        assert len(summaries) == 1
+        assert summaries[0]["event_slug"] == "fed-decision-in-april"
+        assert summaries[0]["family"] == "fomc_decision"
+        assert summaries[0]["suggested_fomc_meeting_id"] == 1149
 
 
 class TestBackfill:
