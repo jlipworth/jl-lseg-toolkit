@@ -28,6 +28,12 @@ uv run pre-commit run --all-files
 | Development & testing | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
 | Examples | [examples/](examples/) |
 
+## Repo-local skill
+
+- TimescaleDB access workflow: `skills/timescaledb-access/SKILL.md`
+- Keep DB access agnostic: prefer env-driven config (`TSDB_*` or `POSTGRES_*`) and user-owned credentials/secret-manager setup.
+- Codex users can symlink or copy that folder into `$CODEX_HOME/skills/timescaledb-access` for direct skill pickup.
+
 ## Rules
 
 - Exploratory scripts → `dev_scripts/` (gitignored)

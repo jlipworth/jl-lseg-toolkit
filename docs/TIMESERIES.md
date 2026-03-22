@@ -156,6 +156,9 @@ export TSDB_USER=postgres
 export TSDB_PASSWORD=yourpassword
 ```
 
+These are example values only; you can point the toolkit at your own TimescaleDB/PostgreSQL
+instance via `TSDB_*` or the compatible `POSTGRES_*` environment variables.
+
 ## Storage Architecture
 
 Data is stored in TimescaleDB (PostgreSQL with time-series extensions) using hypertables optimized for different data shapes:

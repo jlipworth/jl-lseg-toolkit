@@ -12,4 +12,4 @@ Core rules:
 - Normalize env with the inline export block in `skills/timescaledb-access/SKILL.md`.
 - Never print secret values.
 - Validate with a read-only `psql` or `psycopg` check before running write operations.
-- Use the repo-documented Infisical location if you need runtime secret injection; do not hardcode new secret paths or values.
+- Keep the workflow agnostic: users may target their own database and their own secret-manager path/config; do not hardcode project-specific secret paths or values.

@@ -129,6 +129,9 @@ SCHEDULER_INTRADAY_RETENTION   # Days to keep intraday data (default: 90)
 
 ### Using Infisical
 
+The examples below are illustrative and reflect one maintainer setup. You can use your own
+TimescaleDB/PostgreSQL credentials and your own secret-manager path/configuration.
+
 ```bash
 # Start shell with credentials injected
 cd ~/proxmox-project
