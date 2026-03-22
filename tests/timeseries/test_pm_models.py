@@ -84,6 +84,11 @@ class TestMarketModel:
         )
         assert m.series_id is None
         assert m.event_ticker is None
+        assert m.condition_id is None
+        assert m.token_id is None
+        assert m.outcome_label is None
+        assert m.event_slug is None
+        assert m.question_slug is None
         assert m.subtitle is None
         assert m.strike_value is None
         assert m.open_time is None
@@ -104,6 +109,24 @@ class TestMarketModel:
             title="Test",
         )
         assert m.status == "active"
+
+    def test_market_supports_polymarket_identity_fields(self):
+        m = Market(
+            platform_id=2,
+            market_ticker="POLY:cond-1:token-1",
+            platform_market_id="token-1",
+            event_ticker="cond-1",
+            condition_id="cond-1",
+            token_id="token-1",
+            outcome_label="Yes",
+            event_slug="fed-september-decision",
+            question_slug="will-fed-cut-in-september",
+            title="Will the Fed cut in September?",
+            subtitle="Yes",
+        )
+        assert m.condition_id == "cond-1"
+        assert m.token_id == "token-1"
+        assert m.outcome_label == "Yes"
 
 
 class TestCandlestickModel:

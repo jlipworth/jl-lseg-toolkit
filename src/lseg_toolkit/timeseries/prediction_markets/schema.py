@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS pm_markets (
     market_ticker TEXT NOT NULL,
     platform_market_id TEXT NOT NULL,
     event_ticker TEXT,
+    condition_id TEXT,
+    token_id TEXT,
+    outcome_label TEXT,
+    event_slug TEXT,
+    question_slug TEXT,
     title TEXT NOT NULL,
     subtitle TEXT,
     strike_value DOUBLE PRECISION,
@@ -57,8 +62,22 @@ CREATE INDEX IF NOT EXISTS idx_pm_markets_status ON pm_markets(status);
 CREATE INDEX IF NOT EXISTS idx_pm_markets_event_ticker ON pm_markets(event_ticker);
 ALTER TABLE pm_markets
     ADD COLUMN IF NOT EXISTS last_trade_time TIMESTAMPTZ;
+ALTER TABLE pm_markets
+    ADD COLUMN IF NOT EXISTS condition_id TEXT;
+ALTER TABLE pm_markets
+    ADD COLUMN IF NOT EXISTS token_id TEXT;
+ALTER TABLE pm_markets
+    ADD COLUMN IF NOT EXISTS outcome_label TEXT;
+ALTER TABLE pm_markets
+    ADD COLUMN IF NOT EXISTS event_slug TEXT;
+ALTER TABLE pm_markets
+    ADD COLUMN IF NOT EXISTS question_slug TEXT;
 CREATE INDEX IF NOT EXISTS idx_pm_markets_last_trade_time
     ON pm_markets(last_trade_time);
+CREATE INDEX IF NOT EXISTS idx_pm_markets_condition_id
+    ON pm_markets(condition_id);
+CREATE INDEX IF NOT EXISTS idx_pm_markets_token_id
+    ON pm_markets(token_id);
 
 -- Daily OHLC candlesticks
 CREATE TABLE IF NOT EXISTS pm_candlesticks (
@@ -134,6 +153,29 @@ def seed_kalshi_platform(conn: psycopg.Connection) -> int:
             """
             INSERT INTO pm_platforms (name, display_name, api_base_url, is_regulated, currency)
             VALUES ('kalshi', 'Kalshi', 'https://api.elections.kalshi.com/trade-api/v2', TRUE, 'USD')
+            ON CONFLICT (name) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                api_base_url = EXCLUDED.api_base_url,
+                is_regulated = EXCLUDED.is_regulated
+            RETURNING id
+            """,
+        )
+        result = cur.fetchone()
+        return result["id"] if result else 0
+
+
+def seed_polymarket_platform(conn: psycopg.Connection) -> int:
+    """
+    Insert or update the Polymarket platform row.
+
+    Returns:
+        The platform ID.
+    """
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            INSERT INTO pm_platforms (name, display_name, api_base_url, is_regulated, currency)
+            VALUES ('polymarket', 'Polymarket', 'https://gamma-api.polymarket.com', FALSE, 'USD')
             ON CONFLICT (name) DO UPDATE SET
                 display_name = EXCLUDED.display_name,
                 api_base_url = EXCLUDED.api_base_url,

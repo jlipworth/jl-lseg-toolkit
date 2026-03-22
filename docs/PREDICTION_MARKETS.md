@@ -20,8 +20,18 @@ Current implementation status:
   - implied probability reconstruction helpers
   - manual FedWatch loader scaffolding
 - Not yet implemented:
-  - Polymarket ingestion
+  - full Polymarket ingestion / candlestick history
   - full FedWatch automated scraping/export retrieval
+
+Current exploratory Polymarket work:
+
+- `src/lseg_toolkit/timeseries/prediction_markets/polymarket/`
+  - mirrors the Kalshi module layout with a `client.py` and `extractor.py`
+- `docs/plans/POLYMARKET_IMPLEMENTATION.md`
+  - actively updated implementation plan
+- `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
+  - temporary troubleshooting note for candidate Polymarket ↔ FOMC links and
+    cross-session comparison snapshots
 
 ## Main Modules
 

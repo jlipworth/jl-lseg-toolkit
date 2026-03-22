@@ -50,13 +50,15 @@ def upsert_market(conn: psycopg.Connection, market: Market) -> int:
             """
             INSERT INTO pm_markets (
                 platform_id, series_id, market_ticker, platform_market_id,
-                event_ticker, title, subtitle, strike_value,
+                event_ticker, condition_id, token_id, outcome_label, event_slug, question_slug,
+                title, subtitle, strike_value,
                 open_time, close_time, status, result,
                 last_price, last_trade_time, volume, open_interest, fomc_meeting_id,
                 updated_at
             ) VALUES (
                 %(platform_id)s, %(series_id)s, %(market_ticker)s, %(platform_market_id)s,
-                %(event_ticker)s, %(title)s, %(subtitle)s, %(strike_value)s,
+                %(event_ticker)s, %(condition_id)s, %(token_id)s, %(outcome_label)s, %(event_slug)s, %(question_slug)s,
+                %(title)s, %(subtitle)s, %(strike_value)s,
                 %(open_time)s, %(close_time)s, %(status)s, %(result)s,
                 %(last_price)s, %(last_trade_time)s, %(volume)s, %(open_interest)s, %(fomc_meeting_id)s,
                 NOW()
@@ -64,6 +66,11 @@ def upsert_market(conn: psycopg.Connection, market: Market) -> int:
             ON CONFLICT (platform_id, market_ticker) DO UPDATE SET
                 series_id = EXCLUDED.series_id,
                 event_ticker = EXCLUDED.event_ticker,
+                condition_id = EXCLUDED.condition_id,
+                token_id = EXCLUDED.token_id,
+                outcome_label = EXCLUDED.outcome_label,
+                event_slug = EXCLUDED.event_slug,
+                question_slug = EXCLUDED.question_slug,
                 title = EXCLUDED.title,
                 subtitle = EXCLUDED.subtitle,
                 strike_value = EXCLUDED.strike_value,
@@ -85,6 +92,11 @@ def upsert_market(conn: psycopg.Connection, market: Market) -> int:
                 "market_ticker": market.market_ticker,
                 "platform_market_id": market.platform_market_id,
                 "event_ticker": market.event_ticker,
+                "condition_id": market.condition_id,
+                "token_id": market.token_id,
+                "outcome_label": market.outcome_label,
+                "event_slug": market.event_slug,
+                "question_slug": market.question_slug,
                 "title": market.title,
                 "subtitle": market.subtitle,
                 "strike_value": market.strike_value,

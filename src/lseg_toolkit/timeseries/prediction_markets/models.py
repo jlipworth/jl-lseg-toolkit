@@ -36,6 +36,11 @@ class Market(BaseModel):
     market_ticker: str
     platform_market_id: str
     event_ticker: str | None = None
+    condition_id: str | None = None
+    token_id: str | None = None
+    outcome_label: str | None = None
+    event_slug: str | None = None
+    question_slug: str | None = None
     title: str
     subtitle: str | None = None
     strike_value: float | None = None

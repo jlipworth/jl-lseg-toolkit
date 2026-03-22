@@ -9,7 +9,7 @@ Usage:
         # Models
         Platform, Series, Market, Candlestick,
         # Schema
-        init_pm_schema, seed_kalshi_platform,
+        init_pm_schema, seed_kalshi_platform, seed_polymarket_platform,
         # Storage
         upsert_series, upsert_market, upsert_candlestick, upsert_candlesticks,
         get_platform_by_name, get_markets_by_series, get_markets_by_event,
@@ -45,6 +45,7 @@ from lseg_toolkit.timeseries.prediction_markets.models import (
 from lseg_toolkit.timeseries.prediction_markets.schema import (
     init_pm_schema,
     seed_kalshi_platform,
+    seed_polymarket_platform,
 )
 from lseg_toolkit.timeseries.prediction_markets.storage import (
     get_candlesticks,
@@ -66,6 +67,7 @@ __all__ = [
     # Schema
     "init_pm_schema",
     "seed_kalshi_platform",
+    "seed_polymarket_platform",
     # Storage
     "get_candlesticks",
     "get_markets_by_event",
