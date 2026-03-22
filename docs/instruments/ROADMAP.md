@@ -183,7 +183,7 @@ Conversion factors must be calculated or obtained from CME. See [BOND_BASIS_RICS
 5. ~~**Options**~~: ✅ Validated! OPRA, CME futures, commodity options all work
 6. ~~**European Options**~~: ✅ Bund (`OGBL`), Euro Stoxx (`STXE`), DAX (`GDAX`) validated
 7. ~~**Australian Bond Futures**~~: ✅ Found correct patterns `YTTc1` (3Y) and `YTCc1` (10Y)
-8. **Async Cache Layer**: Implement for efficient data retrieval (RUNBOOK 24)
+8. ~~**Async Cache Layer**~~: Implemented in `timeseries/cache.py` with sync + async APIs ✅
 9. ~~**FX Implied Vol**~~: ✅ Full surface from 2W-5Y for G10 (27+ additional tenors)
 
 **Newly Completed (2026-01-06):**
@@ -207,6 +207,7 @@ Conversion factors must be calculated or obtained from CME. See [BOND_BASIS_RICS
 - ~~US Treasury Futures~~: All 8/8 validated with correct RICs (YRc1, ZPc1, AULc1) ✅
 - ~~DXY~~: Spot (.DXY), futures (DXc1-3), and options (1DX pattern) with full history ✅
 - ~~European Bond Futures~~: 11/12 validated (added BTP Short, BONO, Swiss CONF) ✅
+- ~~Async Cache Layer~~: Implemented `DataCache` with `async_get_or_fetch()` and `async_get_or_fetch_many()` ✅
 
 ---
 
