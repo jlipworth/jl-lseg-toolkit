@@ -1,0 +1,592 @@
+"""Polymarket extraction orchestrator.
+
+Initial implementation focuses on platform/series/market ingestion only.
+Trade-derived candlestick generation will be added in a later phase.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
+
+import psycopg
+
+from lseg_toolkit.timeseries.prediction_markets.models import Market, Series
+from lseg_toolkit.timeseries.prediction_markets.polymarket.client import (
+    PolymarketClient,
+)
+from lseg_toolkit.timeseries.prediction_markets.schema import (
+    seed_polymarket_platform,
+)
+from lseg_toolkit.timeseries.prediction_markets.storage import (
+    upsert_market,
+    upsert_series,
+)
+
+logger = logging.getLogger(__name__)
+
+FED_DISCOVERY_QUERIES = (
+    "fed decision",
+    "fomc",
+    "federal reserve",
+    "fed rates",
+    "rate cut",
+    "powell",
+    "interest rate",
+    "federal funds",
+    "cpi",
+    "inflation",
+)
+FED_DISCOVERY_TAG_SLUGS = {
+    "fed",
+    "fed-rates",
+    "fomc",
+    "powell",
+    "jerome-powell",
+    "macro",
+    "macro-indicators",
+    "macro-unemployment",
+    "inflation",
+    "jobs-report",
+}
+FED_DISCOVERY_POSITIVE_TERMS = (
+    "federal reserve",
+    "federal funds",
+    "fed decision",
+    "fed rate",
+    "fed rates",
+    "fomc",
+    "rate cut",
+    "rate hike",
+    "interest rate",
+    "powell",
+    "inflation",
+    "cpi",
+    "jobs report",
+    "unemployment",
+)
+FED_DISCOVERY_NEGATIVE_TERMS = (
+    "federal charge",
+    "federal charges",
+    "federal criminal",
+    "federal prison",
+    "federal judge",
+)
+
+
+def _parse_json_list(value: str | list | None) -> list:
+    """Parse a Polymarket field that may be a JSON string or already a list."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    """Parse ISO8601 timestamps used by Polymarket."""
+    if not value:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _market_text(raw: dict[str, Any]) -> str:
+    """Build a normalized text blob for discovery heuristics."""
+    parts: list[str] = []
+    fields = (
+        "title",
+        "question",
+        "slug",
+        "description",
+        "resolutionSource",
+        "seriesSlug",
+    )
+    for field in fields:
+        value = raw.get(field)
+        if isinstance(value, str):
+            parts.append(value)
+
+    for tag in raw.get("tags") or []:
+        if isinstance(tag, dict):
+            for key in ("label", "slug"):
+                value = tag.get(key)
+                if isinstance(value, str):
+                    parts.append(value)
+
+    for market in raw.get("markets") or []:
+        if isinstance(market, dict):
+            for key in ("question", "slug", "description"):
+                value = market.get(key)
+                if isinstance(value, str):
+                    parts.append(value)
+
+    return " \n".join(parts).lower()
+
+
+def is_fed_discovery_match(raw: dict[str, Any]) -> bool:
+    """Return True when an event/market looks Fed or macro related."""
+    text = _market_text(raw)
+    if any(term in text for term in FED_DISCOVERY_NEGATIVE_TERMS):
+        return False
+    if any(term in text for term in FED_DISCOVERY_POSITIVE_TERMS):
+        return True
+
+    tag_slugs = {
+        str(tag.get("slug")).lower()
+        for tag in raw.get("tags") or []
+        if isinstance(tag, dict) and tag.get("slug")
+    }
+    return bool(tag_slugs & FED_DISCOVERY_TAG_SLUGS)
+
+
+def _event_stub(event: dict[str, Any]) -> dict[str, Any]:
+    """Extract the event metadata we need to attach to nested markets."""
+    return {
+        "slug": event.get("slug"),
+        "title": event.get("title"),
+        "startDate": event.get("startDate"),
+        "endDate": event.get("endDate"),
+        "category": event.get("category"),
+    }
+
+
+def extract_event_markets(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Flatten discovered event rows into market rows with attached event context."""
+    flattened: list[dict[str, Any]] = []
+    seen_condition_ids: set[str] = set()
+
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        event_stub = _event_stub(event)
+        for market in event.get("markets") or []:
+            if not isinstance(market, dict):
+                continue
+            condition_id = market.get("conditionId")
+            if not isinstance(condition_id, str) or condition_id in seen_condition_ids:
+                continue
+
+            row = dict(market)
+            row["events"] = [event_stub]
+            flattened.append(row)
+            seen_condition_ids.add(condition_id)
+
+    return flattened
+
+
+def discover_fed_events(
+    client: PolymarketClient | None = None,
+    *,
+    queries: Iterable[str] = FED_DISCOVERY_QUERIES,
+    limit_per_type: int = 10,
+    max_event_pages: int = 1,
+    active: bool | None = None,
+    closed: bool | None = None,
+) -> list[dict[str, Any]]:
+    """Discover Fed/macro-relevant Polymarket events via search + tag expansion."""
+    client = client or PolymarketClient()
+
+    events_by_slug: dict[str, dict[str, Any]] = {}
+    discovered_tag_ids: set[int] = set()
+
+    def add_events(rows: Iterable[dict[str, Any]]) -> None:
+        for row in rows:
+            if not isinstance(row, dict) or not is_fed_discovery_match(row):
+                continue
+            slug = row.get("slug") or row.get("ticker") or row.get("id")
+            if not slug:
+                continue
+            events_by_slug[str(slug)] = row
+
+    for query in queries:
+        payload = client.search_public(str(query), limit_per_type=limit_per_type)
+        add_events(payload.get("events") or [])
+        for tag in payload.get("tags") or []:
+            if not isinstance(tag, dict):
+                continue
+            tag_slug = str(tag.get("slug") or "").lower()
+            tag_label = str(tag.get("label") or "").lower()
+            tag_id = tag.get("id")
+            if not isinstance(tag_id, int):
+                continue
+            if tag_slug in FED_DISCOVERY_TAG_SLUGS or any(
+                term in f"{tag_label} {tag_slug}" for term in FED_DISCOVERY_POSITIVE_TERMS
+            ):
+                discovered_tag_ids.add(tag_id)
+
+    for tag in client.list_tags(limit=500, max_pages=1):
+        if not isinstance(tag, dict):
+            continue
+        tag_id = tag.get("id")
+        if not isinstance(tag_id, int):
+            continue
+        tag_slug = str(tag.get("slug") or "").lower()
+        tag_label = str(tag.get("label") or "").lower()
+        if tag_slug in FED_DISCOVERY_TAG_SLUGS or any(
+            term in f"{tag_label} {tag_slug}" for term in FED_DISCOVERY_POSITIVE_TERMS
+        ):
+            discovered_tag_ids.add(tag_id)
+
+    for tag_id in sorted(discovered_tag_ids):
+        add_events(
+            client.list_events(
+                tag_id=tag_id,
+                related_tags=True,
+                active=active,
+                closed=closed,
+                order="volume",
+                ascending=False,
+                max_pages=max_event_pages,
+            )
+        )
+
+    discovered = sorted(
+        events_by_slug.values(),
+        key=lambda row: (
+            float(row.get("volume24hr") or 0),
+            float(row.get("volume") or 0),
+            str(row.get("slug") or ""),
+        ),
+        reverse=True,
+    )
+    logger.info("Discovered %d Fed/macro Polymarket events", len(discovered))
+    return discovered
+
+
+def discover_fed_markets(
+    client: PolymarketClient | None = None,
+    *,
+    queries: Iterable[str] = FED_DISCOVERY_QUERIES,
+    limit_per_type: int = 10,
+    max_event_pages: int = 1,
+    active: bool | None = None,
+    closed: bool | None = None,
+) -> list[dict[str, Any]]:
+    """Discover Fed/macro-relevant market rows with event context attached."""
+    events = discover_fed_events(
+        client=client,
+        queries=queries,
+        limit_per_type=limit_per_type,
+        max_event_pages=max_event_pages,
+        active=active,
+        closed=closed,
+    )
+    return extract_event_markets(events)
+
+
+def build_market_ticker(condition_id: str, token_id: str) -> str:
+    """Build a stable synthetic market ticker for a Polymarket token."""
+    return f"POLY:{condition_id}:{token_id}"
+
+
+def normalize_status(raw: dict, simplified: dict | None = None) -> str:
+    """Map Polymarket market booleans into our generic market statuses."""
+    if simplified and simplified.get("closed") and not simplified.get("active", True):
+        return "settled"
+    if str(raw.get("umaResolutionStatus", "")).lower() == "resolved":
+        return "settled"
+    if raw.get("active"):
+        return "active"
+    if raw.get("closed"):
+        return "closed"
+    if raw.get("archived"):
+        return "closed"
+    return "active"
+
+
+def parse_series(raw: dict, platform_id: int) -> Series:
+    """Parse a Polymarket Gamma market row into a series bucket."""
+    events = raw.get("events") or []
+    event0 = events[0] if events else {}
+    series_ticker = (
+        event0.get("slug") or raw.get("eventSlug") or raw.get("slug") or raw["conditionId"]
+    )
+    title = event0.get("title") or raw.get("question") or raw.get("title") or series_ticker
+
+    return Series(
+        platform_id=platform_id,
+        series_ticker=series_ticker,
+        title=title,
+        category="prediction_markets",
+    )
+
+
+def parse_market_tokens(
+    raw: dict,
+    platform_id: int,
+    series_id: int | None = None,
+    *,
+    simplified: dict | None = None,
+    last_trade_times: dict[str, datetime | None] | None = None,
+) -> list[Market]:
+    """Parse a Polymarket Gamma market row into token-level Market rows."""
+    condition_id = raw["conditionId"]
+    outcomes = _parse_json_list(raw.get("outcomes"))
+    outcome_prices = _parse_json_list(raw.get("outcomePrices"))
+    token_ids = _parse_json_list(raw.get("clobTokenIds"))
+    events = raw.get("events") or []
+    event0 = events[0] if events else {}
+
+    event_slug = event0.get("slug") or raw.get("eventSlug")
+    question_slug = raw.get("slug")
+    title = raw.get("question") or raw.get("title") or question_slug or condition_id
+    open_time = _parse_datetime(
+        event0.get("startDate") or raw.get("startDate") or raw.get("startDateIso")
+    )
+    close_time = _parse_datetime(
+        event0.get("endDate") or raw.get("endDate") or raw.get("endDateIso")
+    )
+    status = normalize_status(raw, simplified=simplified)
+
+    token_lookup: dict[str, dict] = {}
+    if simplified:
+        for token in simplified.get("tokens", []):
+            token_id = token.get("token_id")
+            if isinstance(token_id, str):
+                token_lookup[token_id] = token
+
+    markets: list[Market] = []
+    for idx, outcome in enumerate(outcomes):
+        token_id = (
+            str(token_ids[idx])
+            if idx < len(token_ids) and token_ids[idx] is not None
+            else f"{condition_id}:{outcome}"
+        )
+        last_price: float | None = None
+        if idx < len(outcome_prices) and outcome_prices[idx] is not None:
+            last_price = float(outcome_prices[idx])
+        else:
+            token_state = token_lookup.get(token_id, {})
+            if isinstance(token_state.get("price"), (int, float)):
+                last_price = float(token_state["price"])
+
+        result = None
+        token_state = token_lookup.get(token_id, {})
+        winner = token_state.get("winner")
+        if winner is True:
+            result = "yes"
+        elif winner is False and status == "settled":
+            result = "no"
+
+        market = Market(
+            platform_id=platform_id,
+            series_id=series_id,
+            market_ticker=build_market_ticker(condition_id, token_id),
+            platform_market_id=token_id,
+            event_ticker=condition_id,
+            condition_id=condition_id,
+            token_id=token_id,
+            outcome_label=str(outcome),
+            event_slug=event_slug,
+            question_slug=question_slug,
+            title=title,
+            subtitle=str(outcome),
+            open_time=open_time,
+            close_time=close_time,
+            status=status,
+            result=result,
+            last_price=last_price,
+            last_trade_time=(last_trade_times or {}).get(token_id),
+        )
+        markets.append(market)
+
+    return markets
+
+
+def parse_markets(
+    raw: dict,
+    platform_id: int,
+    series_id: int | None = None,
+    simplified: dict | None = None,
+    last_trade_times: dict[str, datetime | None] | None = None,
+) -> list[Market]:
+    """Compatibility wrapper naming the token-level output rows as markets."""
+    return parse_market_tokens(
+        raw,
+        platform_id=platform_id,
+        series_id=series_id,
+        simplified=simplified,
+        last_trade_times=last_trade_times,
+    )
+
+
+def backfill(
+    conn: psycopg.Connection,
+    *,
+    max_pages: int | None = None,
+) -> dict:
+    """
+    Backfill Polymarket metadata into platform/series/market tables.
+
+    Trade-derived candlesticks are intentionally not included yet.
+    """
+    client = PolymarketClient()
+    platform_id = seed_polymarket_platform(conn)
+    raw_markets = client.list_markets(max_pages=max_pages)
+
+    series_ids: dict[str, int] = {}
+    market_count = 0
+
+    for raw in raw_markets:
+        series = parse_series(raw, platform_id=platform_id)
+        series_id = series_ids.get(series.series_ticker)
+        if series_id is None:
+            series_id = upsert_series(conn, series)
+            series_ids[series.series_ticker] = series_id
+
+        for market in parse_market_tokens(raw, platform_id=platform_id, series_id=series_id):
+            upsert_market(conn, market)
+            market_count += 1
+
+    conn.commit()
+    summary = {
+        "platform_id": platform_id,
+        "series": len(series_ids),
+        "series_count": len(series_ids),
+        "markets": market_count,
+        "market_count": market_count,
+    }
+    logger.info("Polymarket backfill complete: %s", summary)
+    return summary
+
+
+def backfill_fed_discovery(
+    conn: psycopg.Connection,
+    *,
+    queries: Iterable[str] = FED_DISCOVERY_QUERIES,
+    limit_per_type: int = 10,
+    max_event_pages: int = 1,
+    active: bool | None = None,
+    closed: bool | None = None,
+) -> dict:
+    """Backfill targeted Fed/macro markets discovered via search + tag expansion."""
+    client = PolymarketClient()
+    platform_id = seed_polymarket_platform(conn)
+    raw_markets = discover_fed_markets(
+        client=client,
+        queries=queries,
+        limit_per_type=limit_per_type,
+        max_event_pages=max_event_pages,
+        active=active,
+        closed=closed,
+    )
+
+    series_ids: dict[str, int] = {}
+    market_count = 0
+
+    for raw in raw_markets:
+        series = parse_series(raw, platform_id=platform_id)
+        series_id = series_ids.get(series.series_ticker)
+        if series_id is None:
+            series_id = upsert_series(conn, series)
+            series_ids[series.series_ticker] = series_id
+
+        for market in parse_market_tokens(raw, platform_id=platform_id, series_id=series_id):
+            upsert_market(conn, market)
+            market_count += 1
+
+    conn.commit()
+    summary = {
+        "platform_id": platform_id,
+        "series": len(series_ids),
+        "series_count": len(series_ids),
+        "markets": market_count,
+        "market_count": market_count,
+    }
+    logger.info("Polymarket Fed discovery backfill complete: %s", summary)
+    return summary
+
+
+def daily_refresh(
+    conn: psycopg.Connection,
+    *,
+    limit: int | None = None,
+    max_pages: int | None = None,
+    include_closed: bool = False,
+) -> dict:
+    """
+    Refresh active Polymarket markets and populate latest trade times.
+    """
+    client = PolymarketClient()
+    platform_id = seed_polymarket_platform(conn)
+    list_kwargs: dict = {
+        "closed": include_closed if include_closed else False,
+        "active": None if include_closed else True,
+        "max_pages": max_pages,
+    }
+    if limit is not None:
+        list_kwargs["limit"] = limit
+    raw_markets = client.list_markets(**list_kwargs)
+    simplified_rows = client.list_simplified_markets(max_pages=1)
+    simplified_by_condition = {
+        row["condition_id"]: row
+        for row in simplified_rows
+        if isinstance(row.get("condition_id"), str)
+    }
+
+    series_ids: dict[str, int] = {}
+    market_count = 0
+
+    for raw in raw_markets:
+        series = parse_series(raw, platform_id=platform_id)
+        series_id = series_ids.get(series.series_ticker)
+        if series_id is None:
+            series_id = upsert_series(conn, series)
+            series_ids[series.series_ticker] = series_id
+
+        outcomes = _parse_json_list(raw.get("outcomes"))
+        token_ids = _parse_json_list(raw.get("clobTokenIds"))
+        events = raw.get("events") or []
+        event0 = events[0] if events else {}
+        event_slug = event0.get("slug") or raw.get("eventSlug") or raw.get("slug")
+        last_trade_times: dict[str, datetime | None] = {}
+
+        for idx, outcome in enumerate(outcomes):
+            if not isinstance(outcome, str):
+                continue
+            token_id = (
+                str(token_ids[idx])
+                if idx < len(token_ids) and token_ids[idx] is not None
+                else f"{raw['conditionId']}:{outcome}"
+            )
+            last_trade_times[token_id] = client.get_last_trade_time(
+                condition_id=raw.get("conditionId"),
+                event_slug=event_slug,
+                outcome=outcome,
+            )
+
+        for market in parse_market_tokens(
+            raw,
+            platform_id=platform_id,
+            series_id=series_id,
+            simplified=simplified_by_condition.get(raw.get("conditionId")),
+            last_trade_times=last_trade_times,
+        ):
+            upsert_market(conn, market)
+            market_count += 1
+
+    conn.commit()
+    summary = {
+        "platform_id": platform_id,
+        "series": len(series_ids),
+        "series_count": len(series_ids),
+        "markets": market_count,
+        "market_count": market_count,
+    }
+    logger.info("Polymarket daily refresh complete: %s", summary)
+    return summary
+
+
+parse_token_markets = parse_market_tokens

@@ -8,6 +8,7 @@ from lseg_toolkit.timeseries.prediction_markets.schema import (
     PM_SCHEMA_SQL,
     init_pm_schema,
     seed_kalshi_platform,
+    seed_polymarket_platform,
 )
 
 
@@ -45,6 +46,15 @@ class TestSchemaSQL:
 
     def test_pm_markets_migrates_last_trade_time_for_existing_tables(self):
         assert "ADD COLUMN IF NOT EXISTS last_trade_time" in PM_SCHEMA_SQL
+
+    def test_pm_markets_has_polymarket_identity_columns(self):
+        assert "condition_id TEXT" in PM_SCHEMA_SQL
+        assert "token_id TEXT" in PM_SCHEMA_SQL
+        assert "outcome_label TEXT" in PM_SCHEMA_SQL
+
+    def test_pm_markets_has_polymarket_indexes(self):
+        assert "idx_pm_markets_condition_id" in PM_SCHEMA_SQL
+        assert "idx_pm_markets_token_id" in PM_SCHEMA_SQL
 
     def test_hypertable_creates_candlesticks(self):
         assert "pm_candlesticks" in PM_HYPERTABLE_SQL
@@ -88,4 +98,23 @@ class TestSeedKalshiPlatform:
         mock_cursor.execute.assert_called_once()
         # Verify it's an upsert
         sql = mock_cursor.execute.call_args[0][0]
+        assert "ON CONFLICT" in sql
+
+
+class TestSeedPolymarketPlatform:
+    """Tests for Polymarket platform seeding."""
+
+    def test_seed_inserts_polymarket(self):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = {"id": 2}
+
+        platform_id = seed_polymarket_platform(mock_conn)
+
+        assert platform_id == 2
+        mock_cursor.execute.assert_called_once()
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "polymarket" in sql.lower()
         assert "ON CONFLICT" in sql
