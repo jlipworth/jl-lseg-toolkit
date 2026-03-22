@@ -298,18 +298,36 @@ class PolymarketClient:
         self,
         *,
         limit: int = 100,
+        offset: int = 0,
+        market: str | list[str] | None = None,
         condition_id: str | None = None,
         event_slug: str | None = None,
         outcome: str | None = None,
+        side: str | None = None,
+        taker_only: bool = True,
     ) -> list[dict]:
-        """Fetch recent public trades."""
-        params: dict[str, Any] = {"limit": limit}
-        if condition_id:
-            params["conditionId"] = condition_id
-        if event_slug:
-            params["eventSlug"] = event_slug
-        if outcome:
-            params["outcome"] = outcome
+        """Fetch recent public trades.
+
+        Notes:
+        - The publicly documented market filter is `market=<condition_id>` with
+          optional offset pagination.
+        - `condition_id` is kept as a compatibility alias for callers in this
+          repo and is translated into the documented `market` parameter.
+        - `event_slug` and `outcome` are accepted for backward compatibility
+          with earlier code but are not sent because they are not part of the
+          documented public query contract.
+        """
+        del event_slug, outcome
+
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        market_param = market or condition_id
+        if isinstance(market_param, list):
+            params["market"] = ",".join(str(value) for value in market_param)
+        elif market_param:
+            params["market"] = market_param
+        if side:
+            params["side"] = side
+        params["takerOnly"] = str(taker_only).lower()
 
         data = self._request(
             base_url=self.data_base_url,
@@ -330,6 +348,7 @@ class PolymarketClient:
         """Fetch the timestamp of the most recent public trade, if any."""
         trades = self.get_trades(
             limit=1,
+            offset=0,
             condition_id=condition_id,
             event_slug=event_slug,
             outcome=outcome,

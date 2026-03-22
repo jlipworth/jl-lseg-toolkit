@@ -119,6 +119,13 @@ Operational rule:
 - **Data API** is the trade/freshness source of truth
 - **CLOB** is the liquidity/orderbook source of truth
 
+Important trade-endpoint note:
+
+- public Data API trade fetches should use `market=<condition_id>` plus
+  `offset` pagination
+- token-level filtering should be done client-side using the trade row's
+  `asset` field, which matches `token_id`
+
 ## Polymarket Normalization Summary
 
 Core Polymarket modeling choice:
@@ -211,6 +218,8 @@ Behavior:
 Entry point:
 
 - `polymarket.backfill(conn)`
+- `polymarket.backfill_candlesticks(conn)`
+- `polymarket.backfill_with_candlesticks(conn)`
 
 Current behavior:
 
@@ -218,6 +227,15 @@ Current behavior:
 - fetch Gamma market pages
 - normalize event buckets into `pm_series`
 - normalize token/outcome rows into `pm_markets`
+- explicit/manual candle step available separately:
+  - group stored token rows by `condition_id`
+  - fetch condition trades once
+  - split by `token_id`
+  - derive daily bars
+  - upsert into `pm_candlesticks`
+- optional opt-in wrapper:
+  - `backfill_with_candlesticks(conn)` runs metadata backfill first, then the
+    explicit candle upsert step
 
 ### Generic active refresh
 
@@ -230,7 +248,8 @@ Current behavior:
 - seed Polymarket platform
 - fetch active Gamma markets
 - fetch simplified CLOB market rows for enrichment
-- fetch latest trade timestamps from Data API
+- fetch latest trade timestamps from Data API using condition-level trade pages,
+  then resolve per-token freshness client-side
 - upsert token/outcome rows into `pm_markets`
 
 ### Targeted macro/Fed discovery ingest

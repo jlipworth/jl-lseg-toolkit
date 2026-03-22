@@ -234,6 +234,8 @@ discovery is the right ingestion path for FOMC-linked Polymarket data**.
 2. **Data API**
    - recent/historical trades
    - useful for `last_trade_time` and trade-derived bars
+   - use documented `market=<condition_id>` + `offset` pagination
+   - token-level filtering should use `asset == token_id`
 
 3. **Public CLOB endpoints**
    - market snapshots
@@ -372,47 +374,55 @@ src/lseg_toolkit/timeseries/prediction_markets/polymarket/trades.py
 
 ## Implementation Tasks
 
+Status note as of 2026-03-22:
+
+- Phases 0-3 are largely complete for metadata/discovery
+- conservative family resolution + dry-run FOMC suggestion helpers are in place
+- no automatic Polymarket `fomc_meeting_id` writes are enabled
+- the main remaining engineering block is historical trades -> derived
+  candlesticks
+
 ### Phase 0: Schema / platform prep
 
-- [ ] **0.1** Add `seed_polymarket_platform(conn)` to `prediction_markets/schema.py`
-- [ ] **0.2** Decide whether to add Polymarket-specific nullable columns to `pm_markets`
-- [ ] **0.3** Add schema migration/tests if those columns are added
+- [x] **0.1** Add `seed_polymarket_platform(conn)` to `prediction_markets/schema.py`
+- [x] **0.2** Decide whether to add Polymarket-specific nullable columns to `pm_markets`
+- [x] **0.3** Add schema migration/tests if those columns are added
 
 ### Phase 1: Public client
 
-- [ ] **1.1** Implement `PolymarketClient` in `polymarket/client.py`
-- [ ] **1.2** Add request helper with:
+- [x] **1.1** Implement `PolymarketClient` in `polymarket/client.py`
+- [x] **1.2** Add request helper with:
   - retries on 429/5xx
   - basic throttling
   - standard user-agent/header handling
-- [ ] **1.3** Implement metadata fetch methods:
+- [x] **1.3** Implement metadata fetch methods:
   - `list_events(...)`
   - `list_markets(...)`
   - `list_simplified_markets(...)`
-- [ ] **1.4** Implement trade fetch methods:
+- [x] **1.4** Implement trade fetch methods:
   - `get_trades(...)`
   - `get_last_trade_time(...)`
 
 ### Phase 2: Normalization
 
-- [ ] **2.1** Implement stable synthetic `market_ticker` builder
-- [ ] **2.2** Implement event/series normalization
-- [ ] **2.3** Implement token/outcome normalization into `Market`
-- [ ] **2.4** Implement status normalization:
+- [x] **2.1** Implement stable synthetic `market_ticker` builder
+- [x] **2.2** Implement event/series normalization
+- [x] **2.3** Implement token/outcome normalization into `Market`
+- [x] **2.4** Implement status normalization:
   - Polymarket raw states → `active` / `closed` / `settled`
-- [ ] **2.5** Implement timestamp normalization
-- [ ] **2.6** Implement identifier normalization tests to avoid Kalshi-style drift
+- [x] **2.5** Implement timestamp normalization
+- [x] **2.6** Implement identifier normalization tests to avoid Kalshi-style drift
 
 ### Phase 3: Metadata ingestion
 
-- [ ] **3.1** Implement `upsert` flow for Polymarket series
-- [ ] **3.2** Implement token-level market upserts
+- [x] **3.1** Implement `upsert` flow for Polymarket series
+- [x] **3.2** Implement token-level market upserts
 - [ ] **3.3** Populate:
   - `last_price`
   - `volume`
   - `status`
   - `last_trade_time`
-- [ ] **3.4** Add summary return structure similar to Kalshi `daily_refresh()`
+- [x] **3.4** Add summary return structure similar to Kalshi `daily_refresh()`
 
 ### Phase 3b: Targeted market discovery for macro/Fed use cases
 
@@ -442,7 +452,7 @@ for finding the contracts we actually care about in the rates workflow.
   - matched titles
   - close dates
   - candidate FOMC linkage opportunities
-- [ ] **3b.8** Ensure discovery outputs can be passed through the documented
+- [x] **3b.8** Ensure discovery outputs can be passed through the documented
   resolution spec in `docs/POLYMARKET_RESOLUTION.md`
 
 Implementation note:
@@ -475,17 +485,17 @@ Current recommendation after live validation:
 
 ### Phase 4: Historical trade ingestion
 
-- [ ] **4.1** Add trade fetch pagination/chunking strategy
-- [ ] **4.2** Normalize trade rows into an internal trade representation
+- [x] **4.1** Add trade fetch pagination/chunking strategy
+- [x] **4.2** Normalize trade rows into an internal trade representation
 - [ ] **4.3** Decide whether to persist raw trades separately later
-- [ ] **4.4** For MVP, at minimum support trade-based bar reconstruction without raw-trade persistence
+- [x] **4.4** For MVP, at minimum support trade-based bar reconstruction without raw-trade persistence
 
 ### Phase 5: Derived candlesticks
 
-- [ ] **5.1** Aggregate trades into bars (daily first; intraday optional)
-- [ ] **5.2** Map aggregated bars into `Candlestick`
+- [x] **5.1** Aggregate trades into bars (daily first; intraday optional)
+- [x] **5.2** Map aggregated bars into `Candlestick`
 - [ ] **5.3** Enrich `yes_bid_close` / `yes_ask_close` from public market snapshot data when possible
-- [ ] **5.4** Upsert bars into `pm_candlesticks`
+- [x] **5.4** Upsert bars into `pm_candlesticks`
 
 ### Phase 6: Extractor/orchestration
 
@@ -497,16 +507,18 @@ Current recommendation after live validation:
   3. upsert markets
   4. fetch trades / derive bars
   5. upsert candlesticks
+  - current state: explicit/manual wrapper `backfill_with_candlesticks()` exists,
+    but bars are not yet folded into default `backfill()` / `daily_refresh()`
 - [ ] **6.4** Make the flow idempotent and resumable
 - [ ] **6.5** Tolerate partial failures per market/token
 
 ### Phase 7: Optional macro/Fed linkage
 
-- [ ] **7.0** Implement conservative Polymarket family resolver matching
+- [x] **7.0** Implement conservative Polymarket family resolver matching
   `docs/POLYMARKET_RESOLUTION.md`
-- [ ] **7.1** Add market-family resolution for Fed/macro-related Polymarket contracts
+- [x] **7.1** Add market-family resolution for Fed/macro-related Polymarket contracts
 - [ ] **7.2** Link those to `fomc_meetings` when the mapping is high-confidence
-- [ ] **7.3** Keep all linkage nullable and optional
+- [x] **7.3** Keep all linkage nullable and optional
 
 Note: this phase depends on **Phase 3b targeted discovery**. The live ingest
 showed that linkage work should not be attempted off generic active-page
@@ -515,9 +527,9 @@ sampling alone.
 ### Phase 8: Documentation
 
 - [x] **8.1** Update `docs/PREDICTION_MARKETS.md`
-- [ ] **8.2** Update `docs/OUTSTANDING.md`
-- [ ] **8.3** Update `docs/TESTING.md`
-- [ ] **8.4** Document:
+- [x] **8.2** Update `docs/OUTSTANDING.md`
+- [x] **8.3** Update `docs/TESTING.md`
+- [x] **8.4** Document:
   - public read-only access model
   - geoblock/trading caveat
   - trade-derived bar semantics
@@ -544,7 +556,7 @@ Add:
 
 - `tests/timeseries/test_polymarket_client.py`
 - `tests/timeseries/test_polymarket_extractor.py`
-- `tests/timeseries/test_polymarket_normalization.py`
+- `tests/timeseries/test_polymarket_resolution.py`
 
 Cover:
 
@@ -564,6 +576,7 @@ Add real Postgres-backed tests for:
 - series upsert
 - market upsert
 - candlestick upsert
+- explicit/manual `backfill_candlesticks()` smoke
 - extractor backfill/refresh smoke
 
 ### Live smoke tests
