@@ -9,7 +9,9 @@ Tests cover:
 
 from __future__ import annotations
 
+import os
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pandas as pd
 import pytest
@@ -196,10 +198,30 @@ class TestJobCRUD:
     @pytest.fixture
     def db_config(self):
         """Get database config from environment."""
+        configured = any(
+            os.getenv(var)
+            for var in (
+                "TSDB_HOST",
+                "TSDB_PORT",
+                "TSDB_DATABASE",
+                "TSDB_USER",
+                "TSDB_PASSWORD",
+                "POSTGRES_HOST",
+                "POSTGRES_PORT",
+                "POSTGRES_DB",
+                "POSTGRES_USER",
+                "POSTGRES_PASSWORD",
+                "PGHOST",
+                "PGPORT",
+                "PGDATABASE",
+                "PGUSER",
+                "PGPASSWORD",
+            )
+        )
+        if not configured:
+            pytest.skip("No database configured - set TSDB_*, POSTGRES_*, or PG* env vars")
+
         config = DatabaseConfig.from_env()
-        # Skip if using default localhost (no real DB configured)
-        if config.host == "localhost" and config.password == "":
-            pytest.skip("No database configured - set POSTGRES_* env vars")
         return config
 
     @pytest.fixture
@@ -215,9 +237,10 @@ class TestJobCRUD:
         """Test creating a new job."""
         from lseg_toolkit.timeseries.scheduler.state import create_job, get_job_by_name
 
+        job_name = f"test_job_{uuid4().hex[:8]}"
         job_id = create_job(
             db_conn,
-            name="test_job",
+            name=job_name,
             instrument_group="benchmark_fixings",
             granularity="daily",
             schedule_cron="0 18 * * 1-5",
@@ -227,7 +250,7 @@ class TestJobCRUD:
         assert job_id > 0
 
         # Verify job exists
-        job = get_job_by_name(db_conn, "test_job")
+        job = get_job_by_name(db_conn, job_name)
         assert job is not None
         assert job["instrument_group"] == "benchmark_fixings"
         assert job["granularity"] == "daily"
@@ -241,9 +264,11 @@ class TestJobCRUD:
         )
 
         # Create test jobs
+        job1_name = f"job1_{uuid4().hex[:8]}"
+        job2_name = f"job2_{uuid4().hex[:8]}"
         create_job(
             db_conn,
-            name="job1",
+            name=job1_name,
             instrument_group="fx_spot",
             granularity="daily",
             schedule_cron="0 18 * * *",
@@ -251,7 +276,7 @@ class TestJobCRUD:
         )
         create_job(
             db_conn,
-            name="job2",
+            name=job2_name,
             instrument_group="benchmark_fixings",
             granularity="daily",
             schedule_cron="0 17 * * *",
@@ -264,7 +289,7 @@ class TestJobCRUD:
 
         assert len(all_jobs) >= 2
         assert len(enabled_jobs) >= 1
-        assert any(j["name"] == "job1" for j in enabled_jobs)
+        assert any(j["name"] == job1_name for j in enabled_jobs)
 
 
 class TestExtractionMocked:
