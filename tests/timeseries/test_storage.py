@@ -310,6 +310,42 @@ class TestSaveTimeseries:
 
         assert rows == 3
 
+    def test_save_timeseries_skips_rows_without_usable_close(self, monkeypatch):
+        """OHLCV writer should skip volume-only rows with no price fields."""
+        from lseg_toolkit.timeseries import storage
+
+        captured: dict[str, object] = {}
+
+        def fake_copy_with_upsert(conn, table, columns, buffer, conflict_columns):
+            captured["table"] = table
+            captured["columns"] = columns
+            captured["payload"] = buffer.getvalue()
+            return buffer.getvalue().count("\n")
+
+        monkeypatch.setattr(storage.writer, "_copy_with_upsert", fake_copy_with_upsert)
+
+        mock_conn = MagicMock()
+        dates = pd.date_range("2024-01-01", periods=2, freq="h")
+        df = pd.DataFrame(
+            {
+                "close": [100.0, pd.NA],
+                "volume": [10, 20],
+            },
+            index=dates,
+        )
+
+        rows = storage.save_timeseries(
+            mock_conn,
+            1,
+            df,
+            Granularity.HOURLY,
+            data_shape=DataShape.OHLCV,
+        )
+
+        assert rows == 1
+        assert captured["table"] == "timeseries_ohlcv"
+        assert captured["payload"].count("\n") == 1
+
 
 class TestLoadTimeseries:
     """Tests for timeseries retrieval."""
