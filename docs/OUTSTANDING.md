@@ -42,4 +42,5 @@ See `dev_scripts/refactor_recommendations.md` for detailed analysis.
 
 ## Tests
 
-- [ ] Intraday data fetching tests (in `test_integration.py`, needs LSEG Workspace)
+- [x] Intraday data fetching tests in `tests/timeseries/test_integration.py`
+- [ ] Broader end-to-end intraday storage/pipeline integration coverage
