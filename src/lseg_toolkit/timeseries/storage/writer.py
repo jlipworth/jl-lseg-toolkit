@@ -404,6 +404,9 @@ def _save_ohlcv_data(
         try:
             extracted = FieldMapper.extract_row(row, "ohlcv")
         except ValueError as exc:
+            # LSEG intraday futures can emit sparse volume-only bars where all
+            # price fields are null. Skip those rows rather than fail the full
+            # extraction; they are not usable OHLCV observations.
             if "Required field 'close'" in str(exc):
                 continue
             raise
