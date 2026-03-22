@@ -55,6 +55,45 @@ def assert_intraday_frame(df, required_columns: list[str]) -> None:
         assert col in df.columns, f"Missing column: {col}"
 
 
+def require_storage() -> None:
+    """Skip storage-backed integration tests when TimescaleDB is unavailable."""
+    from lseg_toolkit.timeseries.storage import get_connection
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+    except Exception as exc:  # pragma: no cover - live integration only
+        pytest.skip(f"Storage not available for integration test: {exc}")
+
+
+def load_stored_frame(
+    symbol: str,
+    start_date: date,
+    end_date: date,
+    granularity: Granularity,
+):
+    """Load stored data and instrument metadata for round-trip assertions."""
+    from lseg_toolkit.timeseries.storage import (
+        get_connection,
+        get_instrument,
+        load_timeseries,
+    )
+
+    with get_connection() as conn:
+        instrument = get_instrument(conn, symbol)
+        df = load_timeseries(
+            conn,
+            symbol,
+            start_date=start_date,
+            end_date=end_date,
+            granularity=granularity,
+        )
+
+    return instrument, df
+
+
 @pytest.mark.integration
 class TestBondFuturesIntegration:
     """Integration tests for bond futures data."""
@@ -306,6 +345,8 @@ class TestEndToEndIntegration:
         from lseg_toolkit.timeseries.config import TimeSeriesConfig
         from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
 
+        require_storage()
+
         config = TimeSeriesConfig(
             symbols=["ZN"],
             asset_class=AssetClass.BOND_FUTURES,
@@ -321,6 +362,133 @@ class TestEndToEndIntegration:
 
         assert result.success_count == 1
         assert result.total_rows > 0
+
+    def test_full_intraday_futures_pipeline_round_trip(
+        self, tmp_path, intraday_date_range
+    ):
+        """Hourly futures pipeline should persist and reload intraday OHLCV bars."""
+        from lseg_toolkit.timeseries.config import TimeSeriesConfig
+        from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+        require_storage()
+
+        config = TimeSeriesConfig(
+            symbols=["ZN"],
+            asset_class=AssetClass.BOND_FUTURES,
+            start_date=intraday_date_range["start"],
+            end_date=intraday_date_range["end"],
+            granularity=Granularity.HOURLY,
+            parquet_dir=str(tmp_path / "parquet"),
+            export_parquet=False,
+        )
+
+        pipeline = TimeSeriesExtractionPipeline(config, verbose=False)
+        result = pipeline.run()
+
+        assert result.success_count == 1
+        assert result.total_rows > 0
+
+        instrument, stored = load_stored_frame(
+            "ZN",
+            intraday_date_range["start"],
+            intraday_date_range["end"],
+            Granularity.HOURLY,
+        )
+
+        assert instrument is not None
+        assert instrument["data_shape"] == "ohlcv"
+        assert not stored.empty
+        assert len(stored) == result.total_rows
+        assert_intraday_frame(stored, ["open", "high", "low", "close"])
+
+    def test_full_intraday_fx_pipeline_round_trip(
+        self, tmp_path, intraday_date_range
+    ):
+        """5-minute FX pipeline should persist and reload quote-shaped intraday data."""
+        from lseg_toolkit.timeseries.config import TimeSeriesConfig
+        from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+        require_storage()
+
+        config = TimeSeriesConfig(
+            symbols=["EURUSD"],
+            asset_class=AssetClass.FX_SPOT,
+            start_date=intraday_date_range["start"],
+            end_date=intraday_date_range["end"],
+            granularity=Granularity.MINUTE_5,
+            parquet_dir=str(tmp_path / "parquet"),
+            export_parquet=False,
+        )
+
+        pipeline = TimeSeriesExtractionPipeline(config, verbose=False)
+        result = pipeline.run()
+
+        assert result.success_count == 1
+        assert result.total_rows > 0
+
+        instrument, stored = load_stored_frame(
+            "EURUSD",
+            intraday_date_range["start"],
+            intraday_date_range["end"],
+            Granularity.MINUTE_5,
+        )
+
+        assert instrument is not None
+        assert instrument["data_shape"] == "quote"
+        assert not stored.empty
+        assert len(stored) == result.total_rows
+        assert_intraday_frame(stored, ["bid", "ask", "mid"])
+
+    def test_full_intraday_fed_funds_pipeline_round_trip(
+        self, tmp_path, intraday_date_range
+    ):
+        """Hourly FF continuous pipeline should round-trip storage metadata."""
+        from lseg_toolkit.timeseries.config import TimeSeriesConfig
+        from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+        require_storage()
+
+        config = TimeSeriesConfig(
+            symbols=["FF_CONTINUOUS"],
+            asset_class=AssetClass.STIR_FUTURES,
+            start_date=intraday_date_range["start"],
+            end_date=intraday_date_range["end"],
+            granularity=Granularity.HOURLY,
+            parquet_dir=str(tmp_path / "parquet"),
+            export_parquet=False,
+        )
+
+        pipeline = TimeSeriesExtractionPipeline(config, verbose=False)
+        result = pipeline.run()
+
+        assert result.success_count == 1
+        assert result.total_rows > 0
+
+        instrument, stored = load_stored_frame(
+            "FF_CONTINUOUS",
+            intraday_date_range["start"],
+            intraday_date_range["end"],
+            Granularity.HOURLY,
+        )
+
+        assert instrument is not None
+        assert instrument["data_shape"] == "ohlcv"
+        assert not stored.empty
+        assert len(stored) == result.total_rows
+        assert_intraday_frame(
+            stored,
+            [
+                "bid",
+                "ask",
+                "mid",
+                "close",
+                "implied_rate",
+                "session_date",
+                "source_contract",
+            ],
+        )
+        assert stored["session_date"].notna().all()
+        assert stored["source_contract"].str.startswith("FF").all()
 
 
 if __name__ == "__main__":

@@ -401,7 +401,12 @@ def _save_ohlcv_data(
     buffer = io.StringIO()
     for idx, row in data.iterrows():
         ts = _convert_index_to_timestamp(idx)
-        extracted = FieldMapper.extract_row(row, "ohlcv")
+        try:
+            extracted = FieldMapper.extract_row(row, "ohlcv")
+        except ValueError as exc:
+            if "Required field 'close'" in str(exc):
+                continue
+            raise
 
         values = [
             _format_copy_value(instrument_id),
