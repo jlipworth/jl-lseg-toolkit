@@ -27,9 +27,11 @@ from lseg_toolkit.timeseries.constants import (
     QUOTE_COLUMN_MAPPING,
     RATE_COLUMN_MAPPING,
     STIR_FUTURES_RICS,
+    SOVEREIGN_YIELD_FIELDS,
     USD_OIS_FIELDS,
     UST_YIELD_FIELDS,
     get_fra_ric,
+    get_govt_yield_ric,
     get_ois_ric,
     get_treasury_yield_ric,
 )
@@ -40,6 +42,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 CONTINUOUS_RIC_PATTERN = re.compile(r"^[A-Za-z]+c\d+$")
+GOVT_YIELD_SYMBOL_PATTERN = re.compile(
+    r"^(?:(?P<country>[A-Z]{2}))?(?P<tenor>\d{1,2}[MY])T?$"
+)
 
 
 # =============================================================================
@@ -465,6 +470,81 @@ def fetch_treasury_yields(
         return {}
 
     return _split_multi_ric_response(df, tenor_to_ric)
+
+
+def parse_govt_yield_symbol(symbol: str) -> tuple[str, str, str, str]:
+    """
+    Parse a government-yield symbol into country, tenor, storage symbol, and RIC.
+
+    Supported inputs:
+    - ``10Y`` / ``2Y`` / ``30Y`` (defaults to US Treasury shorthand)
+    - ``US10Y`` / ``US10YT``
+    - ``DE10Y`` / ``DE10YT``
+    - ``GB10Y`` / ``GB10YT``
+    """
+    symbol_upper = symbol.upper()
+    match = GOVT_YIELD_SYMBOL_PATTERN.match(symbol_upper)
+    if not match:
+        raise InstrumentNotFoundError(f"Unsupported government yield symbol: {symbol}")
+
+    country = match.group("country") or "US"
+    tenor = match.group("tenor")
+    storage_symbol = f"{country}{tenor}T"
+    ric = (
+        get_treasury_yield_ric(tenor)
+        if country == "US"
+        else get_govt_yield_ric(country, tenor)
+    )
+    return country, tenor, storage_symbol, ric
+
+
+def fetch_govt_yields(
+    symbols: list[str],
+    start_date: date,
+    end_date: date,
+    client: LSEGDataClient | None = None,
+) -> dict[str, pd.DataFrame]:
+    """
+    Fetch government yields for one or more explicit country/tenor symbols.
+
+    Examples:
+    - ``10Y`` -> US 10Y Treasury (stored as ``US10YT``)
+    - ``DE10Y`` -> German 10Y Bund yield
+    - ``GB30YT`` -> UK 30Y Gilt yield
+    """
+    if not symbols:
+        return {}
+
+    symbol_to_ric: dict[str, str] = {}
+    fields_by_symbol: dict[str, list[str]] = {}
+
+    for symbol in symbols:
+        country, tenor, storage_symbol, ric = parse_govt_yield_symbol(symbol)
+        symbol_to_ric[storage_symbol] = ric
+        fields_by_symbol[storage_symbol] = (
+            UST_YIELD_FIELDS if country == "US" else SOVEREIGN_YIELD_FIELDS
+        )
+
+    results: dict[str, pd.DataFrame] = {}
+    for storage_symbol, ric in symbol_to_ric.items():
+        try:
+            df = fetch_timeseries(
+                rics=[ric],
+                start_date=start_date,
+                end_date=end_date,
+                fields=fields_by_symbol[storage_symbol],
+                granularity=Granularity.DAILY,
+                client=client,
+                column_mapping=BOND_COLUMN_MAPPING,
+            )
+        except DataRetrievalError as e:
+            logger.error(f"Failed to fetch government yield {storage_symbol}: {e}")
+            continue
+
+        if not df.empty:
+            results[storage_symbol] = df
+
+    return results
 
 
 def fetch_fras(

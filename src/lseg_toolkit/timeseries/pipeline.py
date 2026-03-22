@@ -28,10 +28,11 @@ from lseg_toolkit.timeseries.fed_funds import (
 )
 from lseg_toolkit.timeseries.fetch import (
     fetch_fras,
+    fetch_govt_yields,
     fetch_futures,
     fetch_fx,
     fetch_ois,
-    fetch_treasury_yields,
+    parse_govt_yield_symbol,
     resolve_ric,
 )
 from lseg_toolkit.timeseries.rolling import build_continuous
@@ -423,27 +424,24 @@ class TimeSeriesExtractionPipeline:
         return results
 
     def _extract_treasury_yields(self) -> list[ExtractionResult]:
-        """Extract US Treasury yield curve."""
+        """Extract government yield curves, defaulting bare tenors to US Treasuries."""
         results: list[ExtractionResult] = []
 
-        # Parse symbols as tenors
-        tenors = self.config.symbols
-
         with timer("Fetching Treasury yield data", self.verbose):
-            data = fetch_treasury_yields(
-                tenors,
+            data = fetch_govt_yields(
+                self.config.symbols,
                 self.config.start_date,
                 self.config.end_date,
             )
 
-        for tenor, df in data.items():
-            symbol = f"US{tenor}T"
+        for configured_symbol, df in data.items():
+            country, tenor, symbol, ric = parse_govt_yield_symbol(configured_symbol)
             result = self._store_timeseries(
                 symbol=symbol,
                 df=df,
                 asset_class=AssetClass.GOVT_YIELD,
-                ric=f"{symbol}=RRPS",
-                country="US",
+                ric=ric,
+                country=country,
                 tenor=tenor,
             )
             results.append(result)
