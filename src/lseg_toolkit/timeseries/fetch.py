@@ -19,10 +19,13 @@ from lseg_toolkit.timeseries.client import LSEGDataClient, get_client
 from lseg_toolkit.timeseries.fed_funds import parse_ff_continuous_rank
 from lseg_toolkit.timeseries.constants import (
     ALL_FUTURES_MAPPING,
+    BOND_COLUMN_MAPPING,
     COLUMN_MAPPING,
     FUTURES_OHLCV_FIELDS,
     FX_SPOT_FIELDS,
     FX_SPOT_RICS,
+    QUOTE_COLUMN_MAPPING,
+    RATE_COLUMN_MAPPING,
     STIR_FUTURES_RICS,
     USD_OIS_FIELDS,
     UST_YIELD_FIELDS,
@@ -179,6 +182,7 @@ def fetch_timeseries(
     fields: list[str] | None = None,
     granularity: Granularity = Granularity.DAILY,
     client: LSEGDataClient | None = None,
+    column_mapping: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """
     Fetch time series data for one or more RICs.
@@ -193,6 +197,7 @@ def fetch_timeseries(
         fields: List of fields to retrieve (default: OHLCV).
         granularity: Data granularity.
         client: Optional LSEGDataClient instance (uses singleton if not provided).
+        column_mapping: Optional LSEG-to-normalized column mapping.
 
     Returns:
         DataFrame with DatetimeIndex and requested columns.
@@ -213,6 +218,8 @@ def fetch_timeseries(
     # Default fields for OHLCV
     if fields is None:
         fields = FUTURES_OHLCV_FIELDS
+    if column_mapping is None:
+        column_mapping = COLUMN_MAPPING
 
     # Map granularity to LSEG interval
     interval = GRANULARITY_TO_INTERVAL.get(granularity, "daily")
@@ -231,7 +238,7 @@ def fetch_timeseries(
         return pd.DataFrame()
 
     # Normalize column names
-    df = _normalize_columns(df)
+    df = _normalize_columns(df, column_mapping)
 
     return df
 
@@ -283,6 +290,7 @@ def fetch_futures(
             fields=FUTURES_OHLCV_FIELDS,
             granularity=granularity,
             client=client,
+            column_mapping=COLUMN_MAPPING,
         )
     except DataRetrievalError as e:
         logger.error(f"Failed to fetch futures: {e}")
@@ -336,6 +344,7 @@ def fetch_fx(
             fields=FX_SPOT_FIELDS,
             granularity=granularity,
             client=client,
+            column_mapping=QUOTE_COLUMN_MAPPING,
         )
     except DataRetrievalError as e:
         logger.error(f"Failed to fetch FX pairs: {e}")
@@ -389,6 +398,7 @@ def fetch_ois(
             fields=USD_OIS_FIELDS,
             granularity=Granularity.DAILY,
             client=client,
+            column_mapping=RATE_COLUMN_MAPPING,
         )
     except DataRetrievalError as e:
         logger.error(f"Failed to fetch {currency} OIS: {e}")
@@ -439,6 +449,7 @@ def fetch_treasury_yields(
             fields=UST_YIELD_FIELDS,
             granularity=Granularity.DAILY,
             client=client,
+            column_mapping=BOND_COLUMN_MAPPING,
         )
     except DataRetrievalError as e:
         logger.error(f"Failed to fetch US Treasury yields: {e}")
@@ -491,6 +502,7 @@ def fetch_fras(
             fields=["BID", "ASK"],
             granularity=Granularity.DAILY,
             client=client,
+            column_mapping=RATE_COLUMN_MAPPING,
         )
     except DataRetrievalError as e:
         logger.error(f"Failed to fetch {currency} FRAs: {e}")
@@ -619,12 +631,16 @@ def get_contract_specs(
 # =============================================================================
 
 
-def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+def _normalize_columns(
+    df: pd.DataFrame,
+    column_mapping: dict[str, str] | None = None,
+) -> pd.DataFrame:
     """
     Normalize LSEG column names to standard format.
 
     Args:
         df: DataFrame with LSEG column names.
+        column_mapping: Mapping from LSEG field names to normalized columns.
 
     Returns:
         DataFrame with normalized column names.
@@ -632,12 +648,15 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
+    if column_mapping is None:
+        column_mapping = COLUMN_MAPPING
+
     # Rename columns using mapping
     rename_map = {}
     for col in df.columns:
         col_upper = col.upper() if isinstance(col, str) else col
-        if col_upper in COLUMN_MAPPING:
-            rename_map[col] = COLUMN_MAPPING[col_upper]
+        if col_upper in column_mapping:
+            rename_map[col] = column_mapping[col_upper]
 
     if rename_map:
         df = df.rename(columns=rename_map)

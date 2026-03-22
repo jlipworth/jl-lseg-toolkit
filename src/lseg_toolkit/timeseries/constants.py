@@ -491,8 +491,8 @@ FX_SPOT_FIELDS: list[str] = [
     "BID_LOW_1",
 ]
 
-# Column name normalization: LSEG → Standard
-COLUMN_MAPPING: dict[str, str] = {
+# Column name normalization: LSEG OHLCV → Standard
+OHLCV_COLUMN_MAPPING: dict[str, str] = {
     "OPEN_PRC": "open",
     "HIGH_1": "high",
     "LOW_1": "low",
@@ -500,11 +500,60 @@ COLUMN_MAPPING: dict[str, str] = {
     "SETTLE": "settle",
     "ACVOL_UNS": "volume",
     "OPINT_1": "open_interest",
+}
+
+# Column name normalization: LSEG quote fields → Standard
+QUOTE_COLUMN_MAPPING: dict[str, str] = {
     "BID": "bid",
     "ASK": "ask",
-    "BID_HIGH_1": "high",
-    "BID_LOW_1": "low",
+    "MID_PRICE": "mid",
+    "OPEN_BID": "open_bid",
+    "BID_HIGH_1": "bid_high",
+    "BID_LOW_1": "bid_low",
+    "OPEN_ASK": "open_ask",
+    "ASK_HIGH_1": "ask_high",
+    "ASK_LOW_1": "ask_low",
+    "FWD_POINTS": "forward_points",
 }
+
+# Column name normalization: LSEG rate fields → Standard
+RATE_COLUMN_MAPPING: dict[str, str] = {
+    "BID": "bid",
+    "ASK": "ask",
+    "MID_PRICE": "rate",
+    "HST_CLOSE": "rate",
+    "PRIMACT_1": "rate",
+    "OPEN_BID": "open_rate",
+    "BID_HIGH_1": "high_rate",
+    "BID_LOW_1": "low_rate",
+    "GV1_RATE": "rate_2",
+}
+
+# Column name normalization: LSEG bond/yield fields → Standard
+BOND_COLUMN_MAPPING: dict[str, str] = {
+    "BID": "bid",
+    "ASK": "ask",
+    "MID_PRICE": "price",
+    "CLEAN_PRC": "price",
+    "OPEN_PRC": "open_price",
+    "MID_YLD_1": "yield",
+    "B_YLD_1": "yield_bid",
+    "A_YLD_1": "yield_ask",
+    "OPEN_YLD": "open_yield",
+    "HIGH_YLD": "yield_high",
+    "LOW_YLD": "yield_low",
+    "DIRTY_PRC": "dirty_price",
+    "ACCR_INT": "accrued_interest",
+    "MOD_DURTN": "mod_duration",
+    "MAC_DURTN": "mac_duration",
+    "CONVEXITY": "convexity",
+    "BPV": "dv01",
+    "ZSPREAD": "z_spread",
+    "OAS_BID": "oas",
+}
+
+# Backwards-compatible alias for OHLCV normalization.
+COLUMN_MAPPING: dict[str, str] = OHLCV_COLUMN_MAPPING
 
 
 # =============================================================================

@@ -45,7 +45,11 @@ class FieldMapper:
         FieldMapping("open", ["open", "OPEN_PRC"]),
         FieldMapping("high", ["high", "HIGH_1"]),
         FieldMapping("low", ["low", "LOW_1"]),
-        FieldMapping("close", ["close", "mid", "last", "settle", "TRDPRC_1"], required=True),
+        FieldMapping(
+            "close",
+            ["close", "mid", "last", "settle", "SETTLE", "TRDPRC_1"],
+            required=True,
+        ),
         FieldMapping("volume", ["volume", "ACVOL_UNS"]),
         FieldMapping("settle", ["settle", "SETTLE"]),
         FieldMapping("open_interest", ["open_interest", "OPINT_1"]),
@@ -71,7 +75,7 @@ class FieldMapper:
     ]
 
     RATE = [
-        FieldMapping("rate", ["rate", "MID_PRICE", "BID"]),
+        FieldMapping("rate", ["rate", "PRIMACT_1", "MID_PRICE", "HST_CLOSE", "BID"]),
         FieldMapping("bid", ["bid", "BID"]),
         FieldMapping("ask", ["ask", "ASK"]),
         FieldMapping("open_rate", ["open_rate", "OPEN_BID"]),
@@ -82,10 +86,10 @@ class FieldMapper:
     ]
 
     BOND = [
-        FieldMapping("price", ["price", "MID_PRICE", "CLEAN_PRC"]),
+        FieldMapping("price", ["price", "MID_PRICE", "CLEAN_PRC", "HST_CLOSE", "PRIMACT_1"]),
         FieldMapping("bid", ["bid", "BID"]),
         FieldMapping("ask", ["ask", "ASK"]),
-        FieldMapping("open_price", ["open_price", "MID_OPEN"]),
+        FieldMapping("open_price", ["open_price", "MID_OPEN", "OPEN_PRC"]),
         FieldMapping("yield", ["yield", "MID_YLD_1", "B_YLD_1"], required=True),
         FieldMapping("yield_bid", ["yield_bid", "B_YLD_1"]),
         FieldMapping("yield_ask", ["yield_ask", "A_YLD_1"]),
