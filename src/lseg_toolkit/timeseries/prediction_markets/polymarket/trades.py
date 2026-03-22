@@ -7,14 +7,19 @@ derived client-side by filtering condition trades by `asset`/token id.
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+
+import httpx
 
 from lseg_toolkit.timeseries.prediction_markets.models import Candlestick
 from lseg_toolkit.timeseries.prediction_markets.polymarket.client import (
     PolymarketClient,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -82,11 +87,22 @@ def get_condition_trades(
     pages = 0
 
     while True:
-        raw_rows = client.get_trades(
-            limit=limit,
-            offset=offset,
-            market=condition_id,
-        )
+        try:
+            raw_rows = client.get_trades(
+                limit=limit,
+                offset=offset,
+                market=condition_id,
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 400 and offset > 0:
+                logger.warning(
+                    "Stopping Polymarket trade pagination for %s at offset=%d "
+                    "after HTTP 400; treating as end-of-history",
+                    condition_id,
+                    offset,
+                )
+                break
+            raise
         if not raw_rows:
             break
 
@@ -132,11 +148,22 @@ def get_last_trade_times_by_token(
     offset = 0
     pages = 0
     while remaining and pages < max_pages:
-        raw_rows = client.get_trades(
-            limit=limit,
-            offset=offset,
-            market=condition_id,
-        )
+        try:
+            raw_rows = client.get_trades(
+                limit=limit,
+                offset=offset,
+                market=condition_id,
+            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 400 and offset > 0:
+                logger.warning(
+                    "Stopping Polymarket latest-trade scan for %s at offset=%d "
+                    "after HTTP 400; using partial token coverage",
+                    condition_id,
+                    offset,
+                )
+                break
+            raise
         if not raw_rows:
             break
 
