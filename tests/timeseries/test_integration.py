@@ -14,6 +14,7 @@ import pytest
 from lseg_toolkit.timeseries import get_client
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.fetch import (
+    fetch_fras,
     fetch_futures,
     fetch_fx,
     fetch_ois,
@@ -302,6 +303,26 @@ class TestTreasuryYieldsIntegration:
 
 
 @pytest.mark.integration
+class TestFRAIntegration:
+    """Integration tests for FRA data."""
+
+    def test_fetch_usd_fra_1x4(self, short_date_range):
+        """Fetch USD 1x4 FRA."""
+        result = fetch_fras(
+            "USD",
+            ["1X4"],
+            start_date=short_date_range["start"],
+            end_date=short_date_range["end"],
+        )
+
+        assert "1X4" in result
+        df = result["1X4"]
+        assert not df.empty
+        assert "bid" in df.columns
+        assert "ask" in df.columns
+
+
+@pytest.mark.integration
 class TestIntradayIntegration:
     """Integration tests for intraday data."""
 
@@ -576,6 +597,52 @@ class TestEndToEndIntegration:
         assert len(stored) == result.total_rows
         assert "yield" in stored.columns
         assert stored["yield"].notna().all()
+
+    def test_full_fra_pipeline_round_trip(self, tmp_path, short_date_range):
+        """Daily FRA pipeline should persist and reload rate-shaped data."""
+        from lseg_toolkit.timeseries.config import TimeSeriesConfig
+        from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+        require_storage()
+
+        config = TimeSeriesConfig(
+            symbols=["1X4"],
+            asset_class=AssetClass.FRA,
+            start_date=short_date_range["start"],
+            end_date=short_date_range["end"],
+            granularity=Granularity.DAILY,
+            parquet_dir=str(tmp_path / "parquet"),
+            export_parquet=False,
+        )
+
+        clear_stored_range(
+            "USD1X4F",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        pipeline = TimeSeriesExtractionPipeline(config, verbose=False)
+        result = pipeline.run()
+
+        assert result.success_count == 1
+        assert result.total_rows > 0
+
+        instrument, stored = load_stored_frame(
+            "USD1X4F",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        assert instrument is not None
+        assert instrument["data_shape"] == "rate"
+        assert not stored.empty
+        assert len(stored) == result.total_rows
+        assert "bid" in stored.columns
+        assert "ask" in stored.columns
+        assert stored["bid"].notna().any()
+        assert stored["ask"].notna().any()
 
     def test_full_intraday_fed_funds_pipeline_round_trip(
         self, tmp_path, intraday_date_range
