@@ -1,6 +1,6 @@
 ---
 name: timescaledb-access
-description: Use when work in this repo needs TimescaleDB/PostgreSQL access: running storage-backed tests, inspecting schema/data, initializing the database, or preparing a shell that may need credentials from local env files or Infisical. The skill focuses on safe env discovery, namespace normalization across TSDB_* / POSTGRES_* / PG*, and read-only connection validation without printing secrets.
+description: "Use when work in this repo needs TimescaleDB/PostgreSQL access: running storage-backed tests, inspecting schema/data, initializing the database, or preparing a shell that may need credentials from local env files or Infisical. The skill focuses on safe env discovery, namespace normalization across TSDB_* / POSTGRES_* / PG*, and read-only connection validation without printing secrets."
 ---
 
 # TimescaleDB Access
