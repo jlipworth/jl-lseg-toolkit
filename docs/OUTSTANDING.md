@@ -44,4 +44,4 @@ See `dev_scripts/refactor_recommendations.md` for detailed analysis.
 
 - [x] Intraday data fetching tests in `tests/timeseries/test_integration.py`
 - [x] Broader end-to-end intraday storage/pipeline integration coverage
-- [ ] Decide whether sparse intraday volume-only bars should be filtered at fetch time or only skipped at storage time
+- [x] Filter sparse intraday volume-only OHLCV bars in fetch, while keeping storage skip as a final safeguard

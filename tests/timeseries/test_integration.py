@@ -273,6 +273,7 @@ class TestIntradayIntegration:
         # (assuming market is open)
         if not df.empty:
             assert_intraday_frame(df, ["open", "high", "low", "close"])
+            assert df["close"].notna().all()
             assert len(df) > 5  # Should have multiple bars per day
 
     def test_fetch_5min_fx(self, intraday_date_range):
