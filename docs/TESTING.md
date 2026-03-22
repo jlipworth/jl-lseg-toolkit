@@ -24,6 +24,22 @@ uv run pytest tests/test_client.py -v
 uv run pytest tests/ -k "earnings" -v
 ```
 
+### Prediction-markets quick commands
+
+```bash
+# Kalshi + Polymarket prediction-market unit tests
+uv run pytest tests/timeseries/test_pm_models.py \
+  tests/timeseries/test_pm_schema.py \
+  tests/timeseries/test_kalshi_client.py \
+  tests/timeseries/test_kalshi_extractor.py \
+  tests/timeseries/test_polymarket_client.py \
+  tests/timeseries/test_polymarket_extractor.py -v
+
+# Polymarket-focused tests only
+uv run pytest tests/timeseries/test_polymarket_client.py \
+  tests/timeseries/test_polymarket_extractor.py -v
+```
+
 ---
 
 ## Test Structure
@@ -256,6 +272,22 @@ Use the `small_index` fixture (DJI with 30 stocks) instead of SPX (500+).
 Network issues can cause intermittent failures. Consider:
 - Adding retries for specific error types
 - Using wider date ranges for time-sensitive data
+
+### Prediction-market troubleshooting tests
+
+When changing Polymarket schema/normalization/resolution behavior, rerun at
+minimum:
+
+- `tests/timeseries/test_pm_models.py`
+- `tests/timeseries/test_pm_schema.py`
+- `tests/timeseries/test_polymarket_client.py`
+- `tests/timeseries/test_polymarket_extractor.py`
+- `tests/timeseries/test_polymarket_resolution.py`
+
+If Kalshi comparison behavior is involved, also rerun:
+
+- `tests/timeseries/test_kalshi_client.py`
+- `tests/timeseries/test_kalshi_extractor.py`
 
 ---
 

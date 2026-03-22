@@ -8,6 +8,7 @@ from lseg_toolkit.timeseries.prediction_markets.polymarket.extractor import (
     backfill_fed_discovery,
     build_market_ticker,
     daily_refresh,
+    discover_fed_event_summaries,
     discover_fed_events,
     discover_fed_markets,
     extract_event_markets,
@@ -18,6 +19,12 @@ from lseg_toolkit.timeseries.prediction_markets.polymarket.extractor import (
     parse_series,
     parse_token_markets,
 )
+from lseg_toolkit.timeseries.prediction_markets.polymarket.resolution import (
+    PolymarketResolution,
+    is_macro_resolution_candidate,
+    resolve_market_family,
+    suggest_fomc_meeting_id,
+)
 
 __all__ = [
     "PolymarketClient",
@@ -25,6 +32,7 @@ __all__ = [
     "backfill_fed_discovery",
     "build_market_ticker",
     "daily_refresh",
+    "discover_fed_event_summaries",
     "discover_fed_events",
     "discover_fed_markets",
     "extract_event_markets",
@@ -34,4 +42,8 @@ __all__ = [
     "parse_market_tokens",
     "parse_token_markets",
     "parse_series",
+    "PolymarketResolution",
+    "is_macro_resolution_candidate",
+    "resolve_market_family",
+    "suggest_fomc_meeting_id",
 ]

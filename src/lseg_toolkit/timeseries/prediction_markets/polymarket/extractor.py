@@ -18,6 +18,11 @@ from lseg_toolkit.timeseries.prediction_markets.models import Market, Series
 from lseg_toolkit.timeseries.prediction_markets.polymarket.client import (
     PolymarketClient,
 )
+from lseg_toolkit.timeseries.prediction_markets.polymarket.resolution import (
+    is_macro_resolution_candidate,
+    resolve_market_family,
+    suggest_fomc_meeting_id,
+)
 from lseg_toolkit.timeseries.prediction_markets.schema import (
     seed_polymarket_platform,
 )
@@ -25,6 +30,7 @@ from lseg_toolkit.timeseries.prediction_markets.storage import (
     upsert_market,
     upsert_series,
 )
+from lseg_toolkit.timeseries.fomc.storage import get_fomc_meetings
 
 logger = logging.getLogger(__name__)
 
@@ -137,18 +143,7 @@ def _market_text(raw: dict[str, Any]) -> str:
 
 def is_fed_discovery_match(raw: dict[str, Any]) -> bool:
     """Return True when an event/market looks Fed or macro related."""
-    text = _market_text(raw)
-    if any(term in text for term in FED_DISCOVERY_NEGATIVE_TERMS):
-        return False
-    if any(term in text for term in FED_DISCOVERY_POSITIVE_TERMS):
-        return True
-
-    tag_slugs = {
-        str(tag.get("slug")).lower()
-        for tag in raw.get("tags") or []
-        if isinstance(tag, dict) and tag.get("slug")
-    }
-    return bool(tag_slugs & FED_DISCOVERY_TAG_SLUGS)
+    return is_macro_resolution_candidate(raw)
 
 
 def _event_stub(event: dict[str, Any]) -> dict[str, Any]:
@@ -284,6 +279,73 @@ def discover_fed_markets(
         closed=closed,
     )
     return extract_event_markets(events)
+
+
+def _get_fomc_meeting_id_map(conn: psycopg.Connection | None) -> dict:
+    """Build a date -> meeting id lookup for dry-run linkage suggestions."""
+    if conn is None:
+        return {}
+    return {
+        row["meeting_date"]: row["id"]
+        for row in get_fomc_meetings(conn)
+        if row.get("meeting_date") is not None and row.get("id") is not None
+    }
+
+
+def discover_fed_event_summaries(
+    conn: psycopg.Connection | None = None,
+    client: PolymarketClient | None = None,
+    *,
+    queries: Iterable[str] = FED_DISCOVERY_QUERIES,
+    limit_per_type: int = 10,
+    max_event_pages: int = 1,
+    active: bool | None = None,
+    closed: bool | None = None,
+) -> list[dict[str, Any]]:
+    """Return dry-run event summaries with conservative family resolution.
+
+    This is intended for manual review and troubleshooting. It does not mutate
+    the database or auto-write FOMC links.
+    """
+    events = discover_fed_events(
+        client=client,
+        queries=queries,
+        limit_per_type=limit_per_type,
+        max_event_pages=max_event_pages,
+        active=active,
+        closed=closed,
+    )
+    fomc_ids_by_date = _get_fomc_meeting_id_map(conn)
+
+    summaries: list[dict[str, Any]] = []
+    for event in events:
+        resolution = resolve_market_family(event)
+        close_time = _parse_datetime(event.get("endDate"))
+        summaries.append(
+            {
+                "event_slug": event.get("slug"),
+                "title": event.get("title"),
+                "close_date": close_time.date() if close_time else None,
+                "family": resolution.family,
+                "is_macro_candidate": resolution.is_macro_candidate,
+                "is_fomc_link_candidate": resolution.is_fomc_link_candidate,
+                "suggested_fomc_meeting_id": suggest_fomc_meeting_id(
+                    close_time,
+                    resolution,
+                    fomc_ids_by_date,
+                ),
+                "reason": resolution.reason,
+            }
+        )
+
+    summaries.sort(
+        key=lambda row: (
+            row["close_date"] is None,
+            row["close_date"] or datetime.max.date(),
+            str(row["event_slug"] or ""),
+        )
+    )
+    return summaries
 
 
 def build_market_ticker(condition_id: str, token_id: str) -> str:
