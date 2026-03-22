@@ -471,6 +471,7 @@ class TimeSeriesExtractionPipeline:
                 asset_class=AssetClass.FRA,
                 ric=f"{symbol}=",
                 currency="USD",
+                tenor=tenor,
             )
             results.append(result)
 
