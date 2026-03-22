@@ -18,6 +18,12 @@ CDS indices (IBOXIG05=MP, IBOXHY05=MP) work for daily data but not intraday. Doc
 
 Individual options RICs don't support time series (only snapshots). Need to research chain discovery and Greeks fields.
 
+### US Treasury Yield History Field Audit
+**Priority:** Medium
+**Status:** Investigating
+
+Live `US{tenor}T=RRPS` snapshots return populated yield fields, but recent historical runs returned price-like `BID`/`ASK` with `MID_YLD_1 = NULL`. German/UK sovereign yield history still returns usable `MID_YLD_1`. Need to confirm whether the US historical field/RIC path changed or needs a different history field selection.
+
 ---
 
 ## Technical Debt

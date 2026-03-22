@@ -7,7 +7,7 @@ They are skipped in CI using: pytest -m "not integration"
 Run locally with: uv run pytest tests/timeseries/test_integration.py -v
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -92,6 +92,53 @@ def load_stored_frame(
         )
 
     return instrument, df
+
+
+def clear_stored_range(
+    symbol: str,
+    start_date: date,
+    end_date: date,
+    granularity: Granularity,
+) -> None:
+    """Delete existing rows for a symbol/date window to keep live tests repeatable."""
+    from lseg_toolkit.timeseries.storage import get_connection
+
+    table_by_shape = {
+        "ohlcv": "timeseries_ohlcv",
+        "quote": "timeseries_quote",
+        "rate": "timeseries_rate",
+        "bond": "timeseries_bond",
+    }
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, data_shape FROM instruments WHERE symbol = %s", [symbol]
+            )
+            instrument = cur.fetchone()
+            if instrument is None:
+                return
+
+            table = table_by_shape.get(instrument["data_shape"])
+            if table is None:
+                return
+
+            cur.execute(
+                f"""
+                DELETE FROM {table}
+                WHERE instrument_id = %s
+                  AND granularity = %s
+                  AND ts >= %s
+                  AND ts <= %s
+                """,
+                [
+                    instrument["id"],
+                    granularity.value,
+                    datetime.combine(start_date, datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(end_date, datetime.max.time(), tzinfo=UTC),
+                ],
+            )
+        conn.commit()
 
 
 @pytest.mark.integration
@@ -439,6 +486,96 @@ class TestEndToEndIntegration:
         assert not stored.empty
         assert len(stored) == result.total_rows
         assert_intraday_frame(stored, ["bid", "ask", "mid"])
+
+    def test_full_ois_pipeline_round_trip(self, tmp_path, short_date_range):
+        """Daily USD OIS pipeline should persist and reload rate-shaped data."""
+        from lseg_toolkit.timeseries.config import TimeSeriesConfig
+        from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+        require_storage()
+
+        config = TimeSeriesConfig(
+            symbols=["1M"],
+            asset_class=AssetClass.OIS,
+            start_date=short_date_range["start"],
+            end_date=short_date_range["end"],
+            granularity=Granularity.DAILY,
+            parquet_dir=str(tmp_path / "parquet"),
+            export_parquet=False,
+        )
+
+        clear_stored_range(
+            "USD1MOIS",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        pipeline = TimeSeriesExtractionPipeline(config, verbose=False)
+        result = pipeline.run()
+
+        assert result.success_count == 1
+        assert result.total_rows > 0
+
+        instrument, stored = load_stored_frame(
+            "USD1MOIS",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        assert instrument is not None
+        assert instrument["data_shape"] == "rate"
+        assert not stored.empty
+        assert len(stored) == result.total_rows
+        assert "rate" in stored.columns
+        assert stored["rate"].notna().all()
+
+    def test_full_treasury_yield_pipeline_round_trip(
+        self, tmp_path, short_date_range
+    ):
+        """Daily govt-yield pipeline should persist and reload bond-shaped data."""
+        from lseg_toolkit.timeseries.config import TimeSeriesConfig
+        from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+        require_storage()
+
+        config = TimeSeriesConfig(
+            symbols=["DE10Y"],
+            asset_class=AssetClass.GOVT_YIELD,
+            start_date=short_date_range["start"],
+            end_date=short_date_range["end"],
+            granularity=Granularity.DAILY,
+            parquet_dir=str(tmp_path / "parquet"),
+            export_parquet=False,
+        )
+
+        clear_stored_range(
+            "DE10YT",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        pipeline = TimeSeriesExtractionPipeline(config, verbose=False)
+        result = pipeline.run()
+
+        assert result.success_count == 1
+        assert result.total_rows > 0
+
+        instrument, stored = load_stored_frame(
+            "DE10YT",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        assert instrument is not None
+        assert instrument["data_shape"] == "bond"
+        assert not stored.empty
+        assert len(stored) == result.total_rows
+        assert "yield" in stored.columns
+        assert stored["yield"].notna().all()
 
     def test_full_intraday_fed_funds_pipeline_round_trip(
         self, tmp_path, intraday_date_range

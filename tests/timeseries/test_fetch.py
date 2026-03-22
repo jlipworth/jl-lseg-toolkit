@@ -23,6 +23,7 @@ from lseg_toolkit.timeseries.fetch import (
     _normalize_columns,
     _split_multi_ric_response,
     fetch_timeseries,
+    parse_govt_yield_symbol,
     resolve_ric,
 )
 
@@ -82,6 +83,24 @@ class TestResolveRic:
         assert resolve_ric("ff_continuous") == "FFc1"
         assert resolve_ric("FF_CONTINUOUS_12") == "FFc12"
         assert resolve_ric("FFc12") == "FFc12"
+
+    def test_parse_govt_yield_symbol_defaults_to_us(self):
+        """Bare tenor should map to the US Treasury shorthand."""
+        assert parse_govt_yield_symbol("10Y") == (
+            "US",
+            "10Y",
+            "US10YT",
+            "US10YT=RRPS",
+        )
+
+    def test_parse_govt_yield_symbol_explicit_country(self):
+        """Explicit sovereign symbols should preserve their country code."""
+        assert parse_govt_yield_symbol("DE10Y") == (
+            "DE",
+            "10Y",
+            "DE10YT",
+            "DE10YT=RR",
+        )
 
 
 class TestNormalizeColumns:
