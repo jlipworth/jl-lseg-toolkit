@@ -3,6 +3,8 @@
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
+import httpx
+
 from lseg_toolkit.timeseries.prediction_markets.polymarket.trades import (
     aggregate_daily_candles,
     get_condition_trades,
@@ -86,6 +88,57 @@ class TestConditionTradeFetch:
         assert latest["token-yes"] == datetime.fromtimestamp(1774133887, tz=UTC)
         assert latest["token-no"] == datetime.fromtimestamp(1774133800, tz=UTC)
         assert client.get_trades.call_count == 2
+
+    def test_get_condition_trades_tolerates_deep_offset_400(self):
+        client = MagicMock()
+        request = httpx.Request("GET", "https://data-api.polymarket.com/trades")
+        response = httpx.Response(400, request=request)
+        client.get_trades.side_effect = [
+            [sample_trade(timestamp=1774133887, tx="0x1")],
+            httpx.HTTPStatusError("bad request", request=request, response=response),
+        ]
+
+        trades = get_condition_trades(client, condition_id="cond-1", limit=1)
+
+        assert len(trades) == 1
+        assert client.get_trades.call_count == 2
+
+    def test_get_condition_trades_raises_initial_400(self):
+        client = MagicMock()
+        request = httpx.Request("GET", "https://data-api.polymarket.com/trades")
+        response = httpx.Response(400, request=request)
+        client.get_trades.side_effect = httpx.HTTPStatusError(
+            "bad request",
+            request=request,
+            response=response,
+        )
+
+        try:
+            get_condition_trades(client, condition_id="cond-1", limit=1)
+        except httpx.HTTPStatusError as exc:
+            assert exc.response.status_code == 400
+        else:
+            raise AssertionError("Expected HTTPStatusError on initial page")
+
+    def test_get_last_trade_times_by_token_tolerates_deep_offset_400(self):
+        client = MagicMock()
+        request = httpx.Request("GET", "https://data-api.polymarket.com/trades")
+        response = httpx.Response(400, request=request)
+        client.get_trades.side_effect = [
+            [sample_trade(asset="token-yes", timestamp=1774133887, tx="0x1")],
+            httpx.HTTPStatusError("bad request", request=request, response=response),
+        ]
+
+        latest = get_last_trade_times_by_token(
+            client,
+            condition_id="cond-1",
+            token_ids=["token-yes", "token-no"],
+            limit=1,
+            max_pages=5,
+        )
+
+        assert latest["token-yes"] == datetime.fromtimestamp(1774133887, tz=UTC)
+        assert latest["token-no"] is None
 
 
 class TestDailyAggregation:
