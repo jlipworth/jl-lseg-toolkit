@@ -253,8 +253,12 @@ class TestDailyRefresh:
     @patch(
         "lseg_toolkit.timeseries.prediction_markets.polymarket.extractor.seed_polymarket_platform"
     )
+    @patch(
+        "lseg_toolkit.timeseries.prediction_markets.polymarket.extractor.get_last_trade_times_by_token"
+    )
     def test_daily_refresh_populates_last_trade_time(
         self,
+        mock_last_trade_times,
         mock_seed_platform,
         mock_upsert_series,
         mock_upsert_market,
@@ -265,9 +269,13 @@ class TestDailyRefresh:
         mock_upsert_market.side_effect = [101, 102]
 
         trade_ts = datetime(2026, 3, 21, 16, 11, 2, tzinfo=UTC)
+        mock_last_trade_times.return_value = {
+            "token-yes": trade_ts,
+            "token-no": None,
+        }
         mock_client = MagicMock()
         mock_client.list_markets.return_value = [sample_gamma_market()]
-        mock_client.get_last_trade_time.return_value = trade_ts
+        mock_client.list_simplified_markets.return_value = []
         mock_client_cls.return_value = mock_client
 
         mock_conn = MagicMock()
@@ -282,6 +290,8 @@ class TestDailyRefresh:
         )
         first_market = mock_upsert_market.call_args_list[0][0][1]
         assert first_market.last_trade_time == trade_ts
+        second_market = mock_upsert_market.call_args_list[1][0][1]
+        assert second_market.last_trade_time is None
         mock_conn.commit.assert_called_once()
 
 

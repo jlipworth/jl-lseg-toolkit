@@ -13,7 +13,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
+from psycopg.rows import dict_row
 
+from lseg_toolkit.timeseries.fomc.storage import get_fomc_meetings
 from lseg_toolkit.timeseries.prediction_markets.models import Market, Series
 from lseg_toolkit.timeseries.prediction_markets.polymarket.client import (
     PolymarketClient,
@@ -23,14 +25,19 @@ from lseg_toolkit.timeseries.prediction_markets.polymarket.resolution import (
     resolve_market_family,
     suggest_fomc_meeting_id,
 )
+from lseg_toolkit.timeseries.prediction_markets.polymarket.trades import (
+    aggregate_daily_candles,
+    get_condition_trades,
+    get_last_trade_times_by_token,
+)
 from lseg_toolkit.timeseries.prediction_markets.schema import (
     seed_polymarket_platform,
 )
 from lseg_toolkit.timeseries.prediction_markets.storage import (
+    upsert_candlesticks,
     upsert_market,
     upsert_series,
 )
-from lseg_toolkit.timeseries.fomc.storage import get_fomc_meetings
 
 logger = logging.getLogger(__name__)
 
@@ -608,26 +615,13 @@ def daily_refresh(
             series_id = upsert_series(conn, series)
             series_ids[series.series_ticker] = series_id
 
-        outcomes = _parse_json_list(raw.get("outcomes"))
         token_ids = _parse_json_list(raw.get("clobTokenIds"))
-        events = raw.get("events") or []
-        event0 = events[0] if events else {}
-        event_slug = event0.get("slug") or raw.get("eventSlug") or raw.get("slug")
-        last_trade_times: dict[str, datetime | None] = {}
-
-        for idx, outcome in enumerate(outcomes):
-            if not isinstance(outcome, str):
-                continue
-            token_id = (
-                str(token_ids[idx])
-                if idx < len(token_ids) and token_ids[idx] is not None
-                else f"{raw['conditionId']}:{outcome}"
-            )
-            last_trade_times[token_id] = client.get_last_trade_time(
-                condition_id=raw.get("conditionId"),
-                event_slug=event_slug,
-                outcome=outcome,
-            )
+        token_ids = [str(token_id) for token_id in token_ids if token_id is not None]
+        last_trade_times = get_last_trade_times_by_token(
+            client,
+            condition_id=str(raw["conditionId"]),
+            token_ids=token_ids,
+        )
 
         for market in parse_market_tokens(
             raw,
@@ -648,6 +642,174 @@ def daily_refresh(
         "market_count": market_count,
     }
     logger.info("Polymarket daily refresh complete: %s", summary)
+    return summary
+
+
+def _get_polymarket_markets_for_candles(
+    conn: psycopg.Connection,
+    *,
+    platform_id: int,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return stored Polymarket token rows that can be used for bar derivation."""
+    params: dict[str, Any] = {"platform_id": platform_id}
+    status_filter = ""
+    if status is not None:
+        params["status"] = status
+        status_filter = "AND status = %(status)s"
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            f"""
+            SELECT id, market_ticker, condition_id, token_id, status, close_time, last_trade_time
+            FROM pm_markets
+            WHERE platform_id = %(platform_id)s
+              AND condition_id IS NOT NULL
+              AND token_id IS NOT NULL
+              {status_filter}
+            ORDER BY condition_id, token_id
+            """,
+            params,
+        )
+        return list(cur.fetchall())
+
+
+def _filter_condition_groups_missing_candles(
+    conn: psycopg.Connection,
+    condition_groups: dict[str, list[dict[str, Any]]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Skip conditions where every stored token row already has at least one candle."""
+    market_ids = [row["id"] for rows in condition_groups.values() for row in rows]
+    if not market_ids:
+        return {}
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT market_id
+            FROM pm_candlesticks
+            WHERE market_id = ANY(%(market_ids)s)
+            """,
+            {"market_ids": market_ids},
+        )
+        existing_ids = {row["market_id"] for row in cur.fetchall()}
+
+    filtered: dict[str, list[dict[str, Any]]] = {}
+    for condition_id, rows in condition_groups.items():
+        row_ids = {row["id"] for row in rows}
+        if row_ids and row_ids.issubset(existing_ids):
+            continue
+        filtered[condition_id] = rows
+
+    return filtered
+
+
+def _group_markets_by_condition(
+    market_rows: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in market_rows:
+        condition_id = row.get("condition_id")
+        if not isinstance(condition_id, str) or not condition_id:
+            continue
+        grouped.setdefault(condition_id, []).append(row)
+    return grouped
+
+
+def backfill_candlesticks(
+    conn: psycopg.Connection,
+    *,
+    status: str | None = None,
+    missing_only: bool = True,
+    trade_limit: int = 1000,
+    max_pages_per_condition: int | None = None,
+) -> dict[str, int]:
+    """Fetch condition trades, derive token bars, and upsert `pm_candlesticks`.
+
+    This is intentionally explicit/manual for now and does not run implicitly as
+    part of metadata ingest.
+    """
+    client = PolymarketClient()
+    platform_id = seed_polymarket_platform(conn)
+    market_rows = _get_polymarket_markets_for_candles(
+        conn,
+        platform_id=platform_id,
+        status=status,
+    )
+    condition_groups = _group_markets_by_condition(market_rows)
+    if missing_only:
+        condition_groups = _filter_condition_groups_missing_candles(conn, condition_groups)
+
+    total_candles = 0
+    total_markets = 0
+
+    for condition_id, rows in condition_groups.items():
+        trades = get_condition_trades(
+            client,
+            condition_id=condition_id,
+            limit=trade_limit,
+            max_pages=max_pages_per_condition,
+        )
+        if not trades:
+            continue
+
+        candles = []
+        for row in rows:
+            market_id = int(row["id"])
+            token_id = str(row["token_id"])
+            token_candles = aggregate_daily_candles(
+                trades,
+                market_id=market_id,
+                token_id=token_id,
+            )
+            if token_candles:
+                candles.extend(token_candles)
+                total_markets += 1
+
+        if not candles:
+            continue
+
+        total_candles += upsert_candlesticks(conn, candles)
+        conn.commit()
+
+    summary = {
+        "platform_id": platform_id,
+        "conditions": len(condition_groups),
+        "markets": total_markets,
+        "candlesticks": total_candles,
+    }
+    logger.info("Polymarket candlestick backfill complete: %s", summary)
+    return summary
+
+
+def backfill_with_candlesticks(
+    conn: psycopg.Connection,
+    *,
+    metadata_max_pages: int | None = None,
+    candle_status: str | None = None,
+    missing_only: bool = True,
+    trade_limit: int = 1000,
+    max_pages_per_condition: int | None = None,
+) -> dict[str, Any]:
+    """Explicit higher-level Polymarket backfill workflow.
+
+    This keeps metadata ingest and candle upserts separate by default, but
+    provides a single manual entry point when you explicitly want both.
+    """
+    market_summary = backfill(conn, max_pages=metadata_max_pages)
+    candle_summary = backfill_candlesticks(
+        conn,
+        status=candle_status,
+        missing_only=missing_only,
+        trade_limit=trade_limit,
+        max_pages_per_condition=max_pages_per_condition,
+    )
+    summary = {
+        "platform_id": market_summary.get("platform_id"),
+        "markets": market_summary,
+        "candlesticks": candle_summary,
+    }
+    logger.info("Polymarket combined backfill complete: %s", summary)
     return summary
 
 

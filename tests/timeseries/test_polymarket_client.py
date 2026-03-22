@@ -198,8 +198,25 @@ class TestTrades:
 
         assert len(trades) == 1
         params = mock_get.call_args[1]["params"]
-        assert params["conditionId"] == "cond-1"
-        assert params["outcome"] == "Yes"
+        assert params["market"] == "cond-1"
+        assert params["offset"] == 0
+        assert params["takerOnly"] == "true"
+
+    @patch("lseg_toolkit.timeseries.prediction_markets.polymarket.client.httpx.get")
+    def test_get_trades_supports_market_list_and_offset(self, mock_get):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = []
+        resp.raise_for_status = MagicMock()
+        mock_get.return_value = resp
+
+        client = PolymarketClient()
+        client.get_trades(market=["cond-1", "cond-2"], offset=200, taker_only=False)
+
+        params = mock_get.call_args[1]["params"]
+        assert params["market"] == "cond-1,cond-2"
+        assert params["offset"] == 200
+        assert params["takerOnly"] == "false"
 
     @patch("lseg_toolkit.timeseries.prediction_markets.polymarket.client.httpx.get")
     def test_get_last_trade_time_from_unix_timestamp(self, mock_get):

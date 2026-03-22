@@ -5,7 +5,9 @@ from lseg_toolkit.timeseries.prediction_markets.polymarket.client import (
 )
 from lseg_toolkit.timeseries.prediction_markets.polymarket.extractor import (
     backfill,
+    backfill_candlesticks,
     backfill_fed_discovery,
+    backfill_with_candlesticks,
     build_market_ticker,
     daily_refresh,
     discover_fed_event_summaries,
@@ -25,10 +27,19 @@ from lseg_toolkit.timeseries.prediction_markets.polymarket.resolution import (
     resolve_market_family,
     suggest_fomc_meeting_id,
 )
+from lseg_toolkit.timeseries.prediction_markets.polymarket.trades import (
+    PolymarketTrade,
+    aggregate_daily_candles,
+    get_condition_trades,
+    get_last_trade_times_by_token,
+    parse_trade,
+)
 
 __all__ = [
     "PolymarketClient",
     "backfill",
+    "backfill_candlesticks",
+    "backfill_with_candlesticks",
     "backfill_fed_discovery",
     "build_market_ticker",
     "daily_refresh",
@@ -46,4 +57,9 @@ __all__ = [
     "is_macro_resolution_candidate",
     "resolve_market_family",
     "suggest_fomc_meeting_id",
+    "PolymarketTrade",
+    "aggregate_daily_candles",
+    "get_condition_trades",
+    "get_last_trade_times_by_token",
+    "parse_trade",
 ]
