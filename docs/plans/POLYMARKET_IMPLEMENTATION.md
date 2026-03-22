@@ -461,6 +461,15 @@ Once targeted discovery exists, add a narrow sanity-check flow against
 - [ ] **3c.3** Only populate `fomc_meeting_id` when the linkage is high-confidence
 - [ ] **3c.4** Add regression tests around date-linkage heuristics
 
+Current recommendation after live validation:
+
+- do **not** bulk-write `fomc_meeting_id` yet
+- keep using the dry-run candidate list in `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
+- when we do write linkage, restrict the first pass to:
+  - exact `close_time::date = meeting_date`
+  - clearly Fed/FOMC/rates-oriented series only
+  - explicit exclusions for legal/political “federal” false positives
+
 ### Phase 4: Historical trade ingestion
 
 - [ ] **4.1** Add trade fetch pagination/chunking strategy
@@ -477,8 +486,8 @@ Once targeted discovery exists, add a narrow sanity-check flow against
 
 ### Phase 6: Extractor/orchestration
 
-- [ ] **6.1** Implement `backfill(conn)` in `polymarket/extractor.py`
-- [ ] **6.2** Implement `daily_refresh(conn)` in `polymarket/extractor.py`
+- [x] **6.1** Implement `backfill(conn)` in `polymarket/extractor.py`
+- [x] **6.2** Implement `daily_refresh(conn)` in `polymarket/extractor.py`
 - [ ] **6.3** Follow Kalshi-style FK order:
   1. seed platform
   2. upsert series
@@ -500,7 +509,7 @@ sampling alone.
 
 ### Phase 8: Documentation
 
-- [ ] **8.1** Update `docs/PREDICTION_MARKETS.md`
+- [x] **8.1** Update `docs/PREDICTION_MARKETS.md`
 - [ ] **8.2** Update `docs/OUTSTANDING.md`
 - [ ] **8.3** Update `docs/TESTING.md`
 - [ ] **8.4** Document:
@@ -508,6 +517,17 @@ sampling alone.
   - geoblock/trading caveat
   - trade-derived bar semantics
   - source-native vs reconstructed fields
+
+### Phase 8b: Exploration follow-ups / session handoff
+
+- [x] **8b.1** Keep a temporary troubleshooting note with Polymarket ↔ FOMC dry-run links
+- [x] **8b.2** Record temporary Polymarket vs Kalshi comparison snapshots for cross-session reference
+- [ ] **8b.3** Retest Polymarket vs Kalshi liquidity during **U.S. daylight hours**
+- [ ] **8b.4** Add a small matched-liquidity comparison table for:
+  - April / June / July Fed decisions
+  - 2026 cut-count buckets
+  - selected end-2026 rate buckets
+- [ ] **8b.5** Decide whether to convert the temporary troubleshooting note into a longer-lived reference doc or fold it into `docs/PREDICTION_MARKETS.md`
 
 ---
 
@@ -595,6 +615,13 @@ Need to confirm which public endpoint is best for:
 - best ask
 - end-of-day snapshot semantics
 
+Current partial answer:
+
+- live `bestBid` / `bestAsk` are available from Gamma event-market payloads
+- full public orderbook snapshots are available from CLOB `/book` by token id
+- however, we have **not** yet defined a canonical archival/snapshot policy for
+  storing Polymarket orderbook state over time
+
 ### 3. Historical completeness
 
 Need to confirm how far back trade history can be fetched reliably from public
@@ -628,6 +655,24 @@ Current recommendation:
 
 - start with app-side targeted filtering against a larger fetched universe
 - promote to a more selective query strategy later if the API supports it cleanly
+
+### 7. Liquidity comparison methodology
+
+Open question:
+
+- what is the best apples-to-apples liquidity comparison between Polymarket and
+  Kalshi?
+
+Current recommendation:
+
+- do **not** compare raw headline liquidity fields alone
+- prefer:
+  - best bid / best ask
+  - top-of-book size
+  - spread
+  - 24h volume
+- retest during **U.S. daylight hours**, because the overnight snapshot may not
+  be representative
 
 ---
 
