@@ -6,7 +6,7 @@ These tests use mocks and don't require LSEG Workspace.
 """
 
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -19,8 +19,10 @@ from lseg_toolkit.timeseries.constants import (
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.fetch import (
     GRANULARITY_TO_INTERVAL,
+    _drop_sparse_intraday_ohlcv_rows,
     _normalize_columns,
     _split_multi_ric_response,
+    fetch_timeseries,
     resolve_ric,
 )
 
@@ -180,6 +182,57 @@ class TestNormalizeColumns:
         df = pd.DataFrame()
         result = _normalize_columns(df)
         assert result.empty
+
+
+class TestSparseIntradayFiltering:
+    """Test early filtering of sparse intraday OHLCV rows."""
+
+    def test_drop_sparse_intraday_ohlcv_rows(self):
+        """Intraday OHLCV rows with null close should be dropped."""
+        df = pd.DataFrame(
+            {
+                "open": [110.0, None],
+                "high": [111.0, None],
+                "low": [109.5, None],
+                "close": [110.5, None],
+                "volume": [1000, 250],
+            },
+            index=pd.to_datetime(["2026-03-20 14:00", "2026-03-20 15:00"]),
+        )
+
+        result = _drop_sparse_intraday_ohlcv_rows(
+            df,
+            granularity=Granularity.HOURLY,
+        )
+
+        assert len(result) == 1
+        assert result.index[0] == pd.Timestamp("2026-03-20 14:00")
+
+    def test_fetch_timeseries_drops_sparse_intraday_rows_after_normalization(self):
+        """Sparse rows should be removed directly from the generic fetch path."""
+        mock_client = MagicMock()
+        mock_client.get_history.return_value = pd.DataFrame(
+            {
+                "OPEN_PRC": [110.0, None],
+                "HIGH_1": [111.0, None],
+                "LOW_1": [109.5, None],
+                "TRDPRC_1": [110.5, None],
+                "ACVOL_UNS": [1000, 250],
+            },
+            index=pd.to_datetime(["2026-03-20 14:00", "2026-03-20 15:00"]),
+        )
+
+        result = fetch_timeseries(
+            rics=["TYc1"],
+            start_date=date(2026, 3, 20),
+            end_date=date(2026, 3, 21),
+            granularity=Granularity.HOURLY,
+            client=mock_client,
+        )
+
+        assert list(result.columns) == ["open", "high", "low", "close", "volume"]
+        assert len(result) == 1
+        assert result["close"].notna().all()
 
 
 class TestGranularityMapping:

@@ -239,6 +239,12 @@ def fetch_timeseries(
 
     # Normalize column names
     df = _normalize_columns(df, column_mapping)
+    df = _drop_sparse_intraday_ohlcv_rows(
+        df,
+        granularity=granularity,
+        column_mapping=column_mapping,
+        context=",".join(rics),
+    )
 
     return df
 
@@ -662,6 +668,50 @@ def _normalize_columns(
         df = df.rename(columns=rename_map)
 
     return df
+
+
+def _drop_sparse_intraday_ohlcv_rows(
+    df: pd.DataFrame,
+    *,
+    granularity: Granularity,
+    column_mapping: dict[str, str] | None = None,
+    context: str | None = None,
+) -> pd.DataFrame:
+    """
+    Drop intraday OHLCV rows that do not contain any usable close/price.
+
+    LSEG intraday futures can emit sparse volume-only bars where the bar exists
+    for a time bucket but all price fields are null. Those rows are not usable
+    as OHLCV observations and previously made it all the way to storage, where
+    they were skipped as a last-resort safeguard.
+
+    We now drop them earlier in the fetch path for intraday OHLCV data while
+    keeping the storage-layer skip as defense in depth.
+    """
+    if df.empty or granularity == Granularity.DAILY:
+        return df
+
+    if column_mapping is None:
+        column_mapping = COLUMN_MAPPING
+
+    normalized_targets = set(column_mapping.values())
+    is_ohlcv_shape = {"open", "high", "low", "close"}.issubset(normalized_targets)
+
+    if not is_ohlcv_shape or "close" not in df.columns:
+        return df
+
+    missing_close = df["close"].isna()
+    if not missing_close.any():
+        return df
+
+    dropped = int(missing_close.sum())
+    context_suffix = f" for {context}" if context else ""
+    logger.warning(
+        "Dropping %s sparse intraday OHLCV rows without usable close%s",
+        dropped,
+        context_suffix,
+    )
+    return df.loc[~missing_close].copy()
 
 
 def _split_multi_ric_response(
