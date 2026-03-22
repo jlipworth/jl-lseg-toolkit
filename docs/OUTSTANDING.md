@@ -26,7 +26,7 @@ Individual options RICs don't support time series (only snapshots). Need to rese
 
 | Item | Impact | Est. LOC Reduction |
 |------|--------|-------------------|
-| Extract FieldMapper class | Centralize LSEG field mappings | -400 |
+| Complete FieldMapper rollout + tests | Centralize LSEG field mappings consistently | -400 |
 | Extract `_bulk_insert` helper | DRY for all save functions | -150 |
 
 See `dev_scripts/refactor_recommendations.md` for detailed analysis.
@@ -35,8 +35,8 @@ See `dev_scripts/refactor_recommendations.md` for detailed analysis.
 
 | File | Change Needed |
 |------|---------------|
-| `fetch.py` | Add field mappings for different data shapes |
-| `constants.py` | Add LSEG -> storage field mappings |
+| `fetch.py` | Reduce remaining ad hoc field mappings where possible |
+| `storage/field_mapping.py` | Expand test coverage and keep mappings canonical |
 
 ---
 
