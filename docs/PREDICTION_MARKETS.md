@@ -237,6 +237,25 @@ Current behavior:
   - `backfill_with_candlesticks(conn)` runs metadata backfill first, then the
     explicit candle upsert step
 
+### Current Polymarket candle semantics
+
+Current daily Polymarket bars are derived as follows:
+
+- one row per **UTC trade date**
+- `ts` is stored at **00:00:00 UTC**
+- `price_open` / `price_close` use first / last trade of the UTC day
+- `price_high` / `price_low` use max / min traded price
+- `price_mean` is a **size-weighted average trade price**
+- `volume` is the **rounded integer** sum of fractional Polymarket trade size
+
+Important caveats:
+
+- Polymarket trade size is fractional, but `pm_candlesticks.volume` is
+  currently an integer field, so some precision is lost
+- deep trade-history pagination can return HTTP 400 around large offsets; the
+  current backfill treats **offset > 0** 400s as end-of-history for that
+  condition rather than failing the whole run
+
 ### Generic active refresh
 
 Entry point:

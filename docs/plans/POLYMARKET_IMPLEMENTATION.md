@@ -311,6 +311,16 @@ Use:
 - `volume` from summed trade size
 - `open_interest` left null unless a reliable platform field is found
 
+Current implementation details:
+
+- bars are grouped by **UTC trade date**
+- `ts` is anchored at **00:00:00 UTC**
+- `price_mean` is **size-weighted**
+- `volume` is currently stored as a **rounded integer** because the shared
+  schema uses `INTEGER`, even though Polymarket trade size is fractional
+- deep-offset trade pagination may return HTTP 400; the current backfill treats
+  `offset > 0` 400s as end-of-history for that condition
+
 ---
 
 ## Recommended Minimal Schema Extension
