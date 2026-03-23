@@ -182,6 +182,40 @@ class TestNormalizeColumns:
         assert "bid" in result.columns
         assert "ask" in result.columns
 
+    def test_fetch_timeseries_derives_bond_yield_from_bid_ask_yields(self):
+        """Bond fetch should backfill yield from bid/ask yield fields."""
+        mock_client = MagicMock()
+        mock_client.get_history.return_value = pd.DataFrame(
+            {
+                "BID": [99.4],
+                "ASK": [99.6],
+                "MID_YLD_1": [pd.NA],
+                "B_YLD_1": [4.24],
+                "A_YLD_1": [4.26],
+                "OPEN_YLD": [4.20],
+                "HIGH_YLD": [4.30],
+                "LOW_YLD": [4.18],
+            },
+            index=pd.to_datetime(["2026-03-20"]),
+        )
+
+        result = fetch_timeseries(
+            rics=["US10YT=RRPS"],
+            start_date=date(2026, 3, 20),
+            end_date=date(2026, 3, 21),
+            granularity=Granularity.DAILY,
+            client=mock_client,
+            column_mapping=BOND_COLUMN_MAPPING,
+        )
+
+        assert "yield" in result.columns
+        assert result.iloc[0]["yield"] == pytest.approx(4.25)
+        assert result.iloc[0]["yield_bid"] == pytest.approx(4.24)
+        assert result.iloc[0]["yield_ask"] == pytest.approx(4.26)
+        assert result.iloc[0]["open_yield"] == pytest.approx(4.20)
+        assert result.iloc[0]["yield_high"] == pytest.approx(4.30)
+        assert result.iloc[0]["yield_low"] == pytest.approx(4.18)
+
     def test_normalize_preserves_unknown_columns(self):
         """Unknown columns should be preserved."""
         df = pd.DataFrame(

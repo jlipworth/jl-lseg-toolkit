@@ -393,6 +393,11 @@ UST_YIELD_FIELDS: list[str] = [
     "PRIMACT_1",
     "MID_YLD_1",  # Primary yield field
     "SEC_YLD_1",
+    "B_YLD_1",
+    "A_YLD_1",
+    "OPEN_YLD",
+    "HIGH_YLD",
+    "LOW_YLD",
 ]
 
 UST_YIELD_RISK_FIELDS: list[str] = [
