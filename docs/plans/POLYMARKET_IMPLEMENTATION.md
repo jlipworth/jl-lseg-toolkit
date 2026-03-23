@@ -1,6 +1,6 @@
 # Polymarket Prediction Markets Implementation Plan
 
-**Status:** Planning
+**Status:** In progress - core ingest implemented, follow-up hardening remains
 **Created:** 2026-03-21
 **Branch:** `feature/prediction-markets`
 
@@ -386,13 +386,15 @@ src/lseg_toolkit/timeseries/prediction_markets/polymarket/trades.py
 
 ## Implementation Tasks
 
-Status note as of 2026-03-22:
+Status note as of 2026-03-23:
 
-- Phases 0-3 are largely complete for metadata/discovery
-- conservative family resolution + dry-run FOMC suggestion helpers are in place
+- Phases 0-5 are substantially complete
+- explicit/manual trade-derived candlestick backfill is implemented
+- targeted discovery + conservative family resolution + dry-run FOMC
+  suggestion helpers are in place
 - no automatic Polymarket `fomc_meeting_id` writes are enabled
-- the main remaining engineering block is historical trades -> derived
-  candlesticks
+- the main remaining work is orchestration hardening, linkage-write rules,
+  and optional bid/ask enrichment
 
 ### Phase 0: Schema / platform prep
 
@@ -429,11 +431,13 @@ Status note as of 2026-03-22:
 
 - [x] **3.1** Implement `upsert` flow for Polymarket series
 - [x] **3.2** Implement token-level market upserts
-- [ ] **3.3** Populate:
+- [ ] **3.3** Fully populate:
   - `last_price`
   - `volume`
   - `status`
   - `last_trade_time`
+  - current status: `last_price`, `status`, and `last_trade_time` are
+    populated; `volume` remains outstanding
 - [x] **3.4** Add summary return structure similar to Kalshi `daily_refresh()`
 
 ### Phase 3b: Targeted market discovery for macro/Fed use cases
@@ -564,13 +568,19 @@ sampling alone.
 
 ### Unit tests
 
-Add:
+Current coverage includes:
 
+- `tests/timeseries/test_pm_models.py`
+- `tests/timeseries/test_pm_schema.py`
+- `tests/timeseries/test_pm_storage.py`
 - `tests/timeseries/test_polymarket_client.py`
 - `tests/timeseries/test_polymarket_extractor.py`
+- `tests/timeseries/test_polymarket_trades.py`
 - `tests/timeseries/test_polymarket_resolution.py`
+- `tests/timeseries/test_polymarket_candles_orchestration.py`
+- `tests/timeseries/test_polymarket_workflow.py`
 
-Cover:
+Covered areas:
 
 - pagination
 - retry behavior
@@ -582,14 +592,14 @@ Cover:
 
 ### DB-backed tests
 
-Add real Postgres-backed tests for:
+Current DB/storage-oriented coverage includes:
 
 - platform seeding
 - series upsert
 - market upsert
 - candlestick upsert
-- explicit/manual `backfill_candlesticks()` smoke
-- extractor backfill/refresh smoke
+- explicit/manual `backfill_candlesticks()` orchestration smoke
+- extractor backfill/refresh workflow smoke
 
 ### Live smoke tests
 
@@ -725,9 +735,9 @@ Current recommendation:
 
 ## Recommendation
 
-Proceed with:
+Current recommendation:
 
-> **Phase 1 Polymarket = public read-only metadata + token-level market ingest + latest trade timestamps + optional snapshot enrichment, with trade-derived bars as the next step.**
+> **Keep Polymarket as a public read-only ingestion path with token-level market ingest, latest trade timestamps, targeted macro/Fed discovery, and explicit/manual trade-derived bars; defer automatic linkage writes and optional bid/ask enrichment until the rules are tighter.**
 
-This is the cleanest, lowest-risk extension of the current prediction-markets
-architecture and is fully consistent with how Kalshi is already modeled in TSDB.
+This remains the cleanest, lowest-risk fit for the current
+prediction-markets architecture and how Kalshi is already modeled in TSDB.

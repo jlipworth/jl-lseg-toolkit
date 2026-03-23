@@ -8,13 +8,15 @@ Active TODOs and feature requests for jl-lseg-toolkit.
 
 ### Prediction Markets / Polymarket
 **Priority:** Medium
-**Status:** In progress
+**Status:** Partial - core ingest landed, follow-up hardening remains
 
-- finalize conservative Polymarket family-resolution implementation from
-  `docs/POLYMARKET_RESOLUTION.md`
-- add regression tests for representative resolved Polymarket market families
-- implement trade-derived Polymarket candlesticks
+- fold explicit Polymarket candlestick derivation into the default
+  `backfill()` / `daily_refresh()` path only if we want that behavior by default
 - tighten Polymarket ↔ FOMC linkage rules before writing `fomc_meeting_id`
+- add regression tests around any future FOMC-linkage write heuristics
+- decide whether to persist raw Polymarket trades separately later
+- evaluate whether active-market snapshot enrichment should populate
+  Polymarket bid/ask close fields
 - add durable troubleshooting examples for Polymarket vs Kalshi comparisons
 
 ### Credit Instruments (CDS)
