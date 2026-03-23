@@ -288,6 +288,8 @@ Current behavior:
 - fetch latest trade timestamps from Data API using condition-level trade pages,
   then resolve per-token freshness client-side
 - upsert token/outcome rows into `pm_markets`
+- populate `volume` from the best available Gamma market-level volume field
+  (currently shared across the token rows for that `condition_id`)
 
 ### Targeted macro/Fed discovery ingest
 

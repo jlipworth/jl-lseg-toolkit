@@ -42,16 +42,16 @@ from lseg_toolkit.timeseries.prediction_markets.storage import (
 logger = logging.getLogger(__name__)
 
 FED_DISCOVERY_QUERIES = (
-    "fed decision",
+    "fed",
     "fomc",
     "federal reserve",
-    "fed rates",
     "rate cut",
-    "powell",
     "interest rate",
-    "federal funds",
+    "fed funds",
+    "powell",
     "cpi",
     "inflation",
+    "recession",
 )
 FED_DISCOVERY_TAG_SLUGS = {
     "fed",
@@ -113,6 +113,22 @@ def _parse_datetime(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed
+
+
+def _coerce_int(value: Any) -> int | None:
+    """Coerce numeric-ish values to int, rounding when needed."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(round(float(value)))
+    if isinstance(value, str):
+        try:
+            return int(round(float(value)))
+        except ValueError:
+            return None
+    return None
 
 
 def _market_text(raw: dict[str, Any]) -> str:
@@ -418,6 +434,9 @@ def parse_market_tokens(
         event0.get("endDate") or raw.get("endDate") or raw.get("endDateIso")
     )
     status = normalize_status(raw, simplified=simplified)
+    volume = _coerce_int(raw.get("volumeNum"))
+    if volume is None:
+        volume = _coerce_int(raw.get("volume"))
 
     token_lookup: dict[str, dict] = {}
     if simplified:
@@ -468,6 +487,7 @@ def parse_market_tokens(
             result=result,
             last_price=last_price,
             last_trade_time=(last_trade_times or {}).get(token_id),
+            volume=volume,
         )
         markets.append(market)
 
