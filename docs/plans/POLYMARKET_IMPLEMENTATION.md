@@ -320,6 +320,8 @@ Current implementation details:
   schema uses `INTEGER`, even though Polymarket trade size is fractional
 - deep-offset trade pagination may return HTTP 400; the current backfill treats
   `offset > 0` 400s as end-of-history for that condition
+- practical bid/ask enrichment appears limited to **current** token orderbook
+  snapshots from CLOB `/book`, not true historical daily bid/ask close history
 
 ---
 

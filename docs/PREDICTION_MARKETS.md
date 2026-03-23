@@ -255,6 +255,16 @@ Important caveats:
 - deep trade-history pagination can return HTTP 400 around large offsets; the
   current backfill treats **offset > 0** 400s as end-of-history for that
   condition rather than failing the whole run
+- `yes_bid_close` / `yes_ask_close` are still generally null for Polymarket
+  derived bars; the practical public source is the **current** CLOB `/book`
+  snapshot, not true historical daily bid/ask close history
+
+Current decision:
+
+- keep rounded integer `volume` for now
+- do **not** widen the schema yet
+- defer bid/ask enrichment until/unless we explicitly want
+  **current-day token snapshot** enrichment for active markets
 
 ### Generic active refresh
 
