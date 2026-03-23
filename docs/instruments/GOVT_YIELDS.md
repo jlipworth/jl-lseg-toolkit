@@ -5,6 +5,11 @@
 
 **Use `=RRPS` suffix** (not `=RR` which returns ACCESS DENIED)
 
+**History field note:** live `=RRPS` history can expose bid/ask yield fields
+(`B_YLD_1`, `A_YLD_1`, `OPEN_YLD`, `HIGH_YLD`, `LOW_YLD`) even when
+`MID_YLD_1` is null. The toolkit derives a usable mid-yield from those fields
+for storage and round-trip loading.
+
 | Tenor | Symbol | LSEG RIC | Status | Daily | Notes |
 |-------|--------|----------|--------|-------|-------|
 | 1M | UST1M | `US1MT=RRPS` | ✅ | ✅ | T-Bill |

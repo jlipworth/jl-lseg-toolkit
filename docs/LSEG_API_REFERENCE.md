@@ -267,6 +267,11 @@ Available tenors: 1M, 2M, 3M, 4M, 5M, 6M, 9M, 1Y, 18M, 2Y, 3Y, 4Y, 5Y, 6Y, 7Y, 8
 
 Pattern: `US{tenor}T=RRPS`
 
+History note: recent `=RRPS` history can leave `MID_YLD_1` null while still
+populating `B_YLD_1` / `A_YLD_1` plus `OPEN_YLD` / `HIGH_YLD` / `LOW_YLD`.
+The toolkit now derives a usable mid-yield from those history fields when
+needed.
+
 | Tenor | RIC | Description |
 |-------|-----|-------------|
 | 1M | US1MT=RRPS | 1-month T-Bill yield |
@@ -342,8 +347,11 @@ df = rd.get_history(universe=['EUR='], interval='hourly', start='2024-10-01', en
 - `BID_HIGH_1`, `BID_LOW_1`: High/low on bid side
 
 **Rates (OIS, Yields, FRAs):**
-- `CLOSE`: Closing rate/yield
-- `BID`, `ASK`: Bid/ask for FRAs
+- `BID`, `ASK`: Bid/ask quotes
+- `PRIMACT_1`, `HST_CLOSE`: common mid/rate history fields
+- `MID_YLD_1`: primary yield field when populated
+- `B_YLD_1`, `A_YLD_1`: bid/ask yield fields, useful fallback for US Treasury history
+- `OPEN_YLD`, `HIGH_YLD`, `LOW_YLD`: intraperiod yield stats
 
 ## RIC Reference Guides
 

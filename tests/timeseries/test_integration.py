@@ -16,6 +16,7 @@ from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.fetch import (
     fetch_fras,
     fetch_futures,
+    fetch_govt_yields,
     fetch_fx,
     fetch_ois,
     fetch_treasury_yields,
@@ -303,6 +304,21 @@ class TestTreasuryYieldsIntegration:
 
         assert len(result) > 0
 
+    def test_fetch_explicit_sovereign_yields(self, short_date_range):
+        """Fetch explicit non-US sovereign yields via country-prefixed symbols."""
+        result = fetch_govt_yields(
+            ["DE10Y", "GB10Y"],
+            start_date=short_date_range["start"],
+            end_date=short_date_range["end"],
+        )
+
+        assert "DE10YT" in result
+        assert "GB10YT" in result
+        assert not result["DE10YT"].empty
+        assert not result["GB10YT"].empty
+        assert result["DE10YT"]["yield"].notna().all()
+        assert result["GB10YT"]["yield"].notna().all()
+
 
 @pytest.mark.integration
 class TestFRAIntegration:
@@ -588,6 +604,52 @@ class TestEndToEndIntegration:
 
         instrument, stored = load_stored_frame(
             "US10YT",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        assert instrument is not None
+        assert instrument["data_shape"] == "bond"
+        assert not stored.empty
+        assert len(stored) == result.total_rows
+        assert "yield" in stored.columns
+        assert stored["yield"].notna().all()
+
+    def test_full_explicit_sovereign_yield_pipeline_round_trip(
+        self, tmp_path, short_date_range
+    ):
+        """Explicit non-US sovereign symbols should round-trip through bond storage."""
+        from lseg_toolkit.timeseries.config import TimeSeriesConfig
+        from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+        require_storage()
+
+        config = TimeSeriesConfig(
+            symbols=["DE10Y"],
+            asset_class=AssetClass.GOVT_YIELD,
+            start_date=short_date_range["start"],
+            end_date=short_date_range["end"],
+            granularity=Granularity.DAILY,
+            parquet_dir=str(tmp_path / "parquet"),
+            export_parquet=False,
+        )
+
+        clear_stored_range(
+            "DE10YT",
+            short_date_range["start"],
+            short_date_range["end"],
+            Granularity.DAILY,
+        )
+
+        pipeline = TimeSeriesExtractionPipeline(config, verbose=False)
+        result = pipeline.run()
+
+        assert result.success_count == 1
+        assert result.total_rows > 0
+
+        instrument, stored = load_stored_frame(
+            "DE10YT",
             short_date_range["start"],
             short_date_range["end"],
             Granularity.DAILY,

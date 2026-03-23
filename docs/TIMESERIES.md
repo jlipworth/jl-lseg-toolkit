@@ -11,8 +11,11 @@ lseg-extract ZN ZB
 # FX spot rates
 lseg-extract EURUSD USDJPY --asset-class fx
 
-# Treasury yield curve
+# Treasury yield curve (bare tenors default to US Treasuries)
 lseg-extract 2Y 5Y 10Y 30Y --asset-class govt-yield
+
+# Explicit non-US sovereign yields
+lseg-extract DE10Y GB10Y --asset-class govt-yield
 
 # OIS curve
 lseg-extract 1M 3M 1Y 5Y 10Y --asset-class ois
@@ -29,7 +32,7 @@ lseg-extract --list
 | `stir` | FF_CONTINUOUS | STIR futures (Fed Funds, SOFR family) |
 | `fx` | EURUSD, USDJPY | FX spot rates |
 | `ois` | 1M, 1Y, 5Y | OIS swap rates (SOFR) |
-| `govt-yield` | 2Y, 10Y, 30Y | US Treasury yields |
+| `govt-yield` | 2Y, 10Y, 30Y, DE10Y, GB10Y | Bare tenors = US Treasuries; explicit country codes select other sovereigns |
 | `fra` | 1X4, 3X6 | Forward Rate Agreements |
 | `fixing` | SOFR | Daily rate fixings |
 
@@ -69,6 +72,9 @@ lseg-extract FF_CONTINUOUS --asset-class stir --interval hourly --start 2026-03-
 
 # Full USD OIS curve
 lseg-extract 1M 2M 3M 6M 9M 1Y 2Y 3Y 5Y 7Y 10Y 15Y 20Y 30Y --asset-class ois
+
+# Explicit sovereign yields
+lseg-extract DE2Y DE5Y DE10Y DE30Y --asset-class govt-yield
 
 # Custom parquet output location
 lseg-extract ZN --parquet output/
