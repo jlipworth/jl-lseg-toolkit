@@ -147,7 +147,7 @@ lseg-screener [OPTIONS]
 
 ### lseg-extract
 
-Extract time series data for bond futures, FX, OIS, Treasury yields, and FRAs with TimescaleDB storage and Parquet export.
+Extract time series data for bond futures, FX, OIS, government yields, STIR futures, and FRAs with TimescaleDB storage and Parquet export.
 
 ```bash
 lseg-extract SYMBOLS... [OPTIONS]
@@ -155,7 +155,7 @@ lseg-extract SYMBOLS... [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `--asset-class` | Asset class: futures, fx, ois, govt-yield, fra (auto-detected if omitted) |
+| `--asset-class` | Asset class: futures, stir, fx, ois, govt-yield, fra (auto-detected if omitted) |
 | `--start DATE` | Start date (YYYY-MM-DD, default: 1 year ago) |
 | `--end DATE` | End date (YYYY-MM-DD, default: today) |
 | `--interval` | Granularity: tick, 1min, 5min, 10min, 30min, hourly, daily, weekly, monthly |
@@ -182,8 +182,14 @@ lseg-extract EURUSD USDJPY --asset-class fx --start 2025-12-01 --interval 5min
 # Extract full USD OIS curve
 lseg-extract 1M 3M 6M 1Y 2Y 5Y 10Y 30Y --asset-class ois
 
-# Extract Treasury yield curve
+# Extract Treasury yield curve (bare tenors default to US Treasuries)
 lseg-extract 2Y 5Y 10Y 30Y --asset-class govt-yield
+
+# Extract explicit non-US sovereign yields
+lseg-extract DE10Y GB10Y --asset-class govt-yield
+
+# Extract Fed Funds continuous hourly
+lseg-extract FF_CONTINUOUS --asset-class stir --interval hourly --start 2026-03-01 --end 2026-03-03
 
 # List all 200+ supported instruments
 lseg-extract --list
