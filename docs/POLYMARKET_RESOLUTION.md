@@ -75,7 +75,7 @@ Use for:
 
 - recent/historical trades
 - latest trade timestamps
-- later: trade-derived bars
+- trade-derived bars
 
 Data API is the **executed-activity source of truth**.
 

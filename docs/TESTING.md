@@ -30,14 +30,23 @@ uv run pytest tests/ -k "earnings" -v
 # Kalshi + Polymarket prediction-market unit tests
 uv run pytest tests/timeseries/test_pm_models.py \
   tests/timeseries/test_pm_schema.py \
+  tests/timeseries/test_pm_storage.py \
   tests/timeseries/test_kalshi_client.py \
   tests/timeseries/test_kalshi_extractor.py \
   tests/timeseries/test_polymarket_client.py \
-  tests/timeseries/test_polymarket_extractor.py -v
+  tests/timeseries/test_polymarket_extractor.py \
+  tests/timeseries/test_polymarket_trades.py \
+  tests/timeseries/test_polymarket_resolution.py \
+  tests/timeseries/test_polymarket_candles_orchestration.py \
+  tests/timeseries/test_polymarket_workflow.py -v
 
 # Polymarket-focused tests only
 uv run pytest tests/timeseries/test_polymarket_client.py \
-  tests/timeseries/test_polymarket_extractor.py -v
+  tests/timeseries/test_polymarket_extractor.py \
+  tests/timeseries/test_polymarket_trades.py \
+  tests/timeseries/test_polymarket_resolution.py \
+  tests/timeseries/test_polymarket_candles_orchestration.py \
+  tests/timeseries/test_polymarket_workflow.py -v
 ```
 
 ---
@@ -280,9 +289,13 @@ minimum:
 
 - `tests/timeseries/test_pm_models.py`
 - `tests/timeseries/test_pm_schema.py`
+- `tests/timeseries/test_pm_storage.py`
 - `tests/timeseries/test_polymarket_client.py`
 - `tests/timeseries/test_polymarket_extractor.py`
+- `tests/timeseries/test_polymarket_trades.py`
 - `tests/timeseries/test_polymarket_resolution.py`
+- `tests/timeseries/test_polymarket_candles_orchestration.py`
+- `tests/timeseries/test_polymarket_workflow.py`
 
 If Kalshi comparison behavior is involved, also rerun:
 

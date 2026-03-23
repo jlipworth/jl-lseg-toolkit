@@ -1,7 +1,7 @@
 """Polymarket extraction orchestrator.
 
-Initial implementation focuses on platform/series/market ingestion only.
-Trade-derived candlestick generation will be added in a later phase.
+Supports metadata ingest, active-market refresh, targeted Fed/macro discovery,
+and explicit/manual trade-derived candlestick backfill.
 """
 
 from __future__ import annotations
@@ -499,7 +499,8 @@ def backfill(
     """
     Backfill Polymarket metadata into platform/series/market tables.
 
-    Trade-derived candlesticks are intentionally not included yet.
+    Trade-derived candlesticks remain a separate explicit/manual step via
+    ``backfill_candlesticks()`` or ``backfill_with_candlesticks()``.
     """
     client = PolymarketClient()
     platform_id = seed_polymarket_platform(conn)

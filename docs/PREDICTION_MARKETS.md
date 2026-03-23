@@ -17,20 +17,26 @@ Current implementation status:
   - future FOMC calendar scrape
   - Kalshi market/candlestick ingestion
   - Kalshi active-market refresh
+  - Polymarket metadata ingestion
+  - Polymarket active-market refresh
+  - Polymarket targeted Fed/macro discovery ingest
+  - Polymarket trade-derived candlestick backfill workflow
+  - conservative Polymarket family-resolution helpers
   - implied probability reconstruction helpers
   - manual FedWatch loader scaffolding
 - Not yet implemented:
-  - full Polymarket ingestion / candlestick history
+  - automatic/high-confidence Polymarket `fomc_meeting_id` writes
+  - default Polymarket candle generation inside `backfill()` / `daily_refresh()`
   - full FedWatch automated scraping/export retrieval
 
-Current exploratory Polymarket work:
+Current Polymarket references:
 
 - `src/lseg_toolkit/timeseries/prediction_markets/polymarket/`
-  - mirrors the Kalshi module layout with a `client.py` and `extractor.py`
+  - Polymarket client, extractor, trades, and resolution helpers
 - `docs/plans/POLYMARKET_IMPLEMENTATION.md`
-  - actively updated implementation plan
+  - implementation history, status, and remaining follow-ups
 - `docs/POLYMARKET_RESOLUTION.md`
-  - working resolution and normalization spec for Polymarket macro/Fed data
+  - canonical resolution and normalization spec for Polymarket macro/Fed data
 - `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
   - temporary troubleshooting note for candidate Polymarket ↔ FOMC links and
     cross-session comparison snapshots
@@ -62,6 +68,8 @@ Recommended interpretation:
   - FOMC meeting history + future schedule
 - `src/lseg_toolkit/timeseries/prediction_markets/kalshi/`
   - Kalshi client + extractor
+- `src/lseg_toolkit/timeseries/prediction_markets/polymarket/`
+  - Polymarket client + extractor + trades + resolution helpers
 - `src/lseg_toolkit/timeseries/prediction_markets/fedwatch/`
   - FedWatch file loader helpers
 - `src/lseg_toolkit/timeseries/prediction_markets/analysis/`
@@ -585,9 +593,10 @@ Recommended Polymarket checks when something looks wrong:
 
 ## Known Gaps
 
-- Polymarket ingestion
-- finalized Polymarket family-resolution implementation
-- Polymarket trade-derived candlestick generation
-- Polymarket troubleshooting examples/tests in docs
+- automatic/high-confidence `pm_markets.fomc_meeting_id` writes for Polymarket
+- regression coverage for future FOMC-linkage write heuristics
+- default automatic Polymarket candle generation inside `backfill()` / `daily_refresh()`
+- historical Polymarket bid/ask close enrichment for derived candles
+- broader Polymarket vs Kalshi liquidity-comparison reference snapshots
 - automated FedWatch scraping/export retrieval
 - richer reference docs / examples for PM comparison workflows
