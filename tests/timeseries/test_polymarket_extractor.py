@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from lseg_toolkit.timeseries.prediction_markets.polymarket.extractor import (
+    FED_DISCOVERY_QUERIES,
     backfill,
     backfill_fed_discovery,
     build_market_ticker,
@@ -29,6 +30,8 @@ def sample_gamma_market() -> dict:
         "outcomes": '["Yes", "No"]',
         "outcomePrices": '["0.42", "0.58"]',
         "clobTokenIds": '["token-yes", "token-no"]',
+        "volume": 17745616.79,
+        "volumeNum": 17745617,
         "active": True,
         "closed": False,
         "archived": False,
@@ -68,6 +71,7 @@ class TestParseTokenMarkets:
         assert markets[0].event_slug == "fed-september-2026-decision"
         assert markets[0].question_slug == "will-the-fed-cut-in-september"
         assert markets[0].last_price == 0.42
+        assert markets[0].volume == 17745617
         assert markets[0].status == "active"
 
     def test_parse_token_markets_parses_timestamps(self):
@@ -79,6 +83,15 @@ class TestParseTokenMarkets:
         raw = sample_gamma_market() | {"active": True, "closed": True}
         markets = parse_token_markets(raw, platform_id=2, series_id=10)
         assert all(m.status == "closed" for m in markets)
+
+    def test_parse_token_markets_rounds_volume_from_volume_when_volume_num_missing(self):
+        raw = sample_gamma_market()
+        raw.pop("volumeNum")
+        raw["volume"] = 123.6
+
+        markets = parse_token_markets(raw, platform_id=2, series_id=10)
+
+        assert all(m.volume == 124 for m in markets)
 
 
 def sample_fed_event() -> dict:
@@ -118,6 +131,20 @@ class TestDiscoveryHelpers:
 
 
 class TestDiscovery:
+    def test_default_discovery_queries_match_curated_macro_rates_seed_list(self):
+        assert FED_DISCOVERY_QUERIES == (
+            "fed",
+            "fomc",
+            "federal reserve",
+            "rate cut",
+            "interest rate",
+            "fed funds",
+            "powell",
+            "cpi",
+            "inflation",
+            "recession",
+        )
+
     def test_discover_fed_events_dedupes_search_and_tag_expansion(self):
         client = MagicMock()
         client.search_public.side_effect = [

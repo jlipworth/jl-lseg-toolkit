@@ -431,13 +431,13 @@ Status note as of 2026-03-23:
 
 - [x] **3.1** Implement `upsert` flow for Polymarket series
 - [x] **3.2** Implement token-level market upserts
-- [ ] **3.3** Fully populate:
+- [x] **3.3** Fully populate:
   - `last_price`
   - `volume`
   - `status`
   - `last_trade_time`
-  - current status: `last_price`, `status`, and `last_trade_time` are
-    populated; `volume` remains outstanding
+  - current behavior: `volume` uses the best available Gamma market-level
+    volume field and is therefore shared across the token rows for a condition
 - [x] **3.4** Add summary return structure similar to Kalshi `daily_refresh()`
 
 ### Phase 3b: Targeted market discovery for macro/Fed use cases
@@ -448,7 +448,7 @@ for finding the contracts we actually care about in the rates workflow.
 - [x] **3b.1** Add a targeted Polymarket discovery helper in the client or extractor
 - [x] **3b.2** Support discovery by keyword/query terms across title / slug / event fields
 - [x] **3b.3** Include both **active** and **closed** markets in discovery mode
-- [ ] **3b.4** Start with a curated search list for macro/rates:
+- [x] **3b.4** Start with a curated search list for macro/rates:
   - `fed`
   - `fomc`
   - `federal reserve`
