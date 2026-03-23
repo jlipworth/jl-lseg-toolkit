@@ -366,12 +366,12 @@ def normalize_status(raw: dict, simplified: dict | None = None) -> str:
         return "settled"
     if str(raw.get("umaResolutionStatus", "")).lower() == "resolved":
         return "settled"
-    if raw.get("active"):
-        return "active"
     if raw.get("closed"):
         return "closed"
     if raw.get("archived"):
         return "closed"
+    if raw.get("active"):
+        return "active"
     return "active"
 
 
@@ -810,6 +810,59 @@ def backfill_with_candlesticks(
         "candlesticks": candle_summary,
     }
     logger.info("Polymarket combined backfill complete: %s", summary)
+    return summary
+
+
+def cleanup_stale_active_statuses(conn: psycopg.Connection) -> dict[str, int]:
+    """Mark clearly stale Polymarket active rows as closed/settled.
+
+    This targets rows already stored in TSDB where:
+    - platform = polymarket
+    - status = active
+    - close_time is in the past
+
+    If a result is already present, we mark the row as settled; otherwise
+    it becomes closed.
+    """
+    platform_id = seed_polymarket_platform(conn)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM pm_markets
+            WHERE platform_id = %(platform_id)s
+              AND status = 'active'
+              AND close_time IS NOT NULL
+              AND close_time < NOW()
+            """,
+            {"platform_id": platform_id},
+        )
+        result = cur.fetchone() or {"count": 0}
+        stale_count = int(result["count"])
+
+        cur.execute(
+            """
+            UPDATE pm_markets
+            SET status = CASE
+                    WHEN result IS NOT NULL THEN 'settled'
+                    ELSE 'closed'
+                END,
+                updated_at = NOW()
+            WHERE platform_id = %(platform_id)s
+              AND status = 'active'
+              AND close_time IS NOT NULL
+              AND close_time < NOW()
+            """,
+            {"platform_id": platform_id},
+        )
+
+    conn.commit()
+    summary = {
+        "platform_id": platform_id,
+        "updated_markets": stale_count,
+    }
+    logger.info("Polymarket stale-status cleanup complete: %s", summary)
     return summary
 
 

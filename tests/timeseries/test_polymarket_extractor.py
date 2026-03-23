@@ -7,6 +7,7 @@ from lseg_toolkit.timeseries.prediction_markets.polymarket.extractor import (
     backfill,
     backfill_fed_discovery,
     build_market_ticker,
+    cleanup_stale_active_statuses,
     daily_refresh,
     discover_fed_event_summaries,
     discover_fed_events,
@@ -73,6 +74,11 @@ class TestParseTokenMarkets:
         markets = parse_token_markets(sample_gamma_market(), platform_id=2, series_id=10)
         assert markets[0].open_time == datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
         assert markets[0].close_time == datetime(2026, 9, 16, 18, 0, tzinfo=UTC)
+
+    def test_parse_token_markets_closed_beats_active_for_status(self):
+        raw = sample_gamma_market() | {"active": True, "closed": True}
+        markets = parse_token_markets(raw, platform_id=2, series_id=10)
+        assert all(m.status == "closed" for m in markets)
 
 
 def sample_fed_event() -> dict:
@@ -342,4 +348,29 @@ class TestFedDiscoveryBackfill:
         assert summary["platform_id"] == 2
         assert summary["series"] == 1
         assert summary["markets"] == 2
+        mock_conn.commit.assert_called_once()
+
+
+class TestCleanupStaleActiveStatuses:
+    @patch(
+        "lseg_toolkit.timeseries.prediction_markets.polymarket.extractor.seed_polymarket_platform"
+    )
+    def test_cleanup_marks_past_close_active_rows_closed_or_settled(
+        self,
+        mock_seed_platform,
+    ):
+        mock_seed_platform.return_value = 2
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = {"count": 7}
+
+        summary = cleanup_stale_active_statuses(mock_conn)
+
+        assert summary["updated_markets"] == 7
+        assert mock_cursor.execute.call_count == 2
+        sql = mock_cursor.execute.call_args_list[1][0][0]
+        assert "UPDATE pm_markets" in sql
+        assert "status = CASE" in sql
         mock_conn.commit.assert_called_once()
