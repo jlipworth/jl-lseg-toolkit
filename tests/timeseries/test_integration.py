@@ -288,6 +288,8 @@ class TestTreasuryYieldsIntegration:
         assert "10Y" in result
         df = result["10Y"]
         assert not df.empty
+        assert "yield" in df.columns
+        assert df["yield"].notna().all()
 
     def test_fetch_yield_curve(self, short_date_range):
         """Fetch full yield curve."""
@@ -555,14 +557,14 @@ class TestEndToEndIntegration:
     def test_full_treasury_yield_pipeline_round_trip(
         self, tmp_path, short_date_range
     ):
-        """Daily govt-yield pipeline should persist and reload bond-shaped data."""
+        """Daily US Treasury yield pipeline should persist and reload bond-shaped data."""
         from lseg_toolkit.timeseries.config import TimeSeriesConfig
         from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
 
         require_storage()
 
         config = TimeSeriesConfig(
-            symbols=["DE10Y"],
+            symbols=["10Y"],
             asset_class=AssetClass.GOVT_YIELD,
             start_date=short_date_range["start"],
             end_date=short_date_range["end"],
@@ -572,7 +574,7 @@ class TestEndToEndIntegration:
         )
 
         clear_stored_range(
-            "DE10YT",
+            "US10YT",
             short_date_range["start"],
             short_date_range["end"],
             Granularity.DAILY,
@@ -585,7 +587,7 @@ class TestEndToEndIntegration:
         assert result.total_rows > 0
 
         instrument, stored = load_stored_frame(
-            "DE10YT",
+            "US10YT",
             short_date_range["start"],
             short_date_range["end"],
             Granularity.DAILY,

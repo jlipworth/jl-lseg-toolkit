@@ -244,6 +244,7 @@ def fetch_timeseries(
 
     # Normalize column names
     df = _normalize_columns(df, column_mapping)
+    df = _fill_missing_bond_yields(df, column_mapping)
     df = _drop_sparse_intraday_ohlcv_rows(
         df,
         granularity=granularity,
@@ -746,6 +747,57 @@ def _normalize_columns(
 
     if rename_map:
         df = df.rename(columns=rename_map)
+
+    return df
+
+
+def _fill_missing_bond_yields(
+    df: pd.DataFrame,
+    column_mapping: dict[str, str] | None = None,
+) -> pd.DataFrame:
+    """
+    Fill normalized bond yield fields when vendor history omits MID_YLD_1.
+
+    Recent US Treasury `=RRPS` history can return populated bid/ask yield
+    fields (`B_YLD_1`, `A_YLD_1`, plus open/high/low yields) while leaving
+    `MID_YLD_1` null. After normalization those become `yield_bid`,
+    `yield_ask`, `open_yield`, `yield_high`, and `yield_low`.
+
+    For bond-shaped data, derive `yield` from the bid/ask midpoint when it is
+    otherwise missing, keeping downstream storage and round-trip behavior
+    stable despite LSEG's inconsistent field population.
+    """
+    if df.empty:
+        return df
+
+    if column_mapping is None:
+        column_mapping = COLUMN_MAPPING
+
+    normalized_targets = set(column_mapping.values())
+    is_bond_shape = "yield" in normalized_targets and "open_price" in normalized_targets
+    if not is_bond_shape:
+        return df
+
+    if "yield" not in df.columns:
+        df["yield"] = pd.Series(pd.NA, index=df.index, dtype="Float64")
+    else:
+        df["yield"] = pd.to_numeric(df["yield"], errors="coerce").astype("Float64")
+
+    if "yield_bid" in df.columns and "yield_ask" in df.columns:
+        yield_bid = pd.to_numeric(df["yield_bid"], errors="coerce")
+        yield_ask = pd.to_numeric(df["yield_ask"], errors="coerce")
+        missing_yield = df["yield"].isna()
+        if missing_yield.any():
+            midpoint = ((yield_bid + yield_ask) / 2).astype("Float64")
+            df.loc[missing_yield, "yield"] = midpoint.loc[missing_yield]
+
+    if "yield" in df.columns and "SEC_YLD_1" in df.columns:
+        missing_yield = df["yield"].isna()
+        if missing_yield.any():
+            secondary_yield = pd.to_numeric(df["SEC_YLD_1"], errors="coerce").astype(
+                "Float64"
+            )
+            df.loc[missing_yield, "yield"] = secondary_yield.loc[missing_yield]
 
     return df
 
