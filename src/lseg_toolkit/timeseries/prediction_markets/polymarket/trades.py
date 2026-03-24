@@ -57,9 +57,7 @@ def parse_trade(raw: dict) -> PolymarketTrade:
         size=float(raw["size"]),
         timestamp=ts,
         side=str(raw["side"]) if raw.get("side") is not None else None,
-        outcome_label=(
-            str(raw["outcome"]) if raw.get("outcome") is not None else None
-        ),
+        outcome_label=(str(raw["outcome"]) if raw.get("outcome") is not None else None),
         transaction_hash=(
             str(raw["transactionHash"])
             if raw.get("transactionHash") is not None

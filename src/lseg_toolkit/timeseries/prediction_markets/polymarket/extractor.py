@@ -240,7 +240,8 @@ def discover_fed_events(
             if not isinstance(tag_id, int):
                 continue
             if tag_slug in FED_DISCOVERY_TAG_SLUGS or any(
-                term in f"{tag_label} {tag_slug}" for term in FED_DISCOVERY_POSITIVE_TERMS
+                term in f"{tag_label} {tag_slug}"
+                for term in FED_DISCOVERY_POSITIVE_TERMS
             ):
                 discovered_tag_ids.add(tag_id)
 
@@ -396,9 +397,14 @@ def parse_series(raw: dict, platform_id: int) -> Series:
     events = raw.get("events") or []
     event0 = events[0] if events else {}
     series_ticker = (
-        event0.get("slug") or raw.get("eventSlug") or raw.get("slug") or raw["conditionId"]
+        event0.get("slug")
+        or raw.get("eventSlug")
+        or raw.get("slug")
+        or raw["conditionId"]
     )
-    title = event0.get("title") or raw.get("question") or raw.get("title") or series_ticker
+    title = (
+        event0.get("title") or raw.get("question") or raw.get("title") or series_ticker
+    )
 
     return Series(
         platform_id=platform_id,
@@ -536,7 +542,9 @@ def backfill(
             series_id = upsert_series(conn, series)
             series_ids[series.series_ticker] = series_id
 
-        for market in parse_market_tokens(raw, platform_id=platform_id, series_id=series_id):
+        for market in parse_market_tokens(
+            raw, platform_id=platform_id, series_id=series_id
+        ):
             upsert_market(conn, market)
             market_count += 1
 
@@ -583,7 +591,9 @@ def backfill_fed_discovery(
             series_id = upsert_series(conn, series)
             series_ids[series.series_ticker] = series_id
 
-        for market in parse_market_tokens(raw, platform_id=platform_id, series_id=series_id):
+        for market in parse_market_tokens(
+            raw, platform_id=platform_id, series_id=series_id
+        ):
             upsert_market(conn, market)
             market_count += 1
 
@@ -759,7 +769,9 @@ def backfill_candlesticks(
     )
     condition_groups = _group_markets_by_condition(market_rows)
     if missing_only:
-        condition_groups = _filter_condition_groups_missing_candles(conn, condition_groups)
+        condition_groups = _filter_condition_groups_missing_candles(
+            conn, condition_groups
+        )
 
     total_candles = 0
     total_markets = 0

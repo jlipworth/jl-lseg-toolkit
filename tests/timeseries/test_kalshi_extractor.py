@@ -180,7 +180,9 @@ class TestFetchCandlesticksForMarkets:
             }
         ]
         mock_upsert_candlesticks.return_value = 1
-        mock_get_connection.return_value.__enter__ = MagicMock(return_value=mock_write_conn)
+        mock_get_connection.return_value.__enter__ = MagicMock(
+            return_value=mock_write_conn
+        )
         mock_get_connection.return_value.__exit__ = MagicMock(return_value=False)
 
         count = _fetch_candlesticks_for_markets(
@@ -219,7 +221,9 @@ class TestFilterMarketsMissingCandlesticks:
 class TestBackfill:
     """Tests for the backfill orchestrator."""
 
-    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.sync_fomc_meetings")
+    @patch(
+        "lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.sync_fomc_meetings"
+    )
     @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.KalshiClient")
     def test_backfill_seeds_platform(self, mock_client_cls, mock_sync_fomc):
         """Backfill should seed the Kalshi platform first."""
@@ -244,7 +248,9 @@ class TestBackfill:
 class TestDailyRefresh:
     """Tests for the daily refresh orchestrator."""
 
-    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.sync_fomc_meetings")
+    @patch(
+        "lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.sync_fomc_meetings"
+    )
     @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.KalshiClient")
     def test_daily_refresh_fetches_active_markets(
         self, mock_client_cls, mock_sync_fomc
@@ -268,7 +274,9 @@ class TestDailyRefresh:
             assert c.kwargs.get("status") == "active"
 
     @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.upsert_market")
-    @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.sync_fomc_meetings")
+    @patch(
+        "lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.sync_fomc_meetings"
+    )
     @patch("lseg_toolkit.timeseries.prediction_markets.kalshi.extractor.KalshiClient")
     def test_daily_refresh_populates_last_trade_time(
         self, mock_client_cls, mock_sync_fomc, mock_upsert_market
