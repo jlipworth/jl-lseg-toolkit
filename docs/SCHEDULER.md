@@ -129,17 +129,17 @@ SCHEDULER_INTRADAY_RETENTION   # Days to keep intraday data (default: 90)
 
 ### Using Infisical
 
-The examples below are illustrative and reflect one maintainer setup. You can use your own
-TimescaleDB/PostgreSQL credentials and your own secret-manager path/configuration.
+If you use Infisical or another secret manager, inject your own
+TimescaleDB/PostgreSQL credentials into the shell before running scheduler
+commands. Keep the workflow environment-driven via `TSDB_*` or `POSTGRES_*`
+rather than hardcoding a repo-specific secret path in shared docs.
 
 ```bash
-# Start shell with credentials injected
-cd ~/proxmox-project
-infisical run --env=dev --path="/kubernetes/infrastructure/timescaledb" -- bash
+# Start a shell with your own secret-manager configuration
+infisical run ... -- bash
 
-# Or prefix each command
-infisical run --env=dev --path="/kubernetes/infrastructure/timescaledb" -- \
-  lseg-scheduler status
+# Or prefix a single command
+infisical run ... -- lseg-scheduler status
 ```
 
 ## Cron Schedule Examples
