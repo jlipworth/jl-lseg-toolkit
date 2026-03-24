@@ -2,10 +2,10 @@
 Enumerations for the timeseries module.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class AssetClass(str, Enum):
+class AssetClass(StrEnum):
     """Asset class classification for instruments."""
 
     # Futures
@@ -46,7 +46,7 @@ class AssetClass(str, Enum):
     OPTION = "option"
 
 
-class DataShape(str, Enum):
+class DataShape(StrEnum):
     """Data shape classification for routing to correct storage table."""
 
     OHLCV = "ohlcv"  # Futures, equities, commodities, indices
@@ -56,7 +56,7 @@ class DataShape(str, Enum):
     FIXING = "fixing"  # SOFR, ESTR, SONIA, EURIBOR fixings
 
 
-class Granularity(str, Enum):
+class Granularity(StrEnum):
     """Time series data granularity.
 
     Note: 15min is NOT supported by LSEG API.
@@ -75,7 +75,7 @@ class Granularity(str, Enum):
     MONTHLY = "monthly"
 
 
-class ContinuousType(str, Enum):
+class ContinuousType(StrEnum):
     """Type of continuous contract series."""
 
     DISCRETE = "discrete"  # Single contract (e.g., TYH5)
@@ -84,7 +84,7 @@ class ContinuousType(str, Enum):
     DIFFERENCE_ADJUSTED = "difference_adjusted"  # Backward difference adjustment
 
 
-class RollMethod(str, Enum):
+class RollMethod(StrEnum):
     """Method for determining roll dates in continuous contracts."""
 
     VOLUME_SWITCH = "volume_switch"  # Roll when back month volume > front
@@ -93,7 +93,7 @@ class RollMethod(str, Enum):
     EXPIRY = "expiry"  # Roll on expiry day (LSEG default for c1)
 
 
-class FuturesMonth(str, Enum):
+class FuturesMonth(StrEnum):
     """Futures month codes."""
 
     F = "F"  # January

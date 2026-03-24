@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from lseg_toolkit.timeseries.enums import AssetClass, DataShape, Granularity
 
 
-class InstrumentGroup(str, Enum):
+class InstrumentGroup(StrEnum):
     """Predefined instrument groups from constants.py."""
 
     # Futures - Bond

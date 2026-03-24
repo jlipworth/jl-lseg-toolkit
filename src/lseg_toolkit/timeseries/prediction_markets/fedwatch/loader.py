@@ -48,7 +48,12 @@ def _read_frame(path: str | Path, sheet_name: str | int | None = 0) -> pd.DataFr
     if suffix == ".csv":
         return pd.read_csv(path)
     if suffix in {".xls", ".xlsx"}:
-        return pd.read_excel(path, sheet_name=sheet_name)
+        frame = pd.read_excel(path, sheet_name=sheet_name)
+        if isinstance(frame, dict):
+            if not frame:
+                raise ValueError(f"No sheets found in FedWatch workbook: {path}")
+            return next(iter(frame.values()))
+        return frame
     raise ValueError(f"Unsupported FedWatch file type: {path.suffix}")
 
 
@@ -65,15 +70,21 @@ def normalize_fedwatch_frame(
     - long format with columns like date/meeting_date/rate_bucket/probability
     - wide format with one date column and many bucket columns
     """
-    renamed = df.rename(columns={column: _canonical_column_name(column) for column in df.columns})
+    renamed = df.rename(
+        columns={column: _canonical_column_name(column) for column in df.columns}
+    )
 
     if {"as_of_date", "rate_bucket", "probability"}.issubset(renamed.columns):
         normalized = renamed.copy()
         if "meeting_date" not in normalized.columns:
             if meeting_date is None:
-                raise ValueError("meeting_date is required when the FedWatch file omits it")
+                raise ValueError(
+                    "meeting_date is required when the FedWatch file omits it"
+                )
             normalized["meeting_date"] = meeting_date
-        normalized = normalized[["as_of_date", "meeting_date", "rate_bucket", "probability"]]
+        normalized = normalized[
+            ["as_of_date", "meeting_date", "rate_bucket", "probability"]
+        ]
     else:
         as_of_candidates = [
             column for column in renamed.columns if column == "as_of_date"
@@ -90,7 +101,9 @@ def normalize_fedwatch_frame(
         if "meeting_date" in renamed.columns:
             id_columns.append("meeting_date")
 
-        value_columns = [column for column in renamed.columns if column not in id_columns]
+        value_columns = [
+            column for column in renamed.columns if column not in id_columns
+        ]
         normalized = renamed.melt(
             id_vars=id_columns,
             value_vars=value_columns,
@@ -104,7 +117,9 @@ def normalize_fedwatch_frame(
     normalized["as_of_date"] = pd.to_datetime(normalized["as_of_date"]).dt.date
     normalized["meeting_date"] = pd.to_datetime(normalized["meeting_date"]).dt.date
     normalized["rate_bucket"] = normalized["rate_bucket"].map(_normalize_bucket_label)
-    normalized["probability"] = pd.to_numeric(normalized["probability"], errors="coerce")
+    normalized["probability"] = pd.to_numeric(
+        normalized["probability"], errors="coerce"
+    )
     normalized = normalized.dropna(subset=["probability"])
 
     if probability_scale == "percent":
@@ -155,8 +170,8 @@ def build_distribution(
         return {}
 
     grouped = (
-        working.groupby("rate_bucket", as_index=False)["probability"]
-        .last()
+        working.groupby("rate_bucket", as_index=False)
+        .agg(probability=("probability", "last"))
         .sort_values("rate_bucket")
     )
     total = float(grouped["probability"].sum())

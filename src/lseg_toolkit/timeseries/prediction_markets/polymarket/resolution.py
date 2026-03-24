@@ -7,9 +7,9 @@ about for macro/Fed workflows. Everything else is left unresolved or excluded.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Mapping
 from typing import Any
 
 EXCLUDE_TERMS = (

@@ -26,7 +26,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -98,7 +98,7 @@ class CacheError(Exception):
 # =============================================================================
 
 
-class FetchStatus(str, Enum):
+class FetchStatus(StrEnum):
     """Status of a fetch operation."""
 
     SUCCESS = "success"
