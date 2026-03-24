@@ -3,12 +3,12 @@ Pydantic models for FOMC data.
 """
 
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class RateDecision(str, Enum):
+class RateDecision(StrEnum):
     """FOMC rate decision type."""
 
     CUT = "cut"
