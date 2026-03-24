@@ -15,6 +15,11 @@ This document defines:
 
 This is intentionally a **resolver spec**, not a universal classifier spec.
 
+Key helper functions in code:
+- `is_macro_resolution_candidate()`
+- `resolve_market_family()`
+- `suggest_fomc_meeting_id()`
+
 The design goal is:
 
 - keep ingestion generic
@@ -34,7 +39,7 @@ Related docs:
 
 - `docs/PREDICTION_MARKETS.md`
   - top-level workflow and troubleshooting entry point
-- `docs/plans/POLYMARKET_IMPLEMENTATION.md`
+- `docs/archive/POLYMARKET_IMPLEMENTATION_HISTORY.md`
   - implementation history and next tasks
 - `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
   - dry-run exploratory note, not production linkage policy

@@ -1,7 +1,8 @@
 # Temporary Polymarket ↔ FOMC Link Notes
 
-**Status:** temporary troubleshooting note  
-**Created:** 2026-03-22  
+**Status:** temporary troubleshooting note
+**Created:** 2026-03-22
+**Last reviewed:** 2026-03-24
 **Purpose:** keep a stable reference list of high-confidence Polymarket/FOMC links
 while the integration and comparison workflow is still exploratory.
 

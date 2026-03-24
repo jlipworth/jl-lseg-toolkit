@@ -1,527 +1,117 @@
 # Architecture
 
-System design and architecture documentation for the LSEG Toolkit.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [System Diagrams](#system-diagrams)
-- [Data Flow](#data-flow)
-- [Module Responsibilities](#module-responsibilities)
-- [Key Design Decisions](#key-design-decisions)
-- [Error Handling](#error-handling)
-- [Testing Strategy](#testing-strategy)
+Current subsystem map for `jl-lseg-toolkit`.
 
 ## Overview
 
-The LSEG Toolkit is a modular Python package for extracting and analyzing financial data from the LSEG (London Stock Exchange Group) API. It provides both CLI tools and a Python API for data retrieval.
+The repo now has two major surfaces:
 
-## System Diagrams
+1. **Core LSEG client + report tools**
+   - earnings reporting
+   - equity screening
+   - financial ratios / consensus / point-in-time snapshots
+2. **Timeseries platform**
+   - extraction
+   - TimescaleDB/PostgreSQL storage
+   - scheduler-driven collection
+   - Fed Funds / FOMC support
+   - Kalshi / Polymarket / FedWatch workflows
 
-### High-Level Architecture
+## CLI entrypoints
 
-```mermaid
-flowchart TB
-    subgraph CLI["CLI Tools"]
-        E[lseg-earnings]
-        S[lseg-screener]
-        Setup[lseg-setup]
-    end
+| Command | Layer |
+|---------|-------|
+| `lseg-setup` | LSEG app-key configuration |
+| `lseg-earnings` | Earnings report pipeline |
+| `lseg-screener` | Equity screener pipeline |
+| `lseg-extract` | Timeseries extraction pipeline |
+| `lseg-scheduler` | Scheduler management / daemon control |
 
-    subgraph Pipelines["Pipeline Layer"]
-        EP[EarningsReportPipeline]
-        SP[EquityScreenerPipeline]
-    end
+## Top-level package structure
 
-    subgraph Client["LsegClient"]
-        Session[session.py]
-        Const[constituents.py]
-        Earn[earnings.py]
-        Fin[financial.py]
-        Cons[consensus.py]
-        Comp[company.py]
-    end
-
-    subgraph Utils["Utilities"]
-        Excel[excel.py]
-        Data[data.py]
-        TZ[timezone_utils.py]
-    end
-
-    subgraph External["External"]
-        LSEG[LSEG Workspace API<br/>localhost:9000]
-    end
-
-    E --> EP
-    S --> SP
-    EP --> Client
-    SP --> Client
-    EP --> Utils
-    SP --> Utils
-    Client --> LSEG
+```text
+src/lseg_toolkit/
+├── client/                 # Modular LSEG client implementation
+├── earnings/               # Earnings CLI + pipeline
+├── equity_screener/        # Screener CLI + pipeline
+├── timeseries/             # Main market-data platform
+│   ├── cache.py
+│   ├── fetch.py
+│   ├── pipeline.py
+│   ├── rolling.py
+│   ├── storage/
+│   ├── scheduler/
+│   ├── fed_funds/
+│   ├── fomc/
+│   ├── prediction_markets/
+│   ├── bond_basis/
+│   └── stir_futures/
+├── bonds/                  # Treasury-related helpers
+├── shared/                 # Shared utility code
+├── excel.py                # Workbook export helpers
+└── exceptions.py           # Shared exceptions
 ```
 
-### Class Diagram: LsegClient
+## External systems
 
-```mermaid
-classDiagram
-    class LsegClient {
-        -bool _session_opened
-        -str _app_key
-        +__init__(auto_open: bool)
-        +__enter__() LsegClient
-        +__exit__()
-        +open_session()
-        +close_session()
-        +get_index_constituents(index, min_market_cap, max_market_cap) list
-        +get_company_data(tickers) DataFrame
-        +get_earnings_data(tickers, start_date, end_date) DataFrame
-        +get_financial_ratios(tickers, include_estimates, as_of_date) DataFrame
-        +get_consensus_estimates(tickers, periods) DataFrame
-        +get_since_last_earnings_return(tickers, as_of_date) DataFrame
-        +get_activism_data(tickers) DataFrame
-    }
-
-    class EarningsReportPipeline {
-        -EarningsConfig config
-        -LsegClient client
-        -ExcelWriter writer
-        +__init__(config: EarningsConfig)
-        +run() Path
-        -_get_constituents() list
-        -_fetch_data(rics) DataFrame
-        -_process_data(df) DataFrame
-        -_export_to_excel(df) Path
-    }
-
-    class EquityScreenerPipeline {
-        -EquityScreenerConfig config
-        -LsegClient client
-        -ExcelWriter writer
-        +__init__(config: EquityScreenerConfig)
-        +run() Path
-        -_get_constituents() list
-        -_fetch_data(rics) DataFrame
-        -_process_data(df, activism_df) DataFrame
-        -_export_to_excel(df) Path
-    }
-
-    class ExcelWriter {
-        -Workbook workbook
-        -dict formats
-        +__init__(filepath: Path)
-        +write_summary_sheet(stats, config)
-        +write_sector_sheet_with_details(sheet_name, df)
-        +write_dataframe(sheet_name, df)
-        +close()
-    }
-
-    LsegClient <-- EarningsReportPipeline : uses
-    LsegClient <-- EquityScreenerPipeline : uses
-    ExcelWriter <-- EarningsReportPipeline : uses
-    ExcelWriter <-- EquityScreenerPipeline : uses
-```
-
-### Module Dependencies
-
-```mermaid
-flowchart LR
-    subgraph client["client/"]
-        session
-        constituents
-        company
-        earnings
-        financial
-        consensus
-        config
-    end
-
-    subgraph pipelines["Pipelines"]
-        ep["earnings/pipeline.py"]
-        sp["equity_screener/pipeline.py"]
-    end
-
-    subgraph utils["Utilities"]
-        excel
-        data
-        timezone_utils
-        constants
-        exceptions
-    end
-
-    session --> config
-    constituents --> session
-    company --> session
-    earnings --> session
-    earnings --> constants
-    financial --> session
-    financial --> constants
-    consensus --> session
-
-    ep --> client
-    ep --> excel
-    ep --> data
-    ep --> timezone_utils
-
-    sp --> client
-    sp --> excel
-    sp --> data
-
-    client --> exceptions
-```
-
-### Exception Hierarchy
-
-```mermaid
-classDiagram
-    class LsegError {
-        <<base>>
-        Base class for all LSEG toolkit errors
-    }
-
-    class SessionError {
-        Connection/authentication failures
-        Examples: Connection refused, Invalid app key
-    }
-
-    class DataRetrievalError {
-        API call failures
-        Examples: Invalid RIC, Field not found
-    }
-
-    class DataValidationError {
-        Data processing failures
-        Examples: Invalid date format, Missing column
-    }
-
-    class ConfigurationError {
-        Invalid configuration
-        Examples: Invalid market cap range
-    }
-
-    LsegError <|-- SessionError
-    LsegError <|-- DataRetrievalError
-    LsegError <|-- DataValidationError
-    LsegError <|-- ConfigurationError
-```
-
-### Data Flow: Earnings Report
-
-```mermaid
-sequenceDiagram
-    participant CLI as lseg-earnings
-    participant Config as EarningsConfig
-    participant Pipeline as EarningsReportPipeline
-    participant Client as LsegClient
-    participant LSEG as LSEG API
-    participant Excel as ExcelWriter
-
-    CLI->>Config: Parse arguments
-    Config->>Config: Validate (dates, market cap)
-    CLI->>Pipeline: Create pipeline(config)
-    Pipeline->>Client: open_session()
-    Client->>LSEG: Authenticate
-
-    Pipeline->>Client: get_index_constituents(SPX)
-    Client->>LSEG: Fetch constituents
-    LSEG-->>Client: 500 RICs
-    Client-->>Pipeline: Filtered RICs (by market cap)
-
-    par Parallel Data Fetching
-        Pipeline->>Client: get_company_data()
-        Pipeline->>Client: get_earnings_data()
-        Pipeline->>Client: get_financial_ratios()
-        Pipeline->>Client: get_consensus_estimates()
-    end
-
-    Client->>LSEG: Batch API calls
-    LSEG-->>Client: DataFrames
-    Client-->>Pipeline: Merged data
-
-    Pipeline->>Pipeline: Process & transform
-    Pipeline->>Excel: Write workbook
-    Excel-->>Pipeline: File path
-    Pipeline->>Client: close_session()
-    Pipeline-->>CLI: Success + path
-```
-
-### Configuration Dataclasses
-
-```mermaid
-classDiagram
-    class EarningsConfig {
-        +str index = "SPX"
-        +str timeframe = "week"
-        +date start_date
-        +date end_date
-        +float min_market_cap
-        +float max_market_cap
-        +str timezone = "US/Eastern"
-        +str output_dir = "exports"
-        +validate()
-        +get_date_range() tuple
-    }
-
-    class EquityScreenerConfig {
-        +str screen_date
-        +str index = "SPX"
-        +str country = "US"
-        +float min_mkt_cap
-        +float max_mkt_cap
-        +str output_dir = "exports"
-        +validate()
-        +to_dict() dict
-        +get_mkt_cap_range() tuple
-    }
-
-    note for EarningsConfig "Timeframes: today, tomorrow,<br/>week, next-week, month"
-    note for EquityScreenerConfig "Market caps in millions<br/>(e.g., 10000 = $10B)"
-```
-
-## Data Flow
-
-The sequence diagram above shows the detailed data flow for the Earnings Report pipeline.
-Both pipelines follow a similar pattern:
-
-1. **CLI Input** → Parse and validate arguments
-2. **Configuration** → Create typed config dataclass
-3. **Pipeline Execution** → Orchestrate API calls via LsegClient
-4. **Data Processing** → Merge, transform, calculate derived metrics
-5. **Excel Export** → Write formatted workbook to exports/
-
-### Key Differences Between Pipelines
-
-| Aspect | Earnings Report | Equity Screener |
-|--------|-----------------|-----------------|
-| **Primary Focus** | Upcoming earnings dates | Valuation metrics |
-| **Unique Data** | Earnings times, consensus estimates | Activism tracking |
-| **Time Handling** | Converts GMT → local timezone | Historical snapshots |
-| **Excel Layout** | Collapsible detail rows | One sheet per sector |
-
-## Module Responsibilities
-
-### Client Layer (`src/lseg_toolkit/client/`)
-
-| Module | Purpose |
+| System | Purpose |
 |--------|---------|
-| `session.py` | LSEG session management, authentication, context manager |
-| `constituents.py` | Index constituent retrieval, market cap filtering |
-| `company.py` | Company master data (name, sector, exchange) |
-| `earnings.py` | Earnings dates, times, and confirmation status |
-| `financial.py` | Financial ratios and valuation metrics |
-| `consensus.py` | Analyst estimates (EPS, revenue) |
-| `config.py` | API configuration and app key management |
+| LSEG Workspace local API (`localhost:9000`) | Primary market-data and reference-data source |
+| TimescaleDB / PostgreSQL | Durable storage for timeseries, scheduler, FOMC, and PM state |
+| Kalshi public APIs | Prediction-market metadata and candles |
+| Polymarket Gamma / Data / CLOB APIs | Event metadata, trades, and orderbook enrichment |
+| FedWatch input files | Comparison reference data for FOMC probabilities |
 
-### Pipeline Layer
+## Main data flows
 
-| Module | Purpose |
-|--------|---------|
-| `earnings/pipeline.py` | Orchestrates earnings report generation |
-| `earnings/config.py` | Configuration dataclass with validation |
-| `earnings/cli.py` | argparse CLI interface |
-| `equity_screener/pipeline.py` | Orchestrates equity screening |
-| `equity_screener/config.py` | Configuration dataclass with validation |
-| `equity_screener/cli.py` | argparse CLI interface |
-| `timeseries/pipeline.py` | Orchestrates time series extraction |
-| `timeseries/config.py` | Configuration dataclass for time series |
-| `timeseries/cli.py` | argparse CLI interface (lseg-extract) |
+### Earnings / screener
 
-### Time Series Layer (`src/lseg_toolkit/timeseries/`)
-
-| Module | Purpose |
-|--------|---------|
-| `cache.py` | Async cache layer with gap detection and batch fetching |
-| `client.py` | LSEG data client (wraps lseg.data API) |
-| `storage/` | TimescaleDB/PostgreSQL persistence with shape-specific tables |
-| `rolling.py` | Continuous contract construction and roll detection |
-| `constants.py` | CME↔LSEG symbol mappings (200+ validated RICs) |
-| `enums.py` | Asset classes, granularity, data shapes, roll methods |
-| `models/` | Dataclass models for instruments and time series |
-| `stir_futures/` | STIR futures contract RIC generation (FF, SRA, FEI, SON) |
-| `bond_basis/` | Treasury futures basis analysis |
-| `scheduler/` | APScheduler daemon for automated extraction |
-
-### Utility Layer
-
-| Module | Purpose |
-|--------|---------|
-| `data.py` | DataFrame transformations, column operations |
-| `excel.py` | Excel export with xlsxwriter formatting |
-| `timezone_utils.py` | GMT to local timezone conversion |
-
-## Key Design Decisions
-
-### 1. Modular Client Architecture
-
-**Why:** Each data type (earnings, financial, consensus) has its own module.
-
-**Benefits:**
-- Easier to test individual components
-- Clear separation of concerns
-- Simpler to add new data types
-
-**Trade-off:** More files to navigate, but IDE features make this manageable.
-
-### 2. Pipeline Pattern
-
-**Why:** CLI tools use a pipeline class that orchestrates multiple API calls.
-
-**Benefits:**
-- Encapsulates complex workflows
-- Easy to test with mock client
-- Consistent error handling
-
-**Example:**
-```python
-class EarningsReportPipeline:
-    def __init__(self, config: EarningsConfig):
-        self.config = config
-        self.client = LsegClient()  # Creates session internally
-
-    def run(self) -> Path:
-        rics = self._get_constituents()
-        df = self._fetch_earnings(rics)
-        df = self._fetch_consensus(df)
-        return self._export_to_excel(df)
+```text
+CLI -> config -> pipeline -> LsegClient -> LSEG Workspace -> DataFrame processing -> Excel export
 ```
 
-### 3. Configuration Dataclasses
+### Timeseries extraction
 
-**Why:** All configuration is captured in typed dataclasses.
-
-**Benefits:**
-- Validation at construction time
-- IDE autocompletion
-- Easy to serialize/deserialize
-- Clear documentation of options
-
-**Example:**
-```python
-@dataclass
-class EarningsConfig:
-    index: str = "SPX"
-    timeframe: str = "week"
-    min_market_cap: float | None = None
-    max_market_cap: float | None = None
-    timezone: str = "US/Eastern"
+```text
+CLI -> TimeSeriesConfig -> TimeSeriesExtractionPipeline
+    -> symbol resolution / fetch
+    -> optional continuous-contract logic
+    -> save to TimescaleDB + optional Parquet export
 ```
 
-### 4. Context Manager for Sessions
+### Scheduler
 
-**Why:** LsegClient uses `__enter__`/`__exit__` for automatic cleanup.
-
-**Benefits:**
-- Session is always properly closed
-- Works with `with` statement
-- Exception-safe
-
-**Example:**
-```python
-with LsegClient() as client:
-    data = client.get_earnings_data(tickers)
-# Session automatically closed
+```text
+lseg-scheduler -> scheduler_jobs + scheduler_state + scheduler_runs
+               -> build universe from scheduler/universes.py
+               -> run extraction jobs -> update retry / success state
 ```
 
-### 5. Historical Snapshots
+### Prediction markets
 
-**Why:** Financial data queries support `as_of_date` parameter.
-
-**Benefits:**
-- Reproduce historical analysis
-- Compare valuations over time
-- Consistent point-in-time data
-
-**Example:**
-```python
-# Get valuations as of month-end
-ratios = client.get_financial_ratios(tickers, as_of_date="2024-12-31")
+```text
+FOMC sync + Kalshi/Polymarket ingest -> prediction-market schema tables
+                                     -> comparison helpers (FedWatch / implied distributions)
 ```
 
-## Error Handling
+## Storage boundaries
 
-The toolkit uses a custom exception hierarchy (see diagram above in [System Diagrams](#exception-hierarchy)).
+The database layer is split conceptually into four domains:
+- instrument registry + typed detail tables
+- unified `timeseries_*` fact tables
+- scheduler state tables
+- FOMC / prediction-market tables
 
-| Exception | When Raised | Example |
-|-----------|-------------|---------|
-| `SessionError` | Connection/auth failures | LSEG Workspace not running |
-| `DataRetrievalError` | API call failures | Invalid RIC, field not found |
-| `DataValidationError` | Data processing failures | Missing required column |
-| `ConfigurationError` | Invalid configuration | min_cap > max_cap |
+See [STORAGE_SCHEMA.md](STORAGE_SCHEMA.md) for the current schema summary.
 
-All exceptions inherit from `LsegError` for easy catching:
+## Design notes
 
-```python
-try:
-    with LsegClient() as client:
-        data = client.get_earnings_data(tickers)
-except LsegError as e:
-    print(f"LSEG error: {e}")
-```
-
-### Graceful Degradation
-
-Pipelines handle missing data gracefully:
-- Missing fields return `None` or empty strings
-- Partial data still produces output
-- Warnings logged for unexpected conditions
-
-## Testing Strategy
-
-### Test Categories
-
-| Category | Location | Purpose |
-|----------|----------|---------|
-| Unit tests | `tests/test_*.py` | Test individual functions |
-| Integration tests | `tests/test_*_client.py` | Test with real LSEG API |
-| Pipeline tests | `tests/earnings/`, `tests/equity_screener/` | Test end-to-end workflows |
-
-### Test Markers
-
-```python
-@pytest.mark.integration  # Requires LSEG connection
-@pytest.mark.slow         # Takes > 10 seconds
-@pytest.mark.unit         # No external dependencies
-```
-
-## Time Series Module
-
-The timeseries module (`src/lseg_toolkit/timeseries/`) extracts historical market data for futures, FX, rates, and yields. Unlike earnings/screener which export to Excel, timeseries stores data in TimescaleDB/PostgreSQL with Parquet export for C++/Rust consumption.
-
-**Key Components:**
-
-| Layer | Purpose |
-|-------|---------|
-| `cache.py` | Cache-first data access with async support |
-| `client.py` | LSEG API wrapper |
-| `constants.py` | 200+ validated RIC mappings |
-| `rolling.py` | Continuous contract construction |
-| `storage/` | TimescaleDB persistence |
-| `scheduler/` | Automated extraction jobs |
-| `bond_basis/` | Treasury futures basis analysis |
-| `stir_futures/` | STIR futures (Fed Funds, SOFR) |
-
-**Detailed Documentation:**
-
-- **[TIMESERIES.md](TIMESERIES.md)** - Quick start, CLI, Python API, module architecture
-- **[STORAGE_SCHEMA.md](STORAGE_SCHEMA.md)** - Database schema, table definitions
-- **[SCHEDULER.md](SCHEDULER.md)** - Automated extraction setup
-- **[INSTRUMENTS.md](INSTRUMENTS.md)** - Complete validated instrument list
-
-## Future Considerations
-
-### Potential Enhancements
-
-1. **Web interface:** Simple Flask/FastAPI dashboard
-2. **Real-time streaming:** WebSocket integration for live data
-
-### Extensibility Points
-
-- Add new client modules for additional LSEG data types
-- Create new pipeline classes for different analysis workflows
-- Extend ExcelWriter for custom formatting requirements
-
-### Technical Debt
-
-1. **Consolidate sector column lookup:** Extract flexible column name detection from `client/financial.py` into shared utility in `data.py`
-2. **Unify financial company filtering:** Centralize logic for nullifying debt metrics for financial companies (currently in `client/financial.py` and `equity_screener/pipeline.py`)
-3. **Document parallel worker counts:** Clarify why `earnings/pipeline.py` uses 5 workers vs `client/earnings.py` using 11
+- **Client modules stay focused**: earnings, financials, consensus, etc. live in
+  separate `client/` modules.
+- **Timeseries is a first-class subsystem**: it is no longer just an appendix to
+  the original earnings/screener code.
+- **Schema is explicit**: the authoritative DDL lives in
+  `src/lseg_toolkit/timeseries/storage/pg_schema.py` and
+  `src/lseg_toolkit/timeseries/prediction_markets/schema.py`.
+- **Contributor validation is CI-shaped**: use `make ci-local`, not ad-hoc tool
+  invocations, when checking whether a change is ready to push.

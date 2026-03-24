@@ -1,5 +1,8 @@
 # LSEG Data - Permission Restrictions and Missing Instruments
 
+> These notes are **entitlement-dependent** and can drift over time. Treat them as
+> observed results from prior testing, not permanent truth for every account.
+
 This document tracks RICs and instruments that cannot be pulled from LSEG due to permissions issues.
 
 ## Government Bond Yields

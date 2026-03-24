@@ -2,6 +2,8 @@
 
 Reference notes for the prediction-market ingestion and comparison workflow.
 
+**Last reviewed:** 2026-03-24
+
 ## Scope
 
 This module currently focuses on:
@@ -33,8 +35,8 @@ Current Polymarket references:
 
 - `src/lseg_toolkit/timeseries/prediction_markets/polymarket/`
   - Polymarket client, extractor, trades, and resolution helpers
-- `docs/plans/POLYMARKET_IMPLEMENTATION.md`
-  - implementation history, status, and remaining follow-ups
+- `docs/archive/POLYMARKET_IMPLEMENTATION_HISTORY.md`
+  - implementation history and archived build notes
 - `docs/POLYMARKET_RESOLUTION.md`
   - canonical resolution and normalization spec for Polymarket macro/Fed data
 - `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
@@ -49,8 +51,8 @@ Use the Polymarket docs in this order:
    - top-level reference and workflow entry point
 2. `docs/POLYMARKET_RESOLUTION.md`
    - canonical normalization and resolution spec
-3. `docs/plans/POLYMARKET_IMPLEMENTATION.md`
-   - implementation history, findings, and next tasks
+3. `docs/archive/POLYMARKET_IMPLEMENTATION_HISTORY.md`
+   - implementation history and archived build notes
 4. `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
    - temporary dry-run linkage and comparison troubleshooting note
 
@@ -58,9 +60,18 @@ Recommended interpretation:
 
 - this file explains the module at a high level
 - the resolution doc is the canonical semantic reference
-- the implementation plan is the canonical build/history log
+- the archived implementation history is for background/context
 - the temporary FOMC link note is exploratory and should not be treated as
   production linkage policy
+
+## Public helpers
+
+The most directly user-facing helpers currently include:
+
+- `init_pm_schema(conn)`
+- `load_fedwatch_probabilities(...)`
+- `build_distribution(...)`
+- `compare_markets_to_fedwatch(...)`
 
 ## Main Modules
 

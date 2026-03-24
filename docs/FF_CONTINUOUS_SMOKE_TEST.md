@@ -1,5 +1,7 @@
 # FF_CONTINUOUS Smoke Test for `fin-kit`
 
+> This is a **downstream integration note**, not the main user guide for the repo.
+
 This document describes a minimal end-to-end smoke test for the stored
 Fed Funds continuous contract.
 

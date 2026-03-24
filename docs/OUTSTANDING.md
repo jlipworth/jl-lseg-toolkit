@@ -42,7 +42,7 @@ Individual options RICs don't support time series (only snapshots). Need to rese
 | Audit remaining field-mapping edge cases | Keep normalized mappings canonical as new instruments are added | -400 |
 | Extract `_bulk_insert` helper | DRY for all save functions | -150 |
 
-See `dev_scripts/refactor_recommendations.md` for detailed analysis.
+Track detailed refactor notes inline in issues/PRs or future architecture notes rather than a private local script path.
 
 ### Code Updates
 

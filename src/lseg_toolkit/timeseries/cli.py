@@ -116,8 +116,8 @@ Examples:
   # Intraday data (recent dates only)
   lseg-extract ZN --start 2025-01-01 --end 2025-01-05 --interval hourly
 
-  # Custom output paths
-  lseg-extract ZN --db data/custom.db --parquet ./output/
+  # Custom parquet output path
+  lseg-extract ZN --parquet ./output/
 
   # List supported instruments
   lseg-extract --list
