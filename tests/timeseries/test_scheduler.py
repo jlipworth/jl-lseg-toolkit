@@ -219,7 +219,9 @@ class TestJobCRUD:
             )
         )
         if not configured:
-            pytest.skip("No database configured - set TSDB_*, POSTGRES_*, or PG* env vars")
+            pytest.skip(
+                "No database configured - set TSDB_*, POSTGRES_*, or PG* env vars"
+            )
 
         config = DatabaseConfig.from_env()
         return config

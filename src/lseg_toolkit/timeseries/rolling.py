@@ -8,6 +8,7 @@ discrete contracts using various roll methods and adjustments.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
@@ -39,7 +40,7 @@ def _to_contract_label_date(value) -> date:
 
 def label_continuous_data(
     df: pd.DataFrame,
-    get_contract: callable,
+    get_contract: Callable[[date], str],
     date_col: str = "session_date",
 ) -> pd.DataFrame:
     """

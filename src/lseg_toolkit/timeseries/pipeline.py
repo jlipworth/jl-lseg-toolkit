@@ -28,9 +28,9 @@ from lseg_toolkit.timeseries.fed_funds import (
 )
 from lseg_toolkit.timeseries.fetch import (
     fetch_fras,
-    fetch_govt_yields,
     fetch_futures,
     fetch_fx,
+    fetch_govt_yields,
     fetch_ois,
     parse_govt_yield_symbol,
     resolve_ric,

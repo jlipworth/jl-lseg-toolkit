@@ -8,15 +8,14 @@ Uses LSEGDataClient for batched requests, retry logic, and input validation.
 from __future__ import annotations
 
 import logging
-from datetime import date
 import re
+from datetime import date
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from lseg_toolkit.exceptions import DataRetrievalError, InstrumentNotFoundError
 from lseg_toolkit.timeseries.client import LSEGDataClient, get_client
-from lseg_toolkit.timeseries.fed_funds import parse_ff_continuous_rank
 from lseg_toolkit.timeseries.constants import (
     ALL_FUTURES_MAPPING,
     BOND_COLUMN_MAPPING,
@@ -26,8 +25,8 @@ from lseg_toolkit.timeseries.constants import (
     FX_SPOT_RICS,
     QUOTE_COLUMN_MAPPING,
     RATE_COLUMN_MAPPING,
-    STIR_FUTURES_RICS,
     SOVEREIGN_YIELD_FIELDS,
+    STIR_FUTURES_RICS,
     USD_OIS_FIELDS,
     UST_YIELD_FIELDS,
     get_fra_ric,
@@ -36,6 +35,7 @@ from lseg_toolkit.timeseries.constants import (
     get_treasury_yield_ric,
 )
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
+from lseg_toolkit.timeseries.fed_funds import parse_ff_continuous_rank
 
 if TYPE_CHECKING:
     pass

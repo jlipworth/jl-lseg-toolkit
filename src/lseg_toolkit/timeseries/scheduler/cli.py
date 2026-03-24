@@ -359,7 +359,9 @@ def cmd_seed_ff_strip(args) -> int:
         print(f"{name}: {action}")
 
     created = sum(1 for action in results.values() if action == "created")
-    print(f"\nFF strip jobs ready ({created} created, {len(results) - created} existing)")
+    print(
+        f"\nFF strip jobs ready ({created} created, {len(results) - created} existing)"
+    )
     return 0
 
 

@@ -214,7 +214,9 @@ def _copy_with_upsert(
     with conn.cursor() as cur:
         # Recreate staging table from the current target schema. This avoids
         # schema drift when new columns are added to the target table.
-        cur.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(staging_table)))
+        cur.execute(
+            sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(staging_table))
+        )
 
         # Create unlogged staging table
         cur.execute(
