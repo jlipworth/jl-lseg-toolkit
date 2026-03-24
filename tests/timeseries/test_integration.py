@@ -13,16 +13,16 @@ import pytest
 
 from lseg_toolkit.timeseries import get_client
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
+from lseg_toolkit.timeseries.fed_funds import fetch_fed_funds_hourly
 from lseg_toolkit.timeseries.fetch import (
     fetch_fras,
     fetch_futures,
-    fetch_govt_yields,
     fetch_fx,
+    fetch_govt_yields,
     fetch_ois,
     fetch_treasury_yields,
     resolve_ric,
 )
-from lseg_toolkit.timeseries.fed_funds import fetch_fed_funds_hourly
 
 
 @pytest.fixture(scope="module")
@@ -391,7 +391,15 @@ class TestIntradayIntegration:
         if not df.empty:
             assert_intraday_frame(
                 df,
-                ["bid", "ask", "mid", "close", "implied_rate", "session_date", "source_contract"],
+                [
+                    "bid",
+                    "ask",
+                    "mid",
+                    "close",
+                    "implied_rate",
+                    "session_date",
+                    "source_contract",
+                ],
             )
             assert df["source_contract"].str.startswith("FF").all()
             assert (df["implied_rate"] - (100.0 - df["mid"])).abs().max() < 1e-9
@@ -488,9 +496,7 @@ class TestEndToEndIntegration:
         assert len(stored) == result.total_rows
         assert_intraday_frame(stored, ["open", "high", "low", "close"])
 
-    def test_full_intraday_fx_pipeline_round_trip(
-        self, tmp_path, intraday_date_range
-    ):
+    def test_full_intraday_fx_pipeline_round_trip(self, tmp_path, intraday_date_range):
         """5-minute FX pipeline should persist and reload quote-shaped intraday data."""
         from lseg_toolkit.timeseries.config import TimeSeriesConfig
         from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
@@ -570,9 +576,7 @@ class TestEndToEndIntegration:
         assert "rate" in stored.columns
         assert stored["rate"].notna().all()
 
-    def test_full_treasury_yield_pipeline_round_trip(
-        self, tmp_path, short_date_range
-    ):
+    def test_full_treasury_yield_pipeline_round_trip(self, tmp_path, short_date_range):
         """Daily US Treasury yield pipeline should persist and reload bond-shaped data."""
         from lseg_toolkit.timeseries.config import TimeSeriesConfig
         from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline

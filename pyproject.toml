@@ -72,6 +72,7 @@ test = [
     "mypy>=1.7.0",
     "pre-commit>=4.3.0",
     "types-pytz>=2025.2.0.20250809",
+    "types-requests>=2.32.4.20260107",
     "pandas-stubs>=2.3.2.250926",
     "testcontainers[postgres]>=4.0.0",
 ]
@@ -89,7 +90,6 @@ notebook = [
 dev = [
     { include-group = "test" },
     { include-group = "notebook" },
-    "types-requests>=2.32.4.20260107",
 ]
 
 [build-system]

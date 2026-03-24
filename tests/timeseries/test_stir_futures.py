@@ -13,8 +13,8 @@ from lseg_toolkit.timeseries.stir_futures import (
     generate_contract_rics,
     get_active_contracts,
     get_chain_ric,
-    get_continuous_ric,
     get_continuous_rank_contract,
+    get_continuous_ric,
     get_contract_expiry_month,
     get_front_month_contract,
 )

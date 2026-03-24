@@ -86,7 +86,9 @@ class FieldMapper:
     ]
 
     BOND = [
-        FieldMapping("price", ["price", "MID_PRICE", "CLEAN_PRC", "HST_CLOSE", "PRIMACT_1"]),
+        FieldMapping(
+            "price", ["price", "MID_PRICE", "CLEAN_PRC", "HST_CLOSE", "PRIMACT_1"]
+        ),
         FieldMapping("bid", ["bid", "BID"]),
         FieldMapping("ask", ["ask", "ASK"]),
         FieldMapping("open_price", ["open_price", "MID_OPEN", "OPEN_PRC"]),

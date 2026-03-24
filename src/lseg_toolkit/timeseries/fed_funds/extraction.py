@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date
 from collections.abc import Iterable
+from datetime import date
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -31,7 +31,9 @@ logger = logging.getLogger(__name__)
 # OPINT_1 = Open interest, IMP_YIELD = Implied yield (100 - price)
 FF_DAILY_FIELDS = ["SETTLE", "OPINT_1", "ACVOL_UNS"]
 FF_HOURLY_FIELDS = ["BID", "ASK", "TRDPRC_1", "HIGH_1", "LOW_1"]
-FF_CONTINUOUS_SYMBOL_PATTERN = re.compile(r"^FF_CONTINUOUS(?:_(\d{1,2}))?$", re.IGNORECASE)
+FF_CONTINUOUS_SYMBOL_PATTERN = re.compile(
+    r"^FF_CONTINUOUS(?:_(\d{1,2}))?$", re.IGNORECASE
+)
 FF_CONTINUOUS_RIC_PATTERN = re.compile(r"^FFc(\d{1,2})$", re.IGNORECASE)
 
 
@@ -82,7 +84,9 @@ def parse_ff_continuous_rank(symbol: str) -> int | None:
 def _add_daily_session_date(df: pd.DataFrame) -> pd.DataFrame:
     """Add session_date for daily LSEG history rows."""
     result = df.copy()
-    result["session_date"] = pd.Series(pd.to_datetime(result.index).date, index=result.index)
+    result["session_date"] = pd.Series(
+        pd.to_datetime(result.index).date, index=result.index
+    )
     return result
 
 

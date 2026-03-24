@@ -8,10 +8,10 @@ from LSEG and labeling continuous contract data with discrete contract codes.
 from lseg_toolkit.timeseries.fed_funds.extraction import (
     FF_DAILY_FIELDS,
     FF_HOURLY_FIELDS,
+    extract_contract_life_from_strip,
     fetch_fed_funds_daily,
     fetch_fed_funds_hourly,
     fetch_fed_funds_strip,
-    extract_contract_life_from_strip,
     get_ff_continuous_symbol,
     parse_ff_continuous_rank,
     prepare_for_storage,

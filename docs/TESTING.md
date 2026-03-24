@@ -5,6 +5,9 @@ This document describes the test infrastructure, conventions, and best practices
 ## Quick Reference
 
 ```bash
+# Mirror Woodpecker CI locally
+make ci-local
+
 # Run all tests (including integration - requires LSEG Workspace)
 uv run pytest tests/ --no-cov
 
@@ -83,6 +86,13 @@ pytest tests/ -m "not integration" --no-cov
 ```
 
 This skips all integration tests since LSEG Workspace is not available in CI.
+
+To mirror the full Woodpecker pipeline locally with the same frozen
+test-only dependency group, run:
+
+```bash
+make ci-local
+```
 
 ---
 

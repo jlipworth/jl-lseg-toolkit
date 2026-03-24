@@ -13,10 +13,10 @@ cd jl-lseg-toolkit
 uv sync
 
 # Install pre-commit hooks
-uv run pre-commit install
+make install-hooks
 
 # Verify setup
-uv run pytest tests/ --no-cov
+make ci-local
 ```
 
 ## Making Changes
@@ -55,6 +55,9 @@ uv run mypy src/
 
 # Linting and formatting
 uv run pre-commit run --all-files
+
+# Mirror CI exactly
+make ci-local
 ```
 
 ### 4. Submit a Pull Request

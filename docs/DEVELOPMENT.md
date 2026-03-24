@@ -9,6 +9,7 @@ For environment setup and LSEG connection, see **[GETTING_STARTED.md](GETTING_ST
 Quick reference:
 ```bash
 uv sync                      # Install dependencies
+make install-hooks           # Install git pre-commit hooks
 uv run lseg-earnings --help  # Verify installation
 ```
 
@@ -52,8 +53,7 @@ uv run ruff check src/ tests/ --fix
 
 Run before every commit:
 ```bash
-uv run pytest tests/ --no-cov && \
-uv run mypy src/ && \
+make ci-local && \
 uv run pre-commit run --all-files
 ```
 

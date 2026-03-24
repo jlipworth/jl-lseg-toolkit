@@ -145,7 +145,9 @@ class TestFedFundsExtraction:
         )
 
         assert list(result.keys()) == ["FFc1", "FFc2", "FFc3"]
-        called_rics = [call.kwargs["rics"] for call in client.get_history.call_args_list]
+        called_rics = [
+            call.kwargs["rics"] for call in client.get_history.call_args_list
+        ]
         assert called_rics == ["FFc1", "FFc2", "FFc3"]
         assert result["FFc3"].iloc[0]["source_contract"] == "FFX25"
 

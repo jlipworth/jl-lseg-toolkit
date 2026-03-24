@@ -43,7 +43,9 @@ def cache(monkeypatch):
 
 @pytest.mark.anyio
 async def test_async_get_or_fetch_returns_dataframe(cache, monkeypatch):
-    expected = pd.DataFrame({"close": [1.0, 2.0]}, index=pd.to_datetime(["2026-01-01", "2026-01-02"]))
+    expected = pd.DataFrame(
+        {"close": [1.0, 2.0]}, index=pd.to_datetime(["2026-01-01", "2026-01-02"])
+    )
 
     async def fake_async_get_or_fetch_single(self, ric, start, end, granularity):
         return FetchResult(
@@ -53,7 +55,9 @@ async def test_async_get_or_fetch_returns_dataframe(cache, monkeypatch):
             rows_fetched=len(expected),
         )
 
-    monkeypatch.setattr(DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single)
+    monkeypatch.setattr(
+        DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single
+    )
 
     result = await cache.async_get_or_fetch("TYc1", "2026-01-01", "2026-01-02")
 
@@ -69,7 +73,9 @@ async def test_async_get_or_fetch_raises_not_found(cache, monkeypatch):
             error=f"Unknown instrument: {ric}",
         )
 
-    monkeypatch.setattr(DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single)
+    monkeypatch.setattr(
+        DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single
+    )
 
     with pytest.raises(InstrumentNotFoundError, match="Unknown instrument: BADRIC"):
         await cache.async_get_or_fetch("BADRIC", "2026-01-01", "2026-01-02")
@@ -84,7 +90,9 @@ async def test_async_get_or_fetch_raises_data_retrieval_error(cache, monkeypatch
             error="LSEG fetch failed",
         )
 
-    monkeypatch.setattr(DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single)
+    monkeypatch.setattr(
+        DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single
+    )
 
     with pytest.raises(DataRetrievalError, match="LSEG fetch failed"):
         await cache.async_get_or_fetch("TYc1", "2026-01-01", "2026-01-02")
@@ -105,9 +113,13 @@ async def test_async_get_or_fetch_many_returns_results_and_progress(cache, monke
                 status=FetchStatus.NOT_FOUND,
                 error="Unknown instrument: BADRIC",
             )
-        return FetchResult(ric=ric, status=FetchStatus.SUCCESS, data=frames[ric], rows_fetched=1)
+        return FetchResult(
+            ric=ric, status=FetchStatus.SUCCESS, data=frames[ric], rows_fetched=1
+        )
 
-    monkeypatch.setattr(DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single)
+    monkeypatch.setattr(
+        DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single
+    )
 
     result = await cache.async_get_or_fetch_many(
         ["TYc1", "BADRIC", "USc1"],
@@ -136,7 +148,9 @@ async def test_async_iter_fetch_yields_results(cache, monkeypatch):
             rows_fetched=1,
         )
 
-    monkeypatch.setattr(DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single)
+    monkeypatch.setattr(
+        DataCache, "_async_get_or_fetch_single", fake_async_get_or_fetch_single
+    )
 
     results = []
     async for result in cache.async_iter_fetch(
