@@ -59,7 +59,9 @@ class TestParseSeries:
 
 class TestParseTokenMarkets:
     def test_parse_token_markets_creates_one_row_per_outcome(self):
-        markets = parse_token_markets(sample_gamma_market(), platform_id=2, series_id=10)
+        markets = parse_token_markets(
+            sample_gamma_market(), platform_id=2, series_id=10
+        )
 
         assert len(markets) == 2
         assert markets[0].market_ticker == "POLY:cond-1:token-yes"
@@ -75,7 +77,9 @@ class TestParseTokenMarkets:
         assert markets[0].status == "active"
 
     def test_parse_token_markets_parses_timestamps(self):
-        markets = parse_token_markets(sample_gamma_market(), platform_id=2, series_id=10)
+        markets = parse_token_markets(
+            sample_gamma_market(), platform_id=2, series_id=10
+        )
         assert markets[0].open_time == datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
         assert markets[0].close_time == datetime(2026, 9, 16, 18, 0, tzinfo=UTC)
 
@@ -84,7 +88,9 @@ class TestParseTokenMarkets:
         markets = parse_token_markets(raw, platform_id=2, series_id=10)
         assert all(m.status == "closed" for m in markets)
 
-    def test_parse_token_markets_rounds_volume_from_volume_when_volume_num_missing(self):
+    def test_parse_token_markets_rounds_volume_from_volume_when_volume_num_missing(
+        self,
+    ):
         raw = sample_gamma_market()
         raw.pop("volumeNum")
         raw["volume"] = 123.6
@@ -357,7 +363,9 @@ class TestFedDiscoveryBackfill:
             "events": [sample_fed_event()],
             "tags": [{"id": 159, "slug": "fed", "label": "Fed"}],
         }
-        mock_client.list_tags.return_value = [{"id": 159, "slug": "fed", "label": "Fed"}]
+        mock_client.list_tags.return_value = [
+            {"id": 159, "slug": "fed", "label": "Fed"}
+        ]
         mock_client.list_events.return_value = []
         mock_client_cls.return_value = mock_client
 

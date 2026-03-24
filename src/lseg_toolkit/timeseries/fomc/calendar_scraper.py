@@ -11,7 +11,9 @@ import httpx
 
 from lseg_toolkit.timeseries.fomc.models import FOMCMeeting
 
-FED_FOMC_CALENDAR_URL = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+FED_FOMC_CALENDAR_URL = (
+    "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+)
 
 _YEAR_BLOCK_RE = re.compile(
     r'<h4><a id="[^"]+">(\d{4}) FOMC Meetings</a></h4></div>(.*?)(?=<div class="panel panel-default"><div class="panel-heading"><h4><a id="|</body>)',
@@ -58,7 +60,9 @@ def fetch_fomc_calendar_html(url: str = FED_FOMC_CALENDAR_URL) -> str:
 
 
 def _parse_month_range(month_text: str) -> tuple[int, int]:
-    parts = [part.strip().lower() for part in month_text.replace("&nbsp;", " ").split("/")]
+    parts = [
+        part.strip().lower() for part in month_text.replace("&nbsp;", " ").split("/")
+    ]
     if not parts:
         raise ValueError(f"Could not parse month text: {month_text!r}")
 
