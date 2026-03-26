@@ -23,9 +23,10 @@ It is **not** the end-user onboarding doc; that is `GETTING_STARTED.md`.
 ## Daily workflow
 
 ```bash
-uv sync
-make install-hooks
-make ci-local
+uv sync                      # Install dependencies
+uv sync --group bloomberg    # Optional: install supported Bloomberg runtime deps
+make install-hooks           # Install git pre-commit hooks
+make ci-local                # Full local CI mirror
 ```
 
 Useful commands:
@@ -70,10 +71,18 @@ src/lseg_toolkit/
 │   ├── prediction_markets/ # Kalshi / Polymarket / FedWatch workflows
 │   ├── bond_basis/         # Treasury conversion-factor / basis helpers
 │   └── stir_futures/       # STIR contract helpers
+├── bloomberg/              # Supported Bloomberg extraction/normalization CLI surface
 ├── bonds/                  # Treasury API integrations
 ├── shared/                 # Shared utilities
 └── exceptions.py           # Shared exception hierarchy
 ```
+
+### Bloomberg code placement
+
+- Supported Bloomberg code belongs under `src/lseg_toolkit/bloomberg/`
+- Supported Bloomberg tests belong under `tests/bloomberg/`
+- Exploratory or ticker-discovery scripts can remain under `bloomberg_scripts/`
+- Files in `bloomberg_scripts/` should not be treated as automatic product-support claims
 
 ## Documentation expectations
 

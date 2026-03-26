@@ -19,6 +19,18 @@ Active TODOs and feature requests for jl-lseg-toolkit.
   Polymarket bid/ask close fields
 - add durable troubleshooting examples for Polymarket vs Kalshi comparisons
 
+### Bloomberg
+**Priority:** Medium
+**Status:** Awaiting final Bloomberg-enabled validation pass
+
+- run supported live checks for `bbg-extract jgb` and `bbg-extract fx-atm-vol`
+- run Bloomberg integration smoke tests with Terminal/Desktop API access
+- validate deferred research targets:
+  - JGB futures
+  - SOFR term rates
+- capture fresh terminal-assisted findings for swaptions, caps/floors, and FX RR/BF
+- revisit source/storage integration only after the live validation pass if support broadens
+
 ### Credit Instruments (CDS)
 **Priority:** Low
 **Status:** Partial - daily only, intraday not available

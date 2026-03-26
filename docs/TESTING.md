@@ -91,6 +91,27 @@ uv run pytest tests/timeseries/test_pm_models.py \
   tests/timeseries/test_polymarket_workflow.py -v
 ```
 
+### Bloomberg quick commands
+
+```bash
+# Supported Bloomberg unit tests
+uv run pytest tests/bloomberg/ -v
+
+# Run just the supported Bloomberg CLI/normalization tests
+uv run pytest tests/bloomberg/test_cli.py \
+  tests/bloomberg/test_connection.py \
+  tests/bloomberg/test_normalize.py \
+  tests/bloomberg/test_jgb.py \
+  tests/bloomberg/test_fx_atm_vol.py -v
+
+# Bloomberg Desktop API smoke tests (opt-in only)
+RUN_BLOOMBERG_INTEGRATION=1 uv run pytest tests/bloomberg/test_integration.py -m integration -v
+```
+
+Bloomberg live/Desktop-API integration tests should remain opt-in and should not
+run in CI by default. For Bloomberg specifically, keep live smoke tests gated
+behind `RUN_BLOOMBERG_INTEGRATION=1`.
+
 ## When to run what
 
 - Editing docs only: usually no Python test run required, but check examples/commands you changed
