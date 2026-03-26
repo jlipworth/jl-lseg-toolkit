@@ -21,6 +21,7 @@ screening** tools.
 - **Fed Funds / FOMC tooling** for continuous contracts, meeting history, and rate-decision data
 - **Prediction markets** for Kalshi, Polymarket, and FedWatch comparison workflows
 - **Equity tools** for earnings reports, screening, financial ratios, consensus, and historical snapshots
+- **Bloomberg gap-fill workflows** for JGB yields and FX ATM implied vol via `bbg-extract`
 
 ## Installation
 
@@ -31,6 +32,17 @@ git clone git@github.com:jlipworth/jl-lseg-toolkit.git
 cd jl-lseg-toolkit
 uv sync
 ```
+
+### Optional Bloomberg runtime
+
+For the supported Bloomberg CLI (`bbg-extract`), install the Bloomberg dependency group:
+
+```bash
+uv sync --group bloomberg
+```
+
+This requires Bloomberg Terminal/Desktop API access on `localhost:8194`.
+See [Bloomberg instrument notes](docs/instruments/BLOOMBERG.md) for the current support matrix.
 
 ### Configure your LSEG app key
 
@@ -68,6 +80,10 @@ uv run lseg-extract ZN ZB
 
 # Scheduler command set
 uv run lseg-scheduler groups
+
+# Bloomberg-supported workflows (requires Bloomberg Terminal + bloomberg group)
+bbg-extract jgb --help
+bbg-extract fx-atm-vol --pairs EURUSD USDJPY --tenors 1M 3M
 ```
 
 ## CLI tools
@@ -79,6 +95,7 @@ uv run lseg-scheduler groups
 | `lseg-setup` | Interactive LSEG app-key configuration |
 | `lseg-extract` | Timeseries extraction and optional continuous-contract building |
 | `lseg-scheduler` | Scheduler job management and daemon control |
+| `bbg-extract` | Bloomberg extraction for JGB yields and FX ATM implied vol |
 
 ### `lseg-extract` highlights
 
@@ -98,6 +115,22 @@ uv run lseg-extract FF_CONTINUOUS --asset-class stir --interval hourly --start 2
 # Full USD OIS curve
 uv run lseg-extract 1M 3M 6M 1Y 2Y 5Y 10Y 30Y --asset-class ois
 ```
+
+### `bbg-extract` highlights
+
+```bash
+# JGB yield snapshot
+bbg-extract jgb
+
+# JGB history
+bbg-extract jgb --historical --start-date 2025-01-01
+
+# FX ATM implied vol snapshot
+bbg-extract fx-atm-vol --pairs EURUSD USDJPY --tenors 1M 3M
+```
+
+Requires Bloomberg Terminal/Desktop API on `localhost:8194` and `uv sync --group bloomberg`.
+See [docs/instruments/BLOOMBERG.md](docs/instruments/BLOOMBERG.md) for the full support matrix.
 
 ### `lseg-scheduler` highlights
 
@@ -181,6 +214,7 @@ src/lseg_toolkit/
 | [Polymarket Resolution](docs/POLYMARKET_RESOLUTION.md) | Canonical normalization and resolution rules |
 | [Storage Schema](docs/STORAGE_SCHEMA.md) | Current database model summary and source-of-truth pointers |
 | [Instruments](docs/INSTRUMENTS.md) | LSEG instrument reference by asset class |
+| [Bloomberg](docs/instruments/BLOOMBERG.md) | Supported `bbg-extract` workflows and Bloomberg research notes |
 | [API Reference](docs/LSEG_API_REFERENCE.md) | LSEG patterns, field quirks, and mapping notes |
 | [Architecture](docs/ARCHITECTURE.md) | Repo subsystem map and data flow |
 | [Development](docs/DEVELOPMENT.md) | Contributor workflow after initial setup |

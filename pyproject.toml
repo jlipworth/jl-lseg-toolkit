@@ -63,6 +63,7 @@ lseg-screener = "lseg_toolkit.equity_screener.cli:main"
 lseg-setup = "lseg_toolkit.setup_app_key:main"
 lseg-extract = "lseg_toolkit.timeseries.cli:main"
 lseg-scheduler = "lseg_toolkit.timeseries.scheduler.cli:main"
+bbg-extract = "lseg_toolkit.bloomberg.cli:main"
 
 [dependency-groups]
 test = [
@@ -88,10 +89,21 @@ notebook = [
     "jupyterlab-widgets>=3.0.16",
     "ipywidgets>=8.1.8",
 ]
+bloomberg = [
+    "blpapi>=3.19.0",
+]
 dev = [
     { include-group = "test" },
     { include-group = "notebook" },
 ]
+
+[tool.uv.sources]
+blpapi = { index = "bloomberg" }
+
+[[tool.uv.index]]
+name = "bloomberg"
+url = "https://blpapi.bloomberg.com/repository/releases/python/simple/"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
@@ -106,6 +118,11 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=src --cov-report=html --cov-report=term"
+markers = [
+    "integration: tests that call live external services and stay opt-in in CI",
+    "unit: pure unit tests with no external I/O",
+    "slow: long-running tests",
+]
 
 [tool.ruff]
 line-length = 88

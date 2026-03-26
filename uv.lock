@@ -181,6 +181,18 @@ css = [
 ]
 
 [[package]]
+name = "blpapi"
+version = "3.26.2.1"
+source = { registry = "https://blpapi.bloomberg.com/repository/releases/python/simple/" }
+sdist = { url = "https://blpapi.bloomberg.com/repository/releases/python/blpapi-3.26.2.1.tar.gz", hash = "sha256:1f71f54aeacf264496a6d56d84a66798c079c8c7364259e4e6955f0d8fc89fd4" }
+wheels = [
+    { url = "https://blpapi.bloomberg.com/repository/releases/python/blpapi-3.26.2.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:2166eca76f2ba539bfd8243af235b7ea81d1167414a7f013240b72ae672e7b82" },
+    { url = "https://blpapi.bloomberg.com/repository/releases/python/blpapi-3.26.2.1-py3-none-manylinux2014_x86_64.whl", hash = "sha256:ed96984ffb6f13bd4bdf127dce69a4d08405abb597d149d22c3055824023757c" },
+    { url = "https://blpapi.bloomberg.com/repository/releases/python/blpapi-3.26.2.1-py3-none-win32.whl", hash = "sha256:92826cb8b296cfcd977a95b6bf5a556f3d35967cf4b152bcaa17be1f6addb6ff" },
+    { url = "https://blpapi.bloomberg.com/repository/releases/python/blpapi-3.26.2.1-py3-none-win_amd64.whl", hash = "sha256:0e409b9adcbe08e1256d67f8e551b970d026d21173333b644293880ea53d56b9" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.2.25"
 source = { registry = "https://pypi.org/simple" }
@@ -794,6 +806,9 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+bloomberg = [
+    { name = "blpapi" },
+]
 dev = [
     { name = "ipykernel" },
     { name = "ipython" },
