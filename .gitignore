@@ -110,3 +110,4 @@ docs/diagrams/
 
 # Git worktrees
 .worktrees/
+.worktree/
