@@ -1,10 +1,15 @@
 # Bloomberg Research / Probe Plan
 
+> ⚠️ **Partial / unvalidated surface.** The "supported" split below is aspirational — none of the
+> Bloomberg workflows have been validated end-to-end against a live Terminal since the integration
+> rebased onto master. Anyone continuing this work should follow
+> [`docs/BLOOMBERG_LIVE_VALIDATION_RUNBOOK.md`](BLOOMBERG_LIVE_VALIDATION_RUNBOOK.md) first.
+
 ## Objective
 
 Use Bloomberg for two distinct workflows:
 
-1. **Supported Bloomberg extraction** lives in `src/lseg_toolkit/bloomberg/` and is exposed through `bbg-extract`.
+1. **Partial Bloomberg extraction** lives in `src/lseg_toolkit/bloomberg/` and is exposed through `bbg-extract` (unvalidated).
 2. **Research / probe scripts** live in `bloomberg_scripts/` and are used to discover ticker formats, validate entitlements, and investigate unsupported datasets.
 
 This document is specifically for the **research/probe** side of that split.

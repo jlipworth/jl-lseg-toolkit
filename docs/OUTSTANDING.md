@@ -21,7 +21,7 @@ Active TODOs and feature requests for jl-lseg-toolkit.
 
 ### Bloomberg
 **Priority:** Medium
-**Status:** Awaiting final Bloomberg-enabled validation pass
+**Status:** Partial / unvalidated — maintainer lacks Terminal access; all items below require a contributor with a live Bloomberg Terminal
 
 - run supported live checks for `bbg-extract jgb` and `bbg-extract fx-atm-vol`
 - run Bloomberg integration smoke tests with Terminal/Desktop API access

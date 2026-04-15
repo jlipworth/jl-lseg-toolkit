@@ -1,8 +1,13 @@
 """
-Bloomberg support package.
+Bloomberg support package (partial / unvalidated).
 
-This package contains the repo-supported Bloomberg workflows.
-Research/probe utilities remain outside the package surface until validated.
+This package contains the repo's Bloomberg workflows — currently JGB yields and FX ATM
+implied vol. These have been probed against a live Terminal but have not been validated
+end-to-end since the feature landed on master, so treat behavior as experimental and
+report divergence as an issue.
+
+Research/probe utilities remain outside the package surface in ``bloomberg_scripts/``.
+See ``docs/instruments/BLOOMBERG.md`` and ``docs/BLOOMBERG_LIVE_VALIDATION_RUNBOOK.md``.
 """
 
 from lseg_toolkit.bloomberg.fx_atm_vol import (

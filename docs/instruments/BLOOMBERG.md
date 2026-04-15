@@ -1,11 +1,20 @@
-## Bloomberg Tickers (Validated 2026-01-16)
+## Bloomberg Tickers — Partial Support (Unvalidated)
+
+> ⚠️ **Status: partial / unvalidated.** The ticker patterns below were probed against a live
+> Terminal on 2026-01-16, but the `bbg-extract` package surface has **not** been re-validated
+> end-to-end since the rebase onto master. The maintainer does not currently have ongoing
+> Bloomberg Terminal access, so behavior in new environments is unconfirmed.
+>
+> Anyone running these workflows against a live Terminal should follow
+> [`docs/BLOOMBERG_LIVE_VALIDATION_RUNBOOK.md`](../BLOOMBERG_LIVE_VALIDATION_RUNBOOK.md) and open
+> issues for any divergence from the documented ticker/field matrix.
 
 This document covers Bloomberg Terminal tickers for instruments where LSEG has permission restrictions.
 
 **API**: BLPAPI Desktop API via localhost:8194
-**Supported package**: `src/lseg_toolkit/bloomberg/`
-**Supported CLI**: `bbg-extract`
-**Research / probe scripts**: `bloomberg_scripts/`
+**Partial package**: `src/lseg_toolkit/bloomberg/` (JGB yields, FX ATM vol)
+**Partial CLI**: `bbg-extract` (unvalidated)
+**Research / probe scripts**: `bloomberg_scripts/` (research-only; not part of the supported surface)
 **Research findings log**: `docs/BLOOMBERG_FINDINGS.md`
 
 Install Bloomberg runtime support with:
@@ -14,11 +23,11 @@ Install Bloomberg runtime support with:
 uv sync --group bloomberg
 ```
 
-Current supported Bloomberg surface:
+Current partial (unvalidated) Bloomberg surface:
 - `bbg-extract jgb`
 - `bbg-extract fx-atm-vol`
 
-Current research-only areas:
+Current research-only areas (unvalidated, Terminal required):
 - swaptions
 - caps/floors
 - FX RR/BF

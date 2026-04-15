@@ -1,10 +1,15 @@
 # Bloomberg Research Findings Log
 
+> ⚠️ **All entries below are unvalidated against the current codebase.** The findings capture
+> a 2026-01-16 probe session. The repository's Bloomberg integration is currently shipped as
+> partial support and has not been re-validated end-to-end. Treat patterns here as starting
+> points for future Terminal-assisted work, not guarantees.
+
 This file records concrete Bloomberg probe findings for datasets that are still
 experimental or research-only.
 
-For the current supported Bloomberg surface, see:
-- `bbg-extract`
+For the current partial Bloomberg surface, see:
+- `bbg-extract` (partial, unvalidated)
 - `docs/instruments/BLOOMBERG.md`
 
 For the research workflow/playbook, see:

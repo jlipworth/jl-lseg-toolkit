@@ -21,7 +21,7 @@ screening** tools.
 - **Fed Funds / FOMC tooling** for continuous contracts, meeting history, and rate-decision data
 - **Prediction markets** for Kalshi, Polymarket, and FedWatch comparison workflows
 - **Equity tools** for earnings reports, screening, financial ratios, consensus, and historical snapshots
-- **Bloomberg gap-fill workflows** for JGB yields and FX ATM implied vol via `bbg-extract`
+- **Bloomberg gap-fill workflows** for JGB yields and FX ATM implied vol via `bbg-extract` *(partial — unvalidated, requires Bloomberg Terminal)*
 
 ## Installation
 
@@ -33,16 +33,21 @@ cd jl-lseg-toolkit
 uv sync
 ```
 
-### Optional Bloomberg runtime
+### Optional Bloomberg runtime (partial support — unvalidated)
 
-For the supported Bloomberg CLI (`bbg-extract`), install the Bloomberg dependency group:
+> **Status: partial / unvalidated.** The `bbg-extract` CLI ships JGB yields and FX ATM implied vol
+> extractors but has not been validated end-to-end against a live Bloomberg Terminal. Treat this
+> surface as a starting point; see [Bloomberg instrument notes](docs/instruments/BLOOMBERG.md) and
+> [Bloomberg findings](docs/BLOOMBERG_FINDINGS.md) for the current support matrix and the live
+> validation runbook in [docs/BLOOMBERG_LIVE_VALIDATION_RUNBOOK.md](docs/BLOOMBERG_LIVE_VALIDATION_RUNBOOK.md).
+
+Install the Bloomberg dependency group if you have Terminal access:
 
 ```bash
 uv sync --group bloomberg
 ```
 
-This requires Bloomberg Terminal/Desktop API access on `localhost:8194`.
-See [Bloomberg instrument notes](docs/instruments/BLOOMBERG.md) for the current support matrix.
+Requires Bloomberg Terminal/Desktop API on `localhost:8194`.
 
 ### Configure your LSEG app key
 
@@ -95,7 +100,7 @@ bbg-extract fx-atm-vol --pairs EURUSD USDJPY --tenors 1M 3M
 | `lseg-setup` | Interactive LSEG app-key configuration |
 | `lseg-extract` | Timeseries extraction and optional continuous-contract building |
 | `lseg-scheduler` | Scheduler job management and daemon control |
-| `bbg-extract` | Bloomberg extraction for JGB yields and FX ATM implied vol |
+| `bbg-extract` | Bloomberg extraction for JGB yields and FX ATM implied vol *(partial — unvalidated)* |
 
 ### `lseg-extract` highlights
 
@@ -116,7 +121,10 @@ uv run lseg-extract FF_CONTINUOUS --asset-class stir --interval hourly --start 2
 uv run lseg-extract 1M 3M 6M 1Y 2Y 5Y 10Y 30Y --asset-class ois
 ```
 
-### `bbg-extract` highlights
+### `bbg-extract` highlights *(partial — unvalidated)*
+
+> These commands ship with the `bloomberg` dependency group but have not been validated against a
+> live Bloomberg Terminal. Behavior is expected to match the LSEG analogs; report divergence as an issue.
 
 ```bash
 # JGB yield snapshot
@@ -214,7 +222,7 @@ src/lseg_toolkit/
 | [Polymarket Resolution](docs/POLYMARKET_RESOLUTION.md) | Canonical normalization and resolution rules |
 | [Storage Schema](docs/STORAGE_SCHEMA.md) | Current database model summary and source-of-truth pointers |
 | [Instruments](docs/INSTRUMENTS.md) | LSEG instrument reference by asset class |
-| [Bloomberg](docs/instruments/BLOOMBERG.md) | Supported `bbg-extract` workflows and Bloomberg research notes |
+| [Bloomberg](docs/instruments/BLOOMBERG.md) | `bbg-extract` workflows (partial, unvalidated) and Bloomberg research notes |
 | [API Reference](docs/LSEG_API_REFERENCE.md) | LSEG patterns, field quirks, and mapping notes |
 | [Architecture](docs/ARCHITECTURE.md) | Repo subsystem map and data flow |
 | [Development](docs/DEVELOPMENT.md) | Contributor workflow after initial setup |
