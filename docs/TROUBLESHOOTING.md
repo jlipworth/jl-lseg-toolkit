@@ -99,7 +99,6 @@ That is expected in some cases. The repo intentionally keeps automatic
 Polymarket resolution conservative. Use:
 - `docs/PREDICTION_MARKETS.md`
 - `docs/POLYMARKET_RESOLUTION.md`
-- `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
 
 ## Getting help
 

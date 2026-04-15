@@ -39,9 +39,6 @@ Current Polymarket references:
   - implementation history and archived build notes
 - `docs/POLYMARKET_RESOLUTION.md`
   - canonical resolution and normalization spec for Polymarket macro/Fed data
-- `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
-  - temporary troubleshooting note for candidate Polymarket ↔ FOMC links and
-    cross-session comparison snapshots
 
 ## Doc Map
 
@@ -53,16 +50,12 @@ Use the Polymarket docs in this order:
    - canonical normalization and resolution spec
 3. `docs/archive/POLYMARKET_IMPLEMENTATION_HISTORY.md`
    - implementation history and archived build notes
-4. `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
-   - temporary dry-run linkage and comparison troubleshooting note
 
 Recommended interpretation:
 
 - this file explains the module at a high level
 - the resolution doc is the canonical semantic reference
 - the archived implementation history is for background/context
-- the temporary FOMC link note is exploratory and should not be treated as
-  production linkage policy
 
 ## Public helpers
 
