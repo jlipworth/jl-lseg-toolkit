@@ -41,7 +41,7 @@ You will optimize documentation for maximum information density:
 - Ensure code examples follow project conventions
 
 **Other Documentation:**
-- Check README.md, WSL_SETUP.md, CHANGELOG.md for consistency
+- Check README.md, CHANGELOG.md for consistency
 - Remove outdated information
 - Ensure links and references work
 - Verify version numbers and dates
