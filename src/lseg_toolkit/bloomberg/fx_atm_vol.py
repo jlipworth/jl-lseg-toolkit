@@ -158,7 +158,6 @@ def extract_fx_atm_vol_snapshot(
     return result[[column for column in columns if column in result.columns]]
 
 
-
 def extract_fx_atm_vol_historical(
     start_date: date,
     end_date: date | None = None,

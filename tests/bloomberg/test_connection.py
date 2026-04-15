@@ -28,9 +28,7 @@ def test_reference_data_normalizes_rows_without_live_session():
     session = object.__new__(BloombergSession)
     session._blpapi = SimpleNamespace(Event=SimpleNamespace(RESPONSE=1))
     session._ref_data_service = SimpleNamespace(
-        createRequest=lambda name: SimpleNamespace(
-            append=lambda *args, **kwargs: None
-        )
+        createRequest=lambda name: SimpleNamespace(append=lambda *args, **kwargs: None)
     )
 
     class FakeFieldData:
@@ -104,7 +102,9 @@ def test_historical_data_normalizes_rows_without_live_session():
         def set(self, *args, **kwargs):
             return None
 
-    session._ref_data_service = SimpleNamespace(createRequest=lambda name: FakeRequest())
+    session._ref_data_service = SimpleNamespace(
+        createRequest=lambda name: FakeRequest()
+    )
 
     class FakeRowElement:
         def hasElement(self, name):
@@ -170,9 +170,7 @@ def test_reference_data_raises_on_top_level_response_error():
     session.port = 8194
     session._blpapi = SimpleNamespace(Event=SimpleNamespace(RESPONSE=1))
     session._ref_data_service = SimpleNamespace(
-        createRequest=lambda name: SimpleNamespace(
-            append=lambda *args, **kwargs: None
-        )
+        createRequest=lambda name: SimpleNamespace(append=lambda *args, **kwargs: None)
     )
 
     class FakeValue:
