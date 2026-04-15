@@ -41,8 +41,6 @@ Related docs:
   - top-level workflow and troubleshooting entry point
 - `docs/archive/POLYMARKET_IMPLEMENTATION_HISTORY.md`
   - implementation history and next tasks
-- `docs/TEMP_POLYMARKET_FOMC_LINKS.md`
-  - dry-run exploratory note, not production linkage policy
 
 ---
 
@@ -456,5 +454,3 @@ Until this is more mature:
 - keep resolution narrow
 - keep `fomc_meeting_id` writes conservative
 - prefer manual review for ambiguous cases
-- treat `docs/TEMP_POLYMARKET_FOMC_LINKS.md` as a dry-run troubleshooting note,
-  not a production linkage table

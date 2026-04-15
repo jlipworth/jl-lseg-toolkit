@@ -49,7 +49,7 @@ class SessionManager:
         3. Falls back to LSEG default if no config found
 
         Requires LSEG Workspace Desktop to be running and authenticated.
-        WSL2 users must have mirrored networking enabled (see WSL_SETUP.md).
+        WSL2 users must have mirrored networking enabled (see docs/GETTING_STARTED.md).
 
         To create a config file with your app key, run:
             uv run lseg-setup
@@ -73,7 +73,7 @@ class SessionManager:
                     "1. Ensure LSEG Workspace Desktop is running and logged in\n"
                     "2. Create an app key in LSEG Workspace and configure it:\n"
                     "   Run: uv run lseg-setup\n"
-                    "3. On WSL2: Ensure mirrored networking is enabled (see WSL_SETUP.md)"
+                    "3. On WSL2: Ensure mirrored networking is enabled (see docs/GETTING_STARTED.md)"
                 )
                 raise SessionError(error_msg) from e
 
