@@ -26,7 +26,9 @@ def test_cli_supports_only_jgb_and_fx_atm_vol():
 
 def test_main_reports_configuration_error(monkeypatch, capsys):
     def raise_error(*args, **kwargs):
-        raise ConfigurationError("blpapi is not installed. Install Bloomberg support with `uv sync --group bloomberg`.")
+        raise ConfigurationError(
+            "blpapi is not installed. Install Bloomberg support with `uv sync --group bloomberg`."
+        )
 
     monkeypatch.setattr("lseg_toolkit.bloomberg.cli.extract_jgb_snapshot", raise_error)
 
@@ -40,7 +42,9 @@ def test_main_reports_configuration_error(monkeypatch, capsys):
 
 def test_main_reports_runtime_error(monkeypatch, capsys):
     def raise_error(*args, **kwargs):
-        raise BloombergError(format_bloomberg_error("Failed to start Bloomberg session."))
+        raise BloombergError(
+            format_bloomberg_error("Failed to start Bloomberg session.")
+        )
 
     monkeypatch.setattr(
         "lseg_toolkit.bloomberg.cli.extract_fx_atm_vol_snapshot",

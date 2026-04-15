@@ -32,8 +32,7 @@ def _import_blpapi():
         return import_module("blpapi")
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise ConfigurationError(
-            "blpapi is not installed. "
-            f"{BLOOMBERG_INSTALL_HINT}"
+            f"blpapi is not installed. {BLOOMBERG_INSTALL_HINT}"
         ) from exc
 
 
@@ -64,8 +63,8 @@ class BloombergSession:
         self.host = host
         self.port = port
         self._blpapi = _import_blpapi()
-        self._session: Any | None = None
-        self._ref_data_service: Any | None = None
+        self._session: Any = None
+        self._ref_data_service: Any = None
 
     def connect(self) -> None:
         options = self._blpapi.SessionOptions()
@@ -132,7 +131,9 @@ class BloombergSession:
             if value is not None:
                 details.append(f"{field}={value}")
 
-        detail_text = ", ".join(details) if details else "unknown Bloomberg responseError"
+        detail_text = (
+            ", ".join(details) if details else "unknown Bloomberg responseError"
+        )
         raise BloombergError(
             format_bloomberg_error(
                 f"Bloomberg request failed: {detail_text}",

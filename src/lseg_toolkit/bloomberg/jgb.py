@@ -119,7 +119,6 @@ def extract_jgb_snapshot(tenors: Sequence[str] | None = None) -> pd.DataFrame:
     return result[[column for column in columns if column in result.columns]]
 
 
-
 def extract_jgb_historical(
     start_date: date,
     end_date: date | None = None,

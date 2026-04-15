@@ -875,6 +875,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+bloomberg = [{ name = "blpapi", specifier = ">=3.19.0", index = "https://blpapi.bloomberg.com/repository/releases/python/simple/" }]
 dev = [
     { name = "ipykernel", specifier = ">=6.29.0" },
     { name = "ipython", specifier = ">=8.12.0" },
