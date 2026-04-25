@@ -28,11 +28,13 @@ uv run pre-commit run --all-files
 | Development & testing | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
 | Examples | [examples/](examples/) |
 
-## Repo-local skill
+## Repo-local Claude config
 
-- TimescaleDB access workflow: `skills/timescaledb-access/SKILL.md`
-- Keep DB access agnostic: prefer env-driven config (`TSDB_*` or `POSTGRES_*`) and user-owned credentials/secret-manager setup.
-- Codex users can symlink or copy that folder into `$CODEX_HOME/skills/timescaledb-access` for direct skill pickup.
+- Agents: `.claude/agents/`
+- Skills: `.claude/skills/` (e.g. `.claude/skills/timescaledb-access/SKILL.md`)
+- Slash commands: `.claude/commands/` (e.g. `/timescaledb-access`)
+
+TimescaleDB access workflow lives at `.claude/skills/timescaledb-access/SKILL.md`. Keep DB access agnostic: prefer env-driven config (`TSDB_*` or `POSTGRES_*`) and user-owned credentials/secret-manager setup. Codex users can symlink or copy `.claude/skills/timescaledb-access` into `$CODEX_HOME/skills/timescaledb-access` for direct skill pickup.
 
 ## Rules
 
