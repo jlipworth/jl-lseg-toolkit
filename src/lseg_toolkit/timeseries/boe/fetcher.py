@@ -1,58 +1,25 @@
-"""BoE meeting/rate fetcher - combines calendar dates and FRED Bank Rate."""
+"""BoE meeting/rate fetcher.
+
+Combines BoE-published Bank Rate history (Interactive Database series IUDBEDR,
+daily) with the BoE MPC upcoming-meeting calendar.
+
+FRED's BOERUKM series was discontinued at 2017-01-01, so we go directly to
+``bankofengland.co.uk/boeapps/database`` for the rate history.
+"""
 
 from __future__ import annotations
 
 import logging
-import os
-from datetime import date, datetime
+from datetime import date
 
-import httpx
-
+from lseg_toolkit.timeseries.boe.bank_rate_scraper import (
+    derive_decision_dates,
+    fetch_boe_bank_rate_history,
+)
 from lseg_toolkit.timeseries.boe.calendar_scraper import fetch_future_boe_meetings
 from lseg_toolkit.timeseries.boe.models import BoEMeeting, RateDecision
 
-FRED_BASE_URL = "https://api.stlouisfed.org/fred"
-# BOERUKM = "Bank of England Policy Rate in the United Kingdom".
-# IUDSOIA is SONIA, not Bank Rate; BOERUKM is the correct policy-rate series.
-FRED_BANK_RATE_SERIES = "BOERUKM"
-
 logger = logging.getLogger(__name__)
-
-
-def get_fred_api_key() -> str:
-    key = os.environ.get("FRED_API_KEY")
-    if not key:
-        raise ValueError("FRED_API_KEY environment variable not set.")
-    return key
-
-
-def fetch_bank_rate_history(
-    api_key: str | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
-) -> dict[date, float]:
-    if api_key is None:
-        api_key = get_fred_api_key()
-    params: dict = {
-        "series_id": FRED_BANK_RATE_SERIES,
-        "api_key": api_key,
-        "file_type": "json",
-        "sort_order": "asc",
-    }
-    if start_date:
-        params["observation_start"] = start_date.isoformat()
-    if end_date:
-        params["observation_end"] = end_date.isoformat()
-    resp = httpx.get(
-        f"{FRED_BASE_URL}/series/observations", params=params, timeout=30.0
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return {
-        datetime.strptime(obs["date"], "%Y-%m-%d").date(): float(obs["value"])
-        for obs in data.get("observations", [])
-        if obs.get("value") and obs["value"] != "."
-    }
 
 
 def _rate_on_or_after(rate_history: dict[date, float], target: date) -> float | None:
@@ -88,7 +55,7 @@ def build_boe_meetings_from_dates(
                 rate_lower=rate,
                 rate_change_bps=change_bps,
                 decision=decision,
-                source="fred+boe_calendar",
+                source="boe_iadb+boe_calendar",
             )
         )
         if rate is not None:
@@ -97,26 +64,23 @@ def build_boe_meetings_from_dates(
 
 
 def fetch_boe_meetings(
-    api_key: str | None = None,
+    api_key: str | None = None,  # noqa: ARG001 — kept for sync_boe_meetings signature compat
     allow_missing_rate_history: bool = True,
 ) -> list[BoEMeeting]:
     rate_history: dict[date, float] | None = None
     try:
-        rate_history = fetch_bank_rate_history(api_key)
-    except ValueError:
+        rate_history = fetch_boe_bank_rate_history()
+    except Exception:
         if not allow_missing_rate_history:
             raise
         logger.warning(
-            "FRED API key unavailable; syncing BoE meetings without rate history"
+            "BoE Interactive Database unreachable; syncing without rate history",
+            exc_info=True,
         )
 
     change_dates: list[date] = []
     if rate_history:
-        prev: float | None = None
-        for d in sorted(rate_history):
-            if prev is None or rate_history[d] != prev:
-                change_dates.append(d)
-                prev = rate_history[d]
+        change_dates = derive_decision_dates(rate_history)
 
     historical = build_boe_meetings_from_dates(change_dates, rate_history)
 
