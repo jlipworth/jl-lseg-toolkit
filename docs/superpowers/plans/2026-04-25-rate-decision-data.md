@@ -2671,3 +2671,58 @@ Branch: `rate-decision-data` (worktree at `.worktrees/rate-decision-data/`).
 
 **Conditional-path defaults applied:**
 - `ensure_rate_decision_jobs` will auto-skip `ois_eur_daily` until `EUR_OIS_TENORS` is added to `constants.py` (so seeding is safe to run before Task 1 completes).
+
+---
+
+## Continuation log (2026-04-25, post-LSEG-restart)
+
+LSEG Workspace started; deferred items executed.
+
+**Task 1 (live EUREST probe)** — outcome **PARTIAL** (3/5 sub-1Y core hits):
+
+| Tenor | Status |
+|-------|--------|
+| 1W | ❌ DataRetrievalError |
+| 1M | ✅ 22 rows |
+| 2M | ✅ 22 rows |
+| 3M | ✅ 22 rows |
+| 6M | ✅ 22 rows |
+| 9M | ✅ 22 rows |
+| 12M | ❌ DataRetrievalError |
+| 18M | ✅ 22 rows |
+| 2Y | ✅ 22 rows |
+
+**Task 2 (wire EUR OIS)** — `EUR_OIS_TENORS = ['1M','2M','3M','6M','9M','18M','2Y']` and `get_eur_ois_ric()` added to `constants.py`. `_build_ois_eur` and the EUR branch of `_build_ois_g7` switched to `EUREST{tenor}=`. Regression test `test_eur_ois_now_wired` added.
+
+**Task 3 Step 5 (DB schema apply)** — `init_db()` ran against `jlfinance` (POSTGRES_* loaded from `~/Refinitiv Projects/.env`). All four CB tables present: `fomc_meetings`, `ecb_meetings`, `boe_meetings`, `boc_meetings`.
+
+**Task 9 (smoke run)** — `seed-rate-decision-modeling` created all 6 jobs; all 6 completed successfully:
+
+| Job | Instruments | Rows |
+|-----|-------------|------|
+| `ois_usd_daily` | 23/23 | 5,908 |
+| `ois_eur_daily` | 7/7 | 1,792 |
+| `ois_gbp_daily` | 14/14 | 3,598 |
+| `ois_g7_daily` | 63/63 | 9,956 |
+| `benchmark_fixings_daily` | 4/4 | 993 |
+| `euribor_fixings_daily` | 4/4 | 1,004 |
+
+**CB meeting sync** — BoC fully populated; ECB/BoE limited without FRED key:
+- `boc_meetings`: 33 rows, 2009-04-21 → 2025-10-30 (full history via Valet API).
+- `ecb_meetings`: 22 rows, 2026-04-30 → 2028-12-07 (future calendar only without FRED).
+- `boe_meetings`: 1 row, 2026-04-30 (BoE upcoming-MPC page is short; needs FRED for past).
+
+**Scraper bug fixes (committed during continuation):**
+- ECB calendar parser was matching the press-conference landing-page date markup, not the actual meeting list. Live page uses `DD/MM/YYYY <description>` rows. Rewrote `parse_future_ecb_meetings` to:
+  1. Strip HTML tags / collapse whitespace.
+  2. Match `DD/MM/YYYY` followed by description bounded by lookahead at next date.
+  3. Filter to "monetary policy" + "Day 2" or "press conference" rows (excludes Day 1, non-monetary, General Council).
+  4. Kept legacy long-form regex as fallback for fixture HTML used in unit tests.
+- BoE calendar fetch was returning 403 to the default httpx UA. Added `Mozilla/5.0 ...` browser UA to `fetch_boe_calendar_html`. Same UA added to ECB defensively.
+- New regression test `test_parse_live_ddmmyyyy_format_filters_to_day2` added against the live row format.
+
+**Final test sweep:** `437 passed, 2 skipped, 24 deselected` (timeseries package, integration deselected).
+
+**Still deferred for user:**
+- Set `FRED_API_KEY` and re-run `sync_ecb_meetings` / `sync_boe_meetings` for historical decision rows (rate_upper, decision, dissent_count). BoC already has full history via Valet.
+- 1W and 12M EUREST tenors are unavailable; for 12M EUR rates, fall back to `EURIRS1Y=`.

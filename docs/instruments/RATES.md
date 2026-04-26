@@ -29,22 +29,28 @@
 | 25Y | `USD25YOIS=` | ✅ | ✅ | |
 | 30Y | `USD30YOIS=` | ✅ | ✅ | |
 
-### EUR ESTR OIS — validation pending
+### EUR ESTR OIS (Validated 2026-04-25)
 
-**Status**: `EUR{tenor}OIS=` does not work. The proper ESTR-linked OIS pattern is
-`EUREST{tenor}=` (per `docs/instruments/OVERVIEW.md`), but live validation has not
-yet been completed.
+**Pattern**: `EUREST{tenor}=` — `EUR{tenor}OIS=` does **not** work for EUR.
 
-**To validate**: Run `uv run python dev_scripts/validate_eurest_ois.py` against a
-live LSEG Workspace session. The script probes 9 tenors (1W–2Y) and prints a
-`Decision:` line. Replace this section with the validated tenor table once the
-probe has run.
+| Tenor | LSEG RIC | Status | Daily | Notes |
+|-------|----------|--------|-------|-------|
+| 1W | `EUREST1W=` | ❌ | — | DataRetrievalError on 30-day probe |
+| 1M | `EUREST1M=` | ✅ | ✅ | 22 rows over 30 days |
+| 2M | `EUREST2M=` | ✅ | ✅ | 22 rows over 30 days |
+| 3M | `EUREST3M=` | ✅ | ✅ | 22 rows over 30 days |
+| 6M | `EUREST6M=` | ✅ | ✅ | 22 rows over 30 days |
+| 9M | `EUREST9M=` | ✅ | ✅ | 22 rows over 30 days |
+| 12M | `EUREST12M=` | ❌ | — | DataRetrievalError; use IRS 1Y instead |
+| 18M | `EUREST18M=` | ✅ | ✅ | 22 rows over 30 days |
+| 2Y | `EUREST2Y=` | ✅ | ✅ | 22 rows over 30 days |
 
-**Until validated**, the scheduler's `ois_eur_daily` job is auto-skipped by
-`ensure_rate_decision_jobs` (it detects the absence of `EUR_OIS_TENORS` in
-`constants.py`). For longer tenors (≥1Y), the [EUR IRS section](#eur-irs-validated-2026-01-06)
-remains the recommended source (17/17 tenors validated, 1Y-50Y). For short-end
-EUR pricing, use EURIBOR fixings + `FEIc1` 3M EURIBOR futures.
+`EUR_OIS_TENORS` is wired to the 7 working tenors (`1M, 2M, 3M, 6M, 9M, 18M, 2Y`).
+The scheduler's `ois_eur_daily` job is enabled by default. For 1Y and longer tenors
+beyond 2Y, fall back to the [EUR IRS section](#eur-irs-validated-2026-01-06).
+
+Re-run `uv run python dev_scripts/validate_eurest_ois.py` after any change to the
+tenor list or to revalidate against a fresh LSEG session.
 
 ### GBP SONIA OIS (Validated 2026-01-06)
 
