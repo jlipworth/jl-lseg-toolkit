@@ -471,3 +471,30 @@ class TestJobRunResult:
         assert result.instruments_failed == 1
         assert len(result.errors) == 1
         assert "CORRA" in result.errors[0]
+
+
+def test_rate_decision_job_specs_cover_all_six_groups():
+    from lseg_toolkit.timeseries.scheduler.default_jobs import (
+        RATE_DECISION_JOB_SPECS,
+    )
+
+    groups = {spec.instrument_group for spec in RATE_DECISION_JOB_SPECS}
+    assert groups == {
+        "ois_usd",
+        "ois_eur",
+        "ois_gbp",
+        "ois_g7",
+        "benchmark_fixings",
+        "euribor_fixings",
+    }
+
+
+def test_rate_decision_job_specs_use_consistent_cron_and_lookback():
+    from lseg_toolkit.timeseries.scheduler.default_jobs import (
+        RATE_DECISION_JOB_SPECS,
+    )
+
+    for spec in RATE_DECISION_JOB_SPECS:
+        assert spec.granularity == "daily"
+        assert spec.schedule_cron == "0 22 * * 1-5"
+        assert spec.lookback_days == 365
