@@ -32,27 +32,30 @@
 ### EUR ESTR OIS (Validated 2026-04-25)
 
 **Pattern**: `EUREST{tenor}=` — `EUR{tenor}OIS=` does **not** work for EUR.
+The bare RIC uses `1Y` (not `12M`) for the 12-month tenor.
 
 | Tenor | LSEG RIC | Status | Daily | Notes |
 |-------|----------|--------|-------|-------|
-| 1W | `EUREST1W=` | ❌ | — | DataRetrievalError on 30-day probe |
-| 1M | `EUREST1M=` | ✅ | ✅ | 22 rows over 30 days |
-| 2M | `EUREST2M=` | ✅ | ✅ | 22 rows over 30 days |
-| 3M | `EUREST3M=` | ✅ | ✅ | 22 rows over 30 days |
-| 6M | `EUREST6M=` | ✅ | ✅ | 22 rows over 30 days |
-| 9M | `EUREST9M=` | ✅ | ✅ | 22 rows over 30 days |
-| 12M | `EUREST12M=` | ❌ | — | DataRetrievalError; use IRS 1Y instead |
-| 18M | `EUREST18M=` | ✅ | ✅ | 22 rows over 30 days |
-| 2Y | `EUREST2Y=` | ✅ | ✅ | 22 rows over 30 days |
+| 1W | `EUREST1W=` | ❌ | — | UserNotPermission across bare and =TREU/=ICAP/=TRDL contributor variants |
+| 1M | `EUREST1M=` | ✅ | ✅ | |
+| 2M | `EUREST2M=` | ✅ | ✅ | |
+| 3M | `EUREST3M=` | ✅ | ✅ | |
+| 6M | `EUREST6M=` | ✅ | ✅ | |
+| 9M | `EUREST9M=` | ✅ | ✅ | |
+| 1Y | `EUREST1Y=` | ✅ | ✅ | bare RIC uses `1Y`, not `12M` |
+| 12M | `EUREST12M=` | ❌ | — | DataRetrievalError — use `EUREST1Y=` instead |
+| 18M | `EUREST18M=` | ✅ | ✅ | |
+| 2Y | `EUREST2Y=` | ✅ | ✅ | |
 
-`EUR_OIS_TENORS` is wired to the 7 working tenors (`1M, 2M, 3M, 6M, 9M, 18M, 2Y`).
-The scheduler's `ois_eur_daily` job is enabled by default.
+`EUR_OIS_TENORS` is wired to the 8 working tenors
+(`1M, 2M, 3M, 6M, 9M, 1Y, 18M, 2Y`). The scheduler's `ois_eur_daily` job is
+enabled by default and covers the full sub-2Y curve relevant for 1Y-out
+rate-decision modeling.
 
-**1Y proxy:** linearly interpolate between `EUREST9M=` and `EUREST18M=` — both are
-ESTR-OIS so the curve is consistent. **Do not** substitute `EURIRS1Y=`: that's a
-EURIBOR-based IRS and carries OIS/EURIBOR basis. For tenors longer than 2Y where
-ESTR-OIS isn't available, the [EUR IRS section](#eur-irs-validated-2026-01-06) is
-acceptable as a different curve (with the basis caveat).
+**Do not** substitute `EURIRS1Y=` for missing OIS tenors: that's a
+EURIBOR-based IRS and carries OIS/EURIBOR basis. For tenors longer than 2Y
+where ESTR-OIS isn't quoted, the [EUR IRS section](#eur-irs-validated-2026-01-06)
+is acceptable as a different curve (with the basis caveat).
 
 Re-run `uv run python dev_scripts/validate_eurest_ois.py` after any change to the
 tenor list or to revalidate against a fresh LSEG session.

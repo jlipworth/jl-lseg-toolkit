@@ -40,7 +40,7 @@ Some instruments require specific RIC suffixes for intraday data:
 | Asset Class | Daily RIC | Intraday RIC | Notes |
 |-------------|-----------|--------------|-------|
 | US Treasury Yields | `US10YT=RR` | `US10YT=RRPS` | Use `=RRPS` suffix |
-| EUR OIS | `EUR1YOIS=` ❌ | `EUREST{tenor}=` ✅ | Validated 2026-04-25: 1M, 2M, 3M, 6M, 9M, 18M, 2Y work. 1W and 12M unavailable. |
+| EUR OIS | `EUR1YOIS=` ❌ | `EUREST{tenor}=` ✅ | Validated 2026-04-25: 1M, 2M, 3M, 6M, 9M, **1Y**, 18M, 2Y work. Use `1Y` not `12M` (bare RIC). 1W unavailable. |
 | Other OIS | `USD1YOIS=` | Same | Default pattern works |
 
 ### Intraday Support by Asset Class

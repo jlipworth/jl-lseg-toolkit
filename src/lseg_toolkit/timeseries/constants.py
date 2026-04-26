@@ -245,8 +245,9 @@ def get_ois_ric(currency: str, tenor: str) -> str:
 
 
 # EUR ESTR-linked OIS — uses EUREST{tenor}= (NOT EUR{tenor}OIS=, which fails)
-# Validated 2026-04-25: 7/9 probed tenors return data; 1W and 12M unavailable.
-EUR_OIS_TENORS: list[str] = ["1M", "2M", "3M", "6M", "9M", "18M", "2Y"]
+# Validated 2026-04-25: bare RIC uses '1Y' rather than '12M'; 1W is unavailable
+# across bare and =TREU/=ICAP/=TRDL contributor variants (entitlement-gated).
+EUR_OIS_TENORS: list[str] = ["1M", "2M", "3M", "6M", "9M", "1Y", "18M", "2Y"]
 
 
 def get_eur_ois_ric(tenor: str) -> str:
