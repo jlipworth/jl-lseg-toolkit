@@ -36,6 +36,31 @@ class TestCalendarScraper:
         dates = [m.meeting_date for m in meetings]
         assert len(dates) == len(set(dates))
 
+    def test_parse_live_ddmmyyyy_format_filters_to_day2(self):
+        """Live ECB calendar uses 'DD/MM/YYYY <description>' rows.
+
+        Only Day 2 of monetary-policy meetings (followed by press conference)
+        announces the rate decision. Day 1, non-monetary, and General Council
+        rows must be filtered out.
+        """
+        from lseg_toolkit.timeseries.ecb.calendar_scraper import (
+            parse_future_ecb_meetings,
+        )
+
+        live_html = """
+        29/04/2026 Governing Council of the ECB: monetary policy meeting in Frankfurt (Day 1)
+        30/04/2026 Governing Council of the ECB: monetary policy meeting in Frankfurt (Day 2), followed by press conference
+        20/05/2026 Governing Council of the ECB: non-monetary policy meeting in Frankfurt
+        25/06/2026 General Council meeting of the ECB (virtual)
+        10/06/2026 Governing Council of the ECB: monetary policy meeting in Frankfurt (Day 1)
+        11/06/2026 Governing Council of the ECB: monetary policy meeting in Frankfurt (Day 2), followed by press conference
+        """
+        meetings = parse_future_ecb_meetings(live_html, today=date(2026, 4, 1))
+        assert [m.meeting_date for m in meetings] == [
+            date(2026, 4, 30),
+            date(2026, 6, 11),
+        ]
+
 
 class TestFetcherBuilders:
     def test_build_assigns_decision_from_rate_change(self):
