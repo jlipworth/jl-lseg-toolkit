@@ -41,3 +41,13 @@ def test_auto_skip_when_eur_tenors_missing(monkeypatch):
 
     results = ensure_rate_decision_jobs(MagicMock())
     assert results["ois_eur_daily"] == "skipped"
+
+
+def test_eur_ois_now_wired():
+    """Regression guard: EUR_OIS_TENORS should be populated after 2026-04-25 wiring."""
+    from lseg_toolkit.timeseries.constants import EUR_OIS_TENORS, get_eur_ois_ric
+    from lseg_toolkit.timeseries.scheduler.default_jobs import _eur_ois_unwired
+
+    assert EUR_OIS_TENORS, "EUR_OIS_TENORS should not be empty"
+    assert get_eur_ois_ric("3M") == "EUREST3M="
+    assert _eur_ois_unwired() is False

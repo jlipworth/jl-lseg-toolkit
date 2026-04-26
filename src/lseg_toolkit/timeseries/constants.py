@@ -244,6 +244,16 @@ def get_ois_ric(currency: str, tenor: str) -> str:
     return f"{currency}{tenor}OIS="
 
 
+# EUR ESTR-linked OIS — uses EUREST{tenor}= (NOT EUR{tenor}OIS=, which fails)
+# Validated 2026-04-25: 7/9 probed tenors return data; 1W and 12M unavailable.
+EUR_OIS_TENORS: list[str] = ["1M", "2M", "3M", "6M", "9M", "18M", "2Y"]
+
+
+def get_eur_ois_ric(tenor: str) -> str:
+    """Get EUR ESTR-OIS RIC for tenor."""
+    return f"EUREST{tenor}="
+
+
 # Validated fields for OIS rates
 USD_OIS_FIELDS: list[str] = [
     "BID",

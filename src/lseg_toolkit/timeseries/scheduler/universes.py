@@ -13,6 +13,7 @@ from lseg_toolkit.timeseries.constants import (
     EQUITY_INDEX_RICS,
     EUR_FRA_TENORS,
     EUR_IRS_TENORS,
+    EUR_OIS_TENORS,
     EURIBOR_RICS,
     EUROPEAN_FUTURES_MAPPING,
     FX_FUTURES_MAPPING,
@@ -32,6 +33,7 @@ from lseg_toolkit.timeseries.constants import (
     USD_REPO_RICS,
     VOLATILITY_INDEX_RICS,
     get_eur_irs_ric,
+    get_eur_ois_ric,
     get_fra_ric,
     get_g7_ois_ric,
     get_gbp_irs_ric,
@@ -304,16 +306,16 @@ def _build_ois_usd() -> list[InstrumentSpec]:
 
 
 def _build_ois_eur() -> list[InstrumentSpec]:
-    """Build EUR OIS universe (same tenors as USD)."""
+    """Build EUR ESTR-OIS universe (validated 2026-04-25 — see EUR_OIS_TENORS)."""
     return [
         InstrumentSpec(
-            symbol=f"EUR{tenor}OIS",
-            ric=get_ois_ric("EUR", tenor),
+            symbol=f"EUREST{tenor}",
+            ric=get_eur_ois_ric(tenor),
             asset_class=AssetClass.OIS,
             data_shape=DataShape.RATE,
-            name=f"EUR OIS {tenor}",
+            name=f"EUR ESTR OIS {tenor}",
         )
-        for tenor in USD_OIS_TENORS  # EUR uses same tenors
+        for tenor in EUR_OIS_TENORS
     ]
 
 
@@ -335,6 +337,18 @@ def _build_ois_g7() -> list[InstrumentSpec]:
     """Build G7 OIS universe (all major currencies)."""
     specs = []
     for ccy in G7_OIS_CURRENCIES:
+        if ccy == "EUR":
+            for tenor in EUR_OIS_TENORS:
+                specs.append(
+                    InstrumentSpec(
+                        symbol=f"EUREST{tenor}",
+                        ric=get_eur_ois_ric(tenor),
+                        asset_class=AssetClass.OIS,
+                        data_shape=DataShape.RATE,
+                        name=f"EUR ESTR OIS {tenor}",
+                    )
+                )
+            continue
         for tenor in G7_OIS_TENORS:
             specs.append(
                 InstrumentSpec(
