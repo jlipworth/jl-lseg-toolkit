@@ -46,8 +46,13 @@
 | 2Y | `EUREST2Y=` | ✅ | ✅ | 22 rows over 30 days |
 
 `EUR_OIS_TENORS` is wired to the 7 working tenors (`1M, 2M, 3M, 6M, 9M, 18M, 2Y`).
-The scheduler's `ois_eur_daily` job is enabled by default. For 1Y and longer tenors
-beyond 2Y, fall back to the [EUR IRS section](#eur-irs-validated-2026-01-06).
+The scheduler's `ois_eur_daily` job is enabled by default.
+
+**1Y proxy:** linearly interpolate between `EUREST9M=` and `EUREST18M=` — both are
+ESTR-OIS so the curve is consistent. **Do not** substitute `EURIRS1Y=`: that's a
+EURIBOR-based IRS and carries OIS/EURIBOR basis. For tenors longer than 2Y where
+ESTR-OIS isn't available, the [EUR IRS section](#eur-irs-validated-2026-01-06) is
+acceptable as a different curve (with the basis caveat).
 
 Re-run `uv run python dev_scripts/validate_eurest_ois.py` after any change to the
 tenor list or to revalidate against a fresh LSEG session.
