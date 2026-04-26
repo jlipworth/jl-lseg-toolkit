@@ -2644,3 +2644,30 @@ git commit -m "chore(plan): record rate-decision implementation completion"
 **External-data verification:** Tasks 5 and 6 each begin with a "verify FRED/Valet series ID" step before code that hardcodes the ID — prevents silently shipping a wrong series.
 
 **Idempotency:** Task 3 uses `CREATE TABLE IF NOT EXISTS`; Tasks 4/5/6 use `ON CONFLICT DO UPDATE`; Task 7 helper checks `get_job_by_name` before insert; smoke runs in Task 9 are all re-runnable.
+
+---
+
+## Implementation log (2026-04-25)
+
+Branch: `rate-decision-data` (worktree at `.worktrees/rate-decision-data/`).
+
+**Tasks completed autonomously (no live systems):**
+- Task 1: probe script written to `dev_scripts/validate_eurest_ois.py`. Live run deferred — LSEG Workspace was offline.
+- Task 3 (schema): `328cb0a` — adds `ecb_meetings`, `boe_meetings`, `boc_meetings` to `pg_schema.SCHEMA_SQL`.
+- Task 4 (ECB module): `267e6bd` — 5 mocked tests passing.
+- Task 5 (BoE module): `624d073` — FRED series **`BOERUKM`** verified via web search (not `IUDSOIA`, which is SONIA). 3 mocked tests passing.
+- Task 6 (BoC module): `cf8a0cb` — Valet series **`V39079`** verified live against `https://www.bankofcanada.ca/valet/observations/V39079/json`. 3 mocked tests passing.
+- Task 7 (default specs + helper): `264b1dd` — `RATE_DECISION_JOB_SPECS` + `ensure_rate_decision_jobs` with `_eur_ois_unwired()` auto-detect. 2 tests passing.
+- Task 8 (CLI): `6ff34af` — `seed-rate-decision-modeling` subcommand with `--skip-eur-ois` / `--include-eur-ois`. 3 tests passing.
+- Task 10 (docs, pre-validation form): `3539b42` — RATES.md / OVERVIEW.md flag EUREST as "validation pending"; STORAGE_SCHEMA.md / SCHEDULER.md add CB tables and seeder row.
+- Task 11 final test run: 495 passed / 1 pre-existing failure (unrelated, `tests/earnings/test_pipeline.py::test_pipeline_initialization` opens a live LSEG socket and isn't `@pytest.mark.integration`-gated) / 2 skipped / 90 integration deselected.
+
+**Deferred for user (require live systems):**
+- **Task 1 live run** (LSEG Workspace required): `uv run python dev_scripts/validate_eurest_ois.py | tee dev_scripts/eurest_validation_$(date +%F).log`
+- **Task 2** (conditional): only run if Task 1 ≠ FAIL — wire validated tenors into `EUR_OIS_TENORS` in `constants.py` and switch `_build_ois_eur` to `get_eur_ois_ric`.
+- **Task 3 Step 5** (DB apply): `uv run python -c 'from lseg_toolkit.timeseries.storage import init_db; init_db()'` — needs DB env (`TSDB_*`/`POSTGRES_*` or Infisical).
+- **Task 9** (smoke run): once DB env loaded, run `uv run lseg-scheduler seed-rate-decision-modeling`, then loop the 6 jobs through `lseg-scheduler run`, then call `sync_ecb_meetings` / `sync_boe_meetings` / `sync_boc_meetings` (FRED key required for ECB/BoE; BoC needs no key).
+- **Task 10 doc refinement**: once Task 1 outcome is known, swap the "validation pending" sections in `RATES.md` and `OVERVIEW.md` for the validated tenor table (or the FAIL variant).
+
+**Conditional-path defaults applied:**
+- `ensure_rate_decision_jobs` will auto-skip `ois_eur_daily` until `EUR_OIS_TENORS` is added to `constants.py` (so seeding is safe to run before Task 1 completes).
