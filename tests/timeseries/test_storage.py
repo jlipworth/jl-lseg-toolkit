@@ -76,6 +76,19 @@ class TestInitDb:
         mock_init_schema.assert_called_once_with(mock_conn)
 
 
+class TestSchemaSQL:
+    """Tests for schema SQL content (table presence, indexes)."""
+
+    def test_cb_meeting_tables_in_schema(self):
+        from lseg_toolkit.timeseries.storage import pg_schema
+
+        sql = pg_schema.SCHEMA_SQL
+        for table in ("ecb_meetings", "boe_meetings", "boc_meetings"):
+            assert f"CREATE TABLE IF NOT EXISTS {table}" in sql
+            assert f"idx_{table}_date" in sql
+            assert f"idx_{table}_decision" in sql
+
+
 class TestMaintenance:
     """Tests for storage maintenance helpers."""
 

@@ -490,6 +490,79 @@ CREATE TABLE IF NOT EXISTS fomc_meetings (
 );
 CREATE INDEX IF NOT EXISTS idx_fomc_meetings_date ON fomc_meetings(meeting_date DESC);
 CREATE INDEX IF NOT EXISTS idx_fomc_meetings_decision ON fomc_meetings(decision);
+
+-- =============================================================================
+-- ECB / BoE / BoC Meeting Tables (mirror fomc_meetings shape)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS ecb_meetings (
+    id SERIAL PRIMARY KEY,
+    meeting_date DATE NOT NULL UNIQUE,
+    meeting_start_date DATE,
+    rate_upper DOUBLE PRECISION,
+    rate_lower DOUBLE PRECISION,
+    rate_change_bps INTEGER,
+    decision TEXT,
+    dissent_count INTEGER DEFAULT 0,
+    vote_for INTEGER,
+    vote_against INTEGER,
+    statement_url TEXT,
+    minutes_url TEXT,
+    is_scheduled BOOLEAN DEFAULT TRUE,
+    has_sep BOOLEAN DEFAULT FALSE,
+    has_presser BOOLEAN DEFAULT FALSE,
+    source TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ecb_meetings_date ON ecb_meetings(meeting_date DESC);
+CREATE INDEX IF NOT EXISTS idx_ecb_meetings_decision ON ecb_meetings(decision);
+
+CREATE TABLE IF NOT EXISTS boe_meetings (
+    id SERIAL PRIMARY KEY,
+    meeting_date DATE NOT NULL UNIQUE,
+    meeting_start_date DATE,
+    rate_upper DOUBLE PRECISION,
+    rate_lower DOUBLE PRECISION,
+    rate_change_bps INTEGER,
+    decision TEXT,
+    dissent_count INTEGER DEFAULT 0,
+    vote_for INTEGER,
+    vote_against INTEGER,
+    statement_url TEXT,
+    minutes_url TEXT,
+    is_scheduled BOOLEAN DEFAULT TRUE,
+    has_sep BOOLEAN DEFAULT FALSE,
+    has_presser BOOLEAN DEFAULT FALSE,
+    source TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_boe_meetings_date ON boe_meetings(meeting_date DESC);
+CREATE INDEX IF NOT EXISTS idx_boe_meetings_decision ON boe_meetings(decision);
+
+CREATE TABLE IF NOT EXISTS boc_meetings (
+    id SERIAL PRIMARY KEY,
+    meeting_date DATE NOT NULL UNIQUE,
+    meeting_start_date DATE,
+    rate_upper DOUBLE PRECISION,
+    rate_lower DOUBLE PRECISION,
+    rate_change_bps INTEGER,
+    decision TEXT,
+    dissent_count INTEGER DEFAULT 0,
+    vote_for INTEGER,
+    vote_against INTEGER,
+    statement_url TEXT,
+    minutes_url TEXT,
+    is_scheduled BOOLEAN DEFAULT TRUE,
+    has_sep BOOLEAN DEFAULT FALSE,
+    has_presser BOOLEAN DEFAULT FALSE,
+    source TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_boc_meetings_date ON boc_meetings(meeting_date DESC);
+CREATE INDEX IF NOT EXISTS idx_boc_meetings_decision ON boc_meetings(decision);
 """
 
 # =============================================================================
