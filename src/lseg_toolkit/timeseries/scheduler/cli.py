@@ -12,7 +12,10 @@ import sys
 
 from lseg_toolkit.timeseries.config import DatabaseConfig
 from lseg_toolkit.timeseries.scheduler.config import SchedulerConfig
-from lseg_toolkit.timeseries.scheduler.default_jobs import ensure_ff_strip_jobs
+from lseg_toolkit.timeseries.scheduler.default_jobs import (
+    ensure_ff_strip_jobs,
+    ensure_rate_decision_jobs,
+)
 from lseg_toolkit.timeseries.scheduler.state import (
     create_job,
     delete_job,
@@ -108,6 +111,25 @@ def main() -> int:
         help="Create the default FF strip daily/hourly jobs if missing",
     )
 
+    # Seed rate-decision-modeling jobs
+    seed_rd_parser = subparsers.add_parser(
+        "seed-rate-decision-modeling",
+        help=(
+            "Create the default rate-decision-modeling daily jobs "
+            "(OIS USD/EUR/GBP/G7, benchmark fixings, EURIBOR fixings)"
+        ),
+    )
+    seed_rd_parser.add_argument(
+        "--skip-eur-ois",
+        action="store_true",
+        help="Skip ois_eur_daily even if EUR_OIS_TENORS is wired",
+    )
+    seed_rd_parser.add_argument(
+        "--include-eur-ois",
+        action="store_true",
+        help="Force ois_eur_daily even if EUR_OIS_TENORS is empty",
+    )
+
     # Enable/disable job
     enable_parser = subparsers.add_parser("enable", help="Enable a job")
     enable_parser.add_argument("name", help="Job name")
@@ -170,6 +192,8 @@ def main() -> int:
             return cmd_add_job(args)
         elif args.command == "seed-ff-strip":
             return cmd_seed_ff_strip(args)
+        elif args.command == "seed-rate-decision-modeling":
+            return cmd_seed_rate_decision_modeling(args)
         elif args.command == "enable":
             return cmd_enable(args)
         elif args.command == "disable":
@@ -361,6 +385,37 @@ def cmd_seed_ff_strip(args) -> int:
     created = sum(1 for action in results.values() if action == "created")
     print(
         f"\nFF strip jobs ready ({created} created, {len(results) - created} existing)"
+    )
+    return 0
+
+
+def cmd_seed_rate_decision_modeling(args) -> int:
+    """Create the default rate-decision-modeling jobs if they do not exist."""
+    db_config = DatabaseConfig.from_env()
+
+    if args.skip_eur_ois and args.include_eur_ois:
+        print("Error: --skip-eur-ois and --include-eur-ois are mutually exclusive")
+        return 1
+    if args.skip_eur_ois:
+        skip: bool | None = True
+    elif args.include_eur_ois:
+        skip = False
+    else:
+        skip = None
+
+    with get_connection(config=db_config) as conn:
+        results = ensure_rate_decision_jobs(conn, skip_eur_ois=skip)
+        conn.commit()
+
+    for name, action in results.items():
+        print(f"{name}: {action}")
+
+    created = sum(1 for a in results.values() if a == "created")
+    existing = sum(1 for a in results.values() if a == "exists")
+    skipped = sum(1 for a in results.values() if a == "skipped")
+    print(
+        f"\nRate-decision jobs ready ({created} created, "
+        f"{existing} existing, {skipped} skipped)"
     )
     return 0
 
