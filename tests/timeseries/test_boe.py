@@ -39,6 +39,49 @@ class TestCalendarScraper:
             date(2026, 5, 8),
         ]
 
+    def test_parse_section_header_year_inheritance(self):
+        """Live BoE page lists dates under 'YYYY confirmed/provisional dates'
+        section headers; year is not repeated on the row.
+        """
+        from lseg_toolkit.timeseries.boe.calendar_scraper import (
+            parse_future_boe_meetings,
+        )
+
+        live_html = """
+        2026 confirmed dates
+        Thursday 5 February
+        Thursday 19 March
+        Thursday 30 April
+        Thursday 18 June
+        Thursday 30 July
+        Thursday 17 September
+        Thursday 5 November
+        Thursday 17 December
+        2027 provisional dates
+        Thursday 4 February
+        Thursday 18 March
+        Thursday 29 April
+        Thursday 17 June
+        Thursday 29 July
+        Thursday 16 September
+        Thursday 4 November
+        Thursday 16 December
+        """
+        meetings = parse_future_boe_meetings(live_html, today=date(2026, 4, 1))
+        dates = [m.meeting_date for m in meetings]
+        # 2026 dates from April onwards
+        assert date(2026, 4, 30) in dates
+        assert date(2026, 6, 18) in dates
+        assert date(2026, 12, 17) in dates
+        # All 8 2027 dates should be present
+        assert date(2027, 2, 4) in dates
+        assert date(2027, 12, 16) in dates
+        # Past dates filtered
+        assert date(2026, 2, 5) not in dates
+        assert date(2026, 3, 19) not in dates
+        # Total = 6 (2026 future) + 8 (2027) = 14
+        assert len(dates) == 14
+
 
 class TestBankRateScraper:
     def test_parse_iadb_html_extracts_rate_history(self):

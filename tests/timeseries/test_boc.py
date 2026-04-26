@@ -7,20 +7,23 @@ from lseg_toolkit.timeseries.boc.models import BoCMeeting, RateDecision
 
 BOC_HTML = """
 <html><body>
-<p>March 12, 2026</p>
-<p>April 16, 2026</p>
-<p>June 4, 2026</p>
+<p>March 12, 2026 Interest Rate Announcement</p>
+<p>April 16, 2026 Interest Rate Announcement and Monetary Policy Report</p>
+<p>April 30, 2026 Summary of Deliberations</p>
+<p>June 4, 2026 Interest Rate Announcement</p>
 </body></html>
 """
 
 
 class TestCalendarScraper:
-    def test_parse_filters_past_dates(self):
+    def test_parse_filters_past_dates_and_non_decision_rows(self):
+        """Excludes past dates AND non-'Interest Rate Announcement' rows."""
         from lseg_toolkit.timeseries.boc.calendar_scraper import (
             parse_future_boc_meetings,
         )
 
         meetings = parse_future_boc_meetings(BOC_HTML, today=date(2026, 4, 1))
+        # April 30 is filtered out — it's a 'Summary of Deliberations'.
         assert [m.meeting_date for m in meetings] == [
             date(2026, 4, 16),
             date(2026, 6, 4),

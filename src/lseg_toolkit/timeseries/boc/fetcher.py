@@ -52,7 +52,7 @@ def fetch_target_rate_history(
         if not isinstance(value_obj, dict):
             continue
         v_str = value_obj.get("v")
-        if v_str in (None, "", "."):
+        if not isinstance(v_str, str) or v_str in ("", "."):
             continue
         history[d] = float(v_str)
     return history
