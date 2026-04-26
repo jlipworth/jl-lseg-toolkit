@@ -29,10 +29,22 @@
 | 25Y | `USD25YOIS=` | ✅ | ✅ | |
 | 30Y | `USD30YOIS=` | ✅ | ✅ | |
 
-### EUR - Use IRS Instead of OIS
+### EUR ESTR OIS — validation pending
 
-**Note**: EUR OIS pattern (`EUR{tenor}OIS=`) does not work. Use `EURIRS{tenor}=` instead.
-See [EUR IRS section](#eur-irs-validated-2026-01-06) for full curve (17/17 tenors validated, 1Y-50Y).
+**Status**: `EUR{tenor}OIS=` does not work. The proper ESTR-linked OIS pattern is
+`EUREST{tenor}=` (per `docs/instruments/OVERVIEW.md`), but live validation has not
+yet been completed.
+
+**To validate**: Run `uv run python dev_scripts/validate_eurest_ois.py` against a
+live LSEG Workspace session. The script probes 9 tenors (1W–2Y) and prints a
+`Decision:` line. Replace this section with the validated tenor table once the
+probe has run.
+
+**Until validated**, the scheduler's `ois_eur_daily` job is auto-skipped by
+`ensure_rate_decision_jobs` (it detects the absence of `EUR_OIS_TENORS` in
+`constants.py`). For longer tenors (≥1Y), the [EUR IRS section](#eur-irs-validated-2026-01-06)
+remains the recommended source (17/17 tenors validated, 1Y-50Y). For short-end
+EUR pricing, use EURIBOR fixings + `FEIc1` 3M EURIBOR futures.
 
 ### GBP SONIA OIS (Validated 2026-01-06)
 

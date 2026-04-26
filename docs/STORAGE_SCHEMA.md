@@ -71,18 +71,21 @@ Notable current `scheduler_state` columns:
 - `next_retry_at`
 - `error_message`
 
-## 4. FOMC and prediction-market tables
+## 4. Central-bank meeting and prediction-market tables
 
 | Table | Purpose |
 |-------|---------|
-| `fomc_meetings` | Meeting calendar and decision history |
+| `fomc_meetings` | FOMC calendar and rate-decision history |
+| `ecb_meetings` | ECB Governing Council monetary-policy decisions (Deposit Facility Rate) |
+| `boe_meetings` | BoE MPC decisions (Bank Rate) |
+| `boc_meetings` | BoC Fixed Announcement Date decisions (Target Overnight Rate) |
 | `pm_platforms` | Prediction-market platforms |
 | `pm_series` | Event/group layer |
 | `pm_markets` | Market/outcome layer |
 | `pm_candlesticks` | Stored PM candles |
 
 This is the active schema used by:
-- `timeseries/fomc/`
+- `timeseries/fomc/`, `timeseries/ecb/`, `timeseries/boe/`, `timeseries/boc/`
 - `timeseries/prediction_markets/kalshi/`
 - `timeseries/prediction_markets/polymarket/`
 - comparison helpers such as `compare_markets_to_fedwatch()`

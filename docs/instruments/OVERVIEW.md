@@ -40,7 +40,7 @@ Some instruments require specific RIC suffixes for intraday data:
 | Asset Class | Daily RIC | Intraday RIC | Notes |
 |-------------|-----------|--------------|-------|
 | US Treasury Yields | `US10YT=RR` | `US10YT=RRPS` | Use `=RRPS` suffix |
-| EUR OIS | `EUR1YOIS=` ❌ | `EUREST1Y=` | Use `EUREST{tenor}=` pattern |
+| EUR OIS | `EUR1YOIS=` ❌ | `EUREST1Y=` ⚠️ | `EUREST{tenor}=` pattern — validation pending; run `dev_scripts/validate_eurest_ois.py` |
 | Other OIS | `USD1YOIS=` | Same | Default pattern works |
 
 ### Intraday Support by Asset Class

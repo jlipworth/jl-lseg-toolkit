@@ -44,6 +44,7 @@ uv run lseg-scheduler start --foreground
 | `jobs` | List configured jobs |
 | `add-job` | Create a job |
 | `seed-ff-strip` | Seed default Fed Funds strip jobs |
+| `seed-rate-decision-modeling` | Seed default rate-decision-modeling jobs (OIS USD/EUR/GBP/G7, benchmark/EURIBOR fixings) |
 | `enable` / `disable` | Toggle a job |
 | `delete-job` | Delete a job |
 | `run` | Run a job immediately |
