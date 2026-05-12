@@ -68,9 +68,7 @@ def upsert_boc_meeting(conn: psycopg.Connection, meeting: BoCMeeting) -> int:
         return result["id"] if result else 0
 
 
-def upsert_boc_meetings(
-    conn: psycopg.Connection, meetings: list[BoCMeeting]
-) -> int:
+def upsert_boc_meetings(conn: psycopg.Connection, meetings: list[BoCMeeting]) -> int:
     count = 0
     for m in meetings:
         upsert_boc_meeting(conn, m)

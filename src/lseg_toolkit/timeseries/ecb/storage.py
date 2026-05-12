@@ -68,9 +68,7 @@ def upsert_ecb_meeting(conn: psycopg.Connection, meeting: ECBMeeting) -> int:
         return result["id"] if result else 0
 
 
-def upsert_ecb_meetings(
-    conn: psycopg.Connection, meetings: list[ECBMeeting]
-) -> int:
+def upsert_ecb_meetings(conn: psycopg.Connection, meetings: list[ECBMeeting]) -> int:
     count = 0
     for m in meetings:
         upsert_ecb_meeting(conn, m)

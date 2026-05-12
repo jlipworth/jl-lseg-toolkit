@@ -122,9 +122,7 @@ def fetch_ecb_meetings(
             "FRED API key unavailable; syncing ECB meetings without rate history"
         )
 
-    historical_dates: list[date] = (
-        sorted(rate_history.keys()) if rate_history else []
-    )
+    historical_dates: list[date] = sorted(rate_history.keys()) if rate_history else []
     change_dates: list[date] = []
     if rate_history:
         prev: float | None = None
@@ -138,9 +136,7 @@ def fetch_ecb_meetings(
     try:
         future = fetch_future_ecb_meetings()
     except Exception:
-        logger.warning(
-            "Failed to fetch future scheduled ECB meetings", exc_info=True
-        )
+        logger.warning("Failed to fetch future scheduled ECB meetings", exc_info=True)
         future = []
 
     combined: dict[date, ECBMeeting] = {m.meeting_date: m for m in historical}
