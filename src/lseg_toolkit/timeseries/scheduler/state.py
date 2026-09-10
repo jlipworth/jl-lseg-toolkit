@@ -10,15 +10,16 @@ from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import psycopg
+    from typing import Any
 
+    import psycopg
 
 # =============================================================================
 # Job Operations
 # =============================================================================
 
 
-def get_all_jobs(conn: psycopg.Connection) -> list[dict]:
+def get_all_jobs(conn: psycopg.Connection[dict[str, Any]]) -> list[dict]:
     """Get all job definitions (enabled and disabled)."""
     with conn.cursor() as cur:
         cur.execute("""
@@ -30,7 +31,7 @@ def get_all_jobs(conn: psycopg.Connection) -> list[dict]:
         return list(cur.fetchall())
 
 
-def get_enabled_jobs(conn: psycopg.Connection) -> list[dict]:
+def get_enabled_jobs(conn: psycopg.Connection[dict[str, Any]]) -> list[dict]:
     """Get all enabled job definitions."""
     with conn.cursor() as cur:
         cur.execute("""
@@ -43,7 +44,7 @@ def get_enabled_jobs(conn: psycopg.Connection) -> list[dict]:
         return list(cur.fetchall())
 
 
-def get_job_by_name(conn: psycopg.Connection, name: str) -> dict | None:
+def get_job_by_name(conn: psycopg.Connection[dict[str, Any]], name: str) -> dict | None:
     """Get job definition by name."""
     with conn.cursor() as cur:
         cur.execute(
@@ -58,7 +59,7 @@ def get_job_by_name(conn: psycopg.Connection, name: str) -> dict | None:
         return cur.fetchone()
 
 
-def get_job_by_id(conn: psycopg.Connection, job_id: int) -> dict | None:
+def get_job_by_id(conn: psycopg.Connection[dict[str, Any]], job_id: int) -> dict | None:
     """Get job definition by ID."""
     with conn.cursor() as cur:
         cur.execute(
@@ -74,7 +75,7 @@ def get_job_by_id(conn: psycopg.Connection, job_id: int) -> dict | None:
 
 
 def create_job(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     name: str,
     instrument_group: str,
     granularity: str,
@@ -108,10 +109,14 @@ def create_job(
             ],
         )
         result = cur.fetchone()
+        if result is None:
+            raise RuntimeError("INSERT RETURNING id produced no row")
         return result["id"]
 
 
-def update_job_enabled(conn: psycopg.Connection, job_id: int, enabled: bool) -> None:
+def update_job_enabled(
+    conn: psycopg.Connection[dict[str, Any]], job_id: int, enabled: bool
+) -> None:
     """Enable or disable a job."""
     with conn.cursor() as cur:
         cur.execute(
@@ -124,7 +129,7 @@ def update_job_enabled(conn: psycopg.Connection, job_id: int, enabled: bool) -> 
         )
 
 
-def delete_job(conn: psycopg.Connection, job_id: int) -> None:
+def delete_job(conn: psycopg.Connection[dict[str, Any]], job_id: int) -> None:
     """Delete a job and its associated state."""
     with conn.cursor() as cur:
         cur.execute("DELETE FROM scheduler_jobs WHERE id = %s", [job_id])
@@ -136,7 +141,7 @@ def delete_job(conn: psycopg.Connection, job_id: int) -> None:
 
 
 def get_instrument_state(
-    conn: psycopg.Connection, job_id: int, instrument_id: int
+    conn: psycopg.Connection[dict[str, Any]], job_id: int, instrument_id: int
 ) -> dict | None:
     """Get extraction state for a specific instrument in a job."""
     with conn.cursor() as cur:
@@ -154,7 +159,7 @@ def get_instrument_state(
 
 
 def upsert_instrument_state(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     job_id: int,
     instrument_id: int,
     success: bool,
@@ -205,7 +210,7 @@ def upsert_instrument_state(
 
 
 def get_failed_instruments(
-    conn: psycopg.Connection, job_id: int, min_failures: int = 1
+    conn: psycopg.Connection[dict[str, Any]], job_id: int, min_failures: int = 1
 ) -> list[dict]:
     """Get instruments with consecutive failures for a job."""
     with conn.cursor() as cur:
@@ -223,7 +228,7 @@ def get_failed_instruments(
 
 
 def get_instruments_ready_for_retry(
-    conn: psycopg.Connection, job_id: int
+    conn: psycopg.Connection[dict[str, Any]], job_id: int
 ) -> list[dict]:
     """Get instruments that are past their retry time."""
     with conn.cursor() as cur:
@@ -243,7 +248,7 @@ def get_instruments_ready_for_retry(
 
 
 def reset_instrument_failures(
-    conn: psycopg.Connection, job_id: int, instrument_id: int
+    conn: psycopg.Connection[dict[str, Any]], job_id: int, instrument_id: int
 ) -> None:
     """Reset failure count for an instrument (manual intervention)."""
     with conn.cursor() as cur:
@@ -262,7 +267,9 @@ def reset_instrument_failures(
 # =============================================================================
 
 
-def create_run(conn: psycopg.Connection, job_id: int, instruments_total: int) -> int:
+def create_run(
+    conn: psycopg.Connection[dict[str, Any]], job_id: int, instruments_total: int
+) -> int:
     """Create a new job run record."""
     with conn.cursor() as cur:
         cur.execute(
@@ -274,11 +281,13 @@ def create_run(conn: psycopg.Connection, job_id: int, instruments_total: int) ->
             [job_id, instruments_total],
         )
         result = cur.fetchone()
+        if result is None:
+            raise RuntimeError("INSERT RETURNING id produced no row")
         return result["id"]
 
 
 def complete_run(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     run_id: int,
     status: str,
     instruments_success: int,
@@ -311,7 +320,7 @@ def complete_run(
 
 
 def get_recent_runs(
-    conn: psycopg.Connection, job_id: int | None = None, limit: int = 20
+    conn: psycopg.Connection[dict[str, Any]], job_id: int | None = None, limit: int = 20
 ) -> list[dict]:
     """Get recent job runs."""
     with conn.cursor() as cur:
@@ -341,7 +350,7 @@ def get_recent_runs(
         return list(cur.fetchall())
 
 
-def get_running_jobs(conn: psycopg.Connection) -> list[dict]:
+def get_running_jobs(conn: psycopg.Connection[dict[str, Any]]) -> list[dict]:
     """Get currently running jobs."""
     with conn.cursor() as cur:
         cur.execute("""

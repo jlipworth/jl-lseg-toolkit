@@ -32,15 +32,18 @@ from lseg_toolkit.timeseries.scheduler.state import (
 )
 from lseg_toolkit.timeseries.scheduler.universes import build_universe
 from lseg_toolkit.timeseries.storage import (
-    get_instrument_id,
     save_instrument,
     save_timeseries,
 )
 
 if TYPE_CHECKING:
+    from typing import Any
+
     import psycopg
 
     from lseg_toolkit.timeseries.client import LSEGDataClient
+
+from lseg_toolkit.timeseries.storage.fetch_coverage import save_fetch_coverage
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +70,7 @@ class ExtractionJob:
         self.client = client
         self.config = config
 
-    def execute(self, conn: psycopg.Connection) -> JobRunResult:
+    def execute(self, conn: psycopg.Connection[dict[str, Any]]) -> JobRunResult:
         """
         Execute the job for all instruments.
 
@@ -161,15 +164,28 @@ class ExtractionJob:
         )
 
     def _ensure_instruments(
-        self, conn: psycopg.Connection, instruments: list[InstrumentSpec]
+        self,
+        conn: psycopg.Connection[dict[str, Any]],
+        instruments: list[InstrumentSpec],
     ) -> list[int]:
         """Ensure all instruments are registered and return their IDs."""
+        if not instruments:
+            return []
+
+        # One round trip for the entire existing universe, rather than one per
+        # symbol. Bound parameters are adapted to a PostgreSQL array by psycopg.
+        symbols = list(dict.fromkeys(spec.symbol for spec in instruments))
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT symbol, id FROM instruments WHERE symbol = ANY(%s)",
+                [symbols],
+            )
+            existing = {row["symbol"]: row["id"] for row in cur.fetchall()}
+
         ids = []
         for spec in instruments:
-            # Check if exists
-            instrument_id = get_instrument_id(conn, spec.symbol)
+            instrument_id = existing.get(spec.symbol)
             if instrument_id is None:
-                # Register new instrument
                 instrument_id = save_instrument(
                     conn,
                     symbol=spec.symbol,
@@ -178,6 +194,7 @@ class ExtractionJob:
                     lseg_ric=spec.ric,
                     data_shape=spec.data_shape,
                 )
+                existing[spec.symbol] = instrument_id
                 logger.info(
                     f"Registered new instrument: {spec.symbol} (id={instrument_id})"
                 )
@@ -186,7 +203,7 @@ class ExtractionJob:
 
     def _extract_instrument(
         self,
-        conn: psycopg.Connection,
+        conn: psycopg.Connection[dict[str, Any]],
         spec: InstrumentSpec,
         instrument_id: int,
         job: dict,
@@ -198,76 +215,84 @@ class ExtractionJob:
         state: dict | None = None  # Initialize before try block for exception handler
 
         try:
-            # Load state to find last successful date
-            state = get_instrument_state(conn, self.job_id, instrument_id)
+            # Roll back this instrument before recording a failure. A SQL error
+            # otherwise leaves PostgreSQL's transaction aborted and prevents the
+            # failure-state write (and subsequent instruments) from succeeding.
+            with conn.transaction():
+                # Load state to find last successful date
+                state = get_instrument_state(conn, self.job_id, instrument_id)
 
-            # Determine date range to fetch
-            end_date = date.today()
-            if state and state.get("last_success_date"):
-                # Incremental: start from last success
-                start_date = state["last_success_date"]
-            else:
-                # Initial: use lookback
-                start_date = end_date - timedelta(days=lookback_days)
+                # Determine date range to fetch
+                end_date = date.today()
+                if state and state.get("last_success_date"):
+                    # Incremental: start from last success
+                    start_date = state["last_success_date"]
+                else:
+                    # Initial: use lookback
+                    start_date = end_date - timedelta(days=lookback_days)
 
-            # For intraday, cap at retention limit
-            if granularity in (
-                Granularity.HOURLY,
-                Granularity.MINUTE_5,
-                Granularity.MINUTE_1,
-            ):
-                retention_limit = end_date - timedelta(
-                    days=self.config.intraday_retention_days
-                )
-                start_date = max(start_date, retention_limit)
+                # For intraday, cap at retention limit
+                if granularity in (
+                    Granularity.HOURLY,
+                    Granularity.MINUTE_5,
+                    Granularity.MINUTE_1,
+                ):
+                    retention_limit = end_date - timedelta(
+                        days=self.config.intraday_retention_days
+                    )
+                    start_date = max(start_date, retention_limit)
 
-            # Detect gaps in existing data
-            gaps = detect_gaps(conn, spec.symbol, start_date, end_date, granularity)
+                # Detect gaps in existing data
+                gaps = detect_gaps(conn, spec.symbol, start_date, end_date, granularity)
 
-            if not gaps:
-                # No gaps, already up to date
+                if not gaps:
+                    # No gaps, already up to date
+                    upsert_instrument_state(
+                        conn,
+                        self.job_id,
+                        instrument_id,
+                        success=True,
+                        last_date=end_date,
+                    )
+                    logger.debug(f"{spec.symbol}: No gaps, up to date")
+                    return ExtractionResult(
+                        instrument_id=instrument_id,
+                        symbol=spec.symbol,
+                        success=True,
+                        rows_extracted=0,
+                    )
+
+                # Fetch data for each gap, chunked if needed
+                total_rows = 0
+                for gap in gaps:
+                    rows = self._fetch_gap(
+                        conn,
+                        spec,
+                        instrument_id,
+                        gap.start,
+                        gap.end,
+                        granularity,
+                        max_chunk_days,
+                    )
+                    total_rows += rows
+
+                # Update state on success
                 upsert_instrument_state(
                     conn, self.job_id, instrument_id, success=True, last_date=end_date
                 )
-                logger.debug(f"{spec.symbol}: No gaps, up to date")
+
+                logger.info(
+                    f"{spec.symbol}: Extracted {total_rows} rows ({start_date} to {end_date})"
+                )
+
                 return ExtractionResult(
                     instrument_id=instrument_id,
                     symbol=spec.symbol,
                     success=True,
-                    rows_extracted=0,
+                    rows_extracted=total_rows,
+                    start_date=start_date,
+                    end_date=end_date,
                 )
-
-            # Fetch data for each gap, chunked if needed
-            total_rows = 0
-            for gap in gaps:
-                rows = self._fetch_gap(
-                    conn,
-                    spec,
-                    instrument_id,
-                    gap.start,
-                    gap.end,
-                    granularity,
-                    max_chunk_days,
-                )
-                total_rows += rows
-
-            # Update state on success
-            upsert_instrument_state(
-                conn, self.job_id, instrument_id, success=True, last_date=end_date
-            )
-
-            logger.info(
-                f"{spec.symbol}: Extracted {total_rows} rows ({start_date} to {end_date})"
-            )
-
-            return ExtractionResult(
-                instrument_id=instrument_id,
-                symbol=spec.symbol,
-                success=True,
-                rows_extracted=total_rows,
-                start_date=start_date,
-                end_date=end_date,
-            )
 
         except Exception as e:
             logger.error(f"{spec.symbol}: Extraction failed - {e}")
@@ -292,7 +317,7 @@ class ExtractionJob:
 
     def _fetch_gap(
         self,
-        conn: psycopg.Connection,
+        conn: psycopg.Connection[dict[str, Any]],
         spec: InstrumentSpec,
         instrument_id: int,
         start_date: date,
@@ -301,6 +326,8 @@ class ExtractionJob:
         max_chunk_days: int,
     ) -> int:
         """Fetch data for a gap, chunking if necessary."""
+        if max_chunk_days <= 0:
+            raise ValueError("max_chunk_days must be positive")
         total_rows = 0
         current = start_date
 
@@ -325,6 +352,13 @@ class ExtractionJob:
                 total_rows += rows
                 logger.debug(
                     f"{spec.symbol}: Saved {rows} rows for {current} to {chunk_end}"
+                )
+
+            # Same transaction as observations; includes successful empty chunks.
+            # None is not positive evidence of a completed provider response.
+            if df is not None:
+                save_fetch_coverage(
+                    conn, instrument_id, granularity, current, chunk_end
                 )
 
             current = chunk_end + timedelta(days=1)
@@ -367,7 +401,7 @@ class ExtractionJob:
 
 
 def run_job_now(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     job_id: int,
     client: LSEGDataClient,
     config: SchedulerConfig | None = None,

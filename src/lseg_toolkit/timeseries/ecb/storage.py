@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -13,7 +14,9 @@ from lseg_toolkit.timeseries.ecb.models import ECBMeeting
 logger = logging.getLogger(__name__)
 
 
-def upsert_ecb_meeting(conn: psycopg.Connection, meeting: ECBMeeting) -> int:
+def upsert_ecb_meeting(
+    conn: psycopg.Connection[dict[str, Any]], meeting: ECBMeeting
+) -> int:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -68,7 +71,9 @@ def upsert_ecb_meeting(conn: psycopg.Connection, meeting: ECBMeeting) -> int:
         return result["id"] if result else 0
 
 
-def upsert_ecb_meetings(conn: psycopg.Connection, meetings: list[ECBMeeting]) -> int:
+def upsert_ecb_meetings(
+    conn: psycopg.Connection[dict[str, Any]], meetings: list[ECBMeeting]
+) -> int:
     count = 0
     for m in meetings:
         upsert_ecb_meeting(conn, m)
@@ -78,7 +83,7 @@ def upsert_ecb_meetings(conn: psycopg.Connection, meetings: list[ECBMeeting]) ->
 
 
 def sync_ecb_meetings(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     api_key: str | None = None,
     allow_missing_rate_history: bool = True,
 ) -> int:
@@ -95,7 +100,7 @@ def sync_ecb_meetings(
 
 
 def get_ecb_meetings(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> list[dict]:
@@ -116,7 +121,7 @@ def get_ecb_meetings(
         return list(cur.fetchall())
 
 
-def get_meeting_count(conn: psycopg.Connection) -> int:
+def get_meeting_count(conn: psycopg.Connection[dict[str, Any]]) -> int:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT COUNT(*) AS meeting_count FROM ecb_meetings")
         result = cur.fetchone()

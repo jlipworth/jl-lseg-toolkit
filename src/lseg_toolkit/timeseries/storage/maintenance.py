@@ -7,10 +7,14 @@ applied to existing historical data.
 
 from __future__ import annotations
 
+from typing import Any
+
 import psycopg
 
 
-def backfill_ff_continuous_session_dates(conn: psycopg.Connection) -> int:
+def backfill_ff_continuous_session_dates(
+    conn: psycopg.Connection[dict[str, Any]],
+) -> int:
     """
     Backfill ``session_date`` for existing FF_CONTINUOUS OHLCV rows.
 

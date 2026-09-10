@@ -7,6 +7,8 @@ to instrument IDs with in-memory caching.
 
 from __future__ import annotations
 
+from typing import Any
+
 import psycopg
 
 from lseg_toolkit.exceptions import StorageError
@@ -29,7 +31,7 @@ class SymbolResolver:
         ...     id2 = resolver.resolve("TYc1")  # Cache hit
     """
 
-    def __init__(self, conn: psycopg.Connection):
+    def __init__(self, conn: psycopg.Connection[dict[str, Any]]):
         """
         Initialize resolver with database connection.
 
@@ -123,7 +125,7 @@ class SymbolResolver:
 
             count = 0
             for row in cur.fetchall():
-                self._cache[row[0]] = row[1]
+                self._cache[row["symbol"]] = row["id"]
                 count += 1
 
         return count

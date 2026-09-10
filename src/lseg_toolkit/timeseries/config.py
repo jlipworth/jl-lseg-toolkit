@@ -7,7 +7,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from urllib.parse import quote_plus
+
+from psycopg.conninfo import make_conninfo
 
 from lseg_toolkit.timeseries.enums import (
     AssetClass,
@@ -35,7 +36,7 @@ class DatabaseConfig:
     port: int = 5432
     database: str = "timeseries"
     user: str = "postgres"
-    password: str = ""
+    password: str = field(default="", repr=False)
 
     # Connection pool settings
     pool_min_size: int = 2
@@ -46,11 +47,14 @@ class DatabaseConfig:
 
     @property
     def dsn(self) -> str:
-        """Build PostgreSQL connection DSN with URL-encoded credentials."""
-        if self.password:
-            encoded_password = quote_plus(self.password)
-            return f"postgresql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}"
-        return f"postgresql://{self.user}@{self.host}:{self.port}/{self.database}"
+        """Build libpq conninfo without changing credential or database values."""
+        return make_conninfo(
+            host=self.host,
+            port=self.port,
+            dbname=self.database,
+            user=self.user,
+            password=self.password,
+        )
 
     @classmethod
     def from_env(cls) -> DatabaseConfig:

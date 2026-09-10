@@ -8,6 +8,7 @@ Creates config file with user-provided app key at:
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -70,10 +71,6 @@ def main():
     # Create config data
     config_data = {"app_key": app_key}
 
-    # Create directory if needed (for global config)
-    if not config_path.parent.exists():
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-
     # Check if config already exists
     if config_path.exists():
         print(f"\nWarning: Config file already exists: {config_path}")
@@ -84,7 +81,19 @@ def main():
 
     # Write config file
     try:
-        with open(config_path, "w") as f:
+        if location_name == "global":
+            config_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if os.name == "posix":
+                config_path.parent.chmod(0o700)
+
+        # Restrict access before writing, including when replacing an older,
+        # overly permissive config. Do not follow a credential-file symlink.
+        flags = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(config_path, flags, 0o600)
+        with os.fdopen(fd, "w") as f:
+            if os.name == "posix":
+                os.fchmod(f.fileno(), 0o600)
+            f.truncate(0)
             json.dump(config_data, f, indent=2)
 
         print()

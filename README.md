@@ -179,7 +179,7 @@ cache = DataCache()
 df = cache.get_or_fetch("TYc1", start="2024-01-01", end="2024-12-31")
 
 client = get_client()
-df = client.fetch_timeseries("EUR=", start="2026-03-01", end="2026-03-03", interval="hourly")
+df = client.get_history("EUR=", start="2026-03-01", end="2026-03-03", interval="hourly")
 ```
 
 ### Prediction-market helpers

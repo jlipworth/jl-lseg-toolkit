@@ -1,5 +1,7 @@
 """Database schema DDL for prediction market tables."""
 
+from typing import Any
+
 import psycopg
 from psycopg.rows import dict_row
 
@@ -119,7 +121,7 @@ SELECT add_compression_policy(
 """
 
 
-def init_pm_schema(conn: psycopg.Connection) -> None:
+def init_pm_schema(conn: psycopg.Connection[dict[str, Any]]) -> None:
     """
     Create prediction market tables, hypertable, and compression policy.
 
@@ -141,7 +143,7 @@ def init_pm_schema(conn: psycopg.Connection) -> None:
     conn.commit()
 
 
-def seed_kalshi_platform(conn: psycopg.Connection) -> int:
+def seed_kalshi_platform(conn: psycopg.Connection[dict[str, Any]]) -> int:
     """
     Insert or update the Kalshi platform row.
 
@@ -164,7 +166,7 @@ def seed_kalshi_platform(conn: psycopg.Connection) -> int:
         return result["id"] if result else 0
 
 
-def seed_polymarket_platform(conn: psycopg.Connection) -> int:
+def seed_polymarket_platform(conn: psycopg.Connection[dict[str, Any]]) -> int:
     """
     Insert or update the Polymarket platform row.
 

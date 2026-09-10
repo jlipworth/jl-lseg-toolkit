@@ -88,7 +88,7 @@ def main() -> int:
         help="Data granularity (tick excluded - use lseg-extract for tick data)",
     )
     add_parser.add_argument(
-        "--cron", "-c", required=True, help="Cron schedule (e.g., '0 18 * * 1-5')"
+        "--cron", "-c", required=True, help="Cron schedule (e.g., '0 18 * * mon-fri')"
     )
     add_parser.add_argument(
         "--priority",

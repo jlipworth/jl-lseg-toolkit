@@ -8,6 +8,7 @@ when continuous futures contracts switch from one underlying contract to another
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 import psycopg
 
@@ -17,7 +18,7 @@ from .instruments import get_instrument_id
 
 
 def save_roll_event(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     continuous_symbol: str,
     roll_date: date,
     from_contract: str,
@@ -75,13 +76,18 @@ def save_roll_event(
                     roll_method,
                 ],
             )
-            roll_id = cur.fetchone()["id"]
+            result = cur.fetchone()
+            if result is None:
+                raise RuntimeError("INSERT RETURNING id produced no row")
+            roll_id = result["id"]
         return roll_id
     except psycopg.Error as e:
         raise StorageError(f"Failed to save roll event: {e}") from e
 
 
-def get_roll_events(conn: psycopg.Connection, continuous_symbol: str) -> list[dict]:
+def get_roll_events(
+    conn: psycopg.Connection[dict[str, Any]], continuous_symbol: str
+) -> list[dict]:
     """
     Get roll events for a continuous contract.
 

@@ -97,3 +97,14 @@ This is the active schema used by:
 - Read `docs/SCHEDULER.md` for scheduler semantics
 - Read `docs/PREDICTION_MARKETS.md` for the PM/FOMC domain model
 - Read the schema Python files when you need exact column definitions
+
+## Successful fetch coverage
+
+`fetch_coverage` records inclusive successful provider request ranges keyed by
+instrument ID, granularity, start date, and end date. It includes valid empty
+intervals and is committed with returned rows. Coverage lookup takes the union of
+ranges rather than their bounding MIN/MAX, preserving unfetched interior holes.
+Today's UTC date and future dates are excluded because their data may change.
+Apply the idempotent `init_db()` schema update before using this cache version.
+If observations are manually deleted/corrected, invalidate the affected coverage
+rows too so the cache refetches rather than trusting stale request evidence.

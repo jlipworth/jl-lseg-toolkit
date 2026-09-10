@@ -212,7 +212,9 @@ class ExtractionDaemon:
         if self.scheduler is None:
             raise RuntimeError("Scheduler not initialized. Call setup() first.")
 
-        trigger = CronTrigger.from_crontab(job["schedule_cron"])
+        trigger = CronTrigger.from_crontab(
+            job["schedule_cron"], timezone=self.scheduler.timezone
+        )
 
         self.scheduler.add_job(
             func=self._run_job,

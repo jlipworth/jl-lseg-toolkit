@@ -20,6 +20,16 @@ from lseg_toolkit.timeseries.client import (
 )
 
 
+@pytest.fixture(autouse=True)
+def mock_session_lifecycle():
+    # Mock the actual session boundary as well as the data methods. Patching
+    # client.rd alone does not patch client.session.rd and could contact Workspace.
+    with patch("lseg_toolkit.timeseries.client.SessionManager"):
+        reset_client()
+        yield
+        reset_client()
+
+
 class TestClientConfig:
     """Test ClientConfig defaults and customization."""
 
@@ -312,3 +322,99 @@ class TestSingleton:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_concurrent_requests_initialize_session_once():
+    from concurrent.futures import ThreadPoolExecutor
+
+    with (
+        patch("lseg_toolkit.timeseries.client.SessionManager") as sessions,
+        patch(
+            "lseg_toolkit.timeseries.client.rd.get_history",
+            return_value=pd.DataFrame({"close": [1]}),
+        ),
+    ):
+        client = LSEGDataClient(ClientConfig(rate_limit_delay=0))
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(
+                pool.map(
+                    lambda _: client.get_history("TYc1", "2026-01-05", "2026-01-06"),
+                    range(20),
+                )
+            )
+        assert sessions.call_count == 1
+        client.close()
+        client.get_history("TYc1", "2026-01-05", "2026-01-06")
+        assert sessions.call_count == 2
+        client.close()
+
+
+def test_concurrent_singleton_access():
+    from concurrent.futures import ThreadPoolExecutor
+
+    reset_client()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        clients = list(pool.map(lambda _: get_client(), range(32)))
+    assert all(client is clients[0] for client in clients)
+
+
+def test_rate_limit_shared_across_clients(monkeypatch):
+    import lseg_toolkit.timeseries.client as module
+
+    clock = [100.0]
+    sleeps = []
+
+    def sleep(delay):
+        sleeps.append(delay)
+        clock[0] += delay
+
+    monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(module.time, "sleep", sleep)
+    monkeypatch.setattr(module, "_last_request_time", 0.0)
+    LSEGDataClient(ClientConfig(rate_limit_delay=1))._rate_limit()
+    LSEGDataClient(ClientConfig(rate_limit_delay=1))._rate_limit()
+    assert sleeps == [1.0]
+
+
+def test_session_owners_do_not_close_each_others_default_session():
+    import lseg_toolkit.client.session as module
+
+    with (
+        patch.object(module, "rd") as sdk,
+        patch.object(module, "load_app_key", return_value=None),
+    ):
+        first = module.SessionManager()
+        second = module.SessionManager()
+        try:
+            assert sdk.open_session.call_count == 1
+            first.close_session()
+            sdk.close_session.assert_not_called()
+            assert second.is_open
+            second.close_session()
+            sdk.close_session.assert_called_once()
+        finally:
+            first.close_session()
+            second.close_session()
+
+
+def test_direct_client_reopens_after_pipeline_cleanup():
+    from lseg_toolkit.timeseries.config import TimeSeriesConfig
+    from lseg_toolkit.timeseries.enums import AssetClass
+    from lseg_toolkit.timeseries.pipeline import TimeSeriesExtractionPipeline
+
+    with (
+        patch("lseg_toolkit.timeseries.client.SessionManager") as sessions,
+        patch(
+            "lseg_toolkit.timeseries.client.rd.get_history",
+            return_value=pd.DataFrame({"close": [1]}),
+        ),
+        patch.object(TimeSeriesExtractionPipeline, "_extract_fx", return_value=[]),
+    ):
+        client = get_client()
+        client.get_history("EUR=", "2026-01-05", "2026-01-06")
+        config = TimeSeriesConfig(
+            symbols=["EURUSD"], asset_class=AssetClass.FX_SPOT, export_parquet=False
+        )
+        TimeSeriesExtractionPipeline(config, verbose=False).run()
+        client.get_history("EUR=", "2026-01-05", "2026-01-06")
+        assert sessions.call_count == 2

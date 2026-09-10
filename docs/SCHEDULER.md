@@ -27,7 +27,7 @@ uv run lseg-scheduler add-job \
   --name benchmark_daily \
   --group benchmark_fixings \
   --granularity daily \
-  --cron "0 18 * * 1-5"
+  --cron "0 18 * * mon-fri"
 
 # Run manually
 uv run lseg-scheduler run benchmark_daily
@@ -35,6 +35,15 @@ uv run lseg-scheduler run benchmark_daily
 # Start daemon
 uv run lseg-scheduler start --foreground
 ```
+
+## Schedule timezone and weekday migration
+
+Schedules run in `America/New_York`. Prefer named weekdays (`mon-fri` or
+`sun,mon-fri`): APScheduler numbers Monday as 0, unlike traditional Unix cron.
+Older default jobs using `1-5` therefore ran Tuesday–Saturday. The corrected
+presets affect newly seeded jobs only; seed commands do not update existing
+rows. Review and explicitly migrate persisted schedules before restarting the
+daemon. No stored schedules are automatically rewritten.
 
 ## Commands
 

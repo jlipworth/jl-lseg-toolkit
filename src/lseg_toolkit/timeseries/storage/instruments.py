@@ -7,6 +7,8 @@ instrument metadata, including type-specific details tables.
 
 from __future__ import annotations
 
+from typing import Any
+
 import psycopg
 
 from lseg_toolkit.exceptions import StorageError
@@ -339,7 +341,7 @@ REQUIRED_FIELD_DEFAULTS: dict[str, dict[str, str | int]] = {
 
 
 def _upsert_instrument_details(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     asset_class: str,
     **kwargs,
@@ -407,7 +409,7 @@ def _upsert_instrument_details(
 
 
 def save_instrument(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     symbol: str,
     name: str,
     asset_class: AssetClass,
@@ -480,7 +482,10 @@ def save_instrument(
                         lseg_ric,
                     ],
                 )
-                instrument_id = cur.fetchone()["id"]
+                result = cur.fetchone()
+                if result is None:
+                    raise RuntimeError("INSERT RETURNING id produced no row")
+                instrument_id = result["id"]
 
         # Save type-specific details using unified function
         if kwargs:
@@ -491,7 +496,9 @@ def save_instrument(
         raise StorageError(f"Failed to save instrument {symbol}: {e}") from e
 
 
-def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
+def get_instrument(
+    conn: psycopg.Connection[dict[str, Any]], symbol: str
+) -> dict | None:
     """
     Get instrument by symbol.
 
@@ -508,7 +515,9 @@ def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
         return dict(result) if result else None
 
 
-def get_instrument_id(conn: psycopg.Connection, symbol: str) -> int | None:
+def get_instrument_id(
+    conn: psycopg.Connection[dict[str, Any]], symbol: str
+) -> int | None:
     """
     Get instrument ID by symbol.
 
@@ -525,7 +534,9 @@ def get_instrument_id(conn: psycopg.Connection, symbol: str) -> int | None:
     return result["id"] if result else None
 
 
-def get_instrument_by_ric(conn: psycopg.Connection, lseg_ric: str) -> dict | None:
+def get_instrument_by_ric(
+    conn: psycopg.Connection[dict[str, Any]], lseg_ric: str
+) -> dict | None:
     """
     Get instrument by LSEG RIC.
 
@@ -543,7 +554,7 @@ def get_instrument_by_ric(conn: psycopg.Connection, lseg_ric: str) -> dict | Non
 
 
 def get_instruments(
-    conn: psycopg.Connection, asset_class: AssetClass | None = None
+    conn: psycopg.Connection[dict[str, Any]], asset_class: AssetClass | None = None
 ) -> list[dict]:
     """
     Get all instruments, optionally filtered by asset class.

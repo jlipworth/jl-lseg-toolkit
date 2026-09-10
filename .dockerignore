@@ -37,6 +37,8 @@ htmlcov/
 exports/
 dev_scripts/
 .lseg-config.json
+lseg-data.config.json
+.claude/settings.local.json
 .env
 .env.local
 

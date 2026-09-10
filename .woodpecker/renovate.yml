@@ -2,12 +2,15 @@
 # Renovate bot - scans GitHub repo and creates PRs for dependency updates
 # Runs on cron schedule only (configure in Woodpecker: weekly on Mondays)
 
+# Image digests verified with docker buildx imagetools inspect (2026-09-10).
+# Refresh manually after review: Renovate currently manages Python only.
+
 when:
   event: cron
 
 steps:
   - name: renovate
-    image: renovate/renovate:latest
+    image: renovate/renovate:latest@sha256:9327fbe499d0e01d090480e43e9b35fb6e56a7d4f7e4f806882c56f752da4ad4
     environment:
       RENOVATE_TOKEN:
         from_secret: github_pat
@@ -19,7 +22,7 @@ steps:
       - renovate
 
   - name: notify-renovate
-    image: appleboy/drone-discord
+    image: appleboy/drone-discord:latest@sha256:476966c0b54fa5fe624ff08f90022b3b90f652bcc00918b0c7a14012de55994d
     depends_on:
       - renovate
     settings:

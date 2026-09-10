@@ -168,5 +168,6 @@ enabled = false
 enabled = false
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 python_version = "3.12"
 ignore_missing_imports = true  # LSEG, xlsxwriter lack type stubs

@@ -24,8 +24,8 @@ import asyncio
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from datetime import date, timedelta
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -52,6 +52,7 @@ from lseg_toolkit.timeseries.constants import (
     GBP_OIS_TENORS,
     SOVEREIGN_YIELD_RICS,
     STIR_FUTURES_RICS,
+    TREASURY_FUTURES_MAPPING,
     USD_DEPOSIT_TENORS,
     USD_FRA_TENORS,
     USD_IRS_TENORS,
@@ -60,12 +61,15 @@ from lseg_toolkit.timeseries.constants import (
 )
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.storage import (
-    get_data_range,
     get_data_shape,
     get_instrument_id,
     load_timeseries,
     save_instrument,
     save_timeseries,
+)
+from lseg_toolkit.timeseries.storage.fetch_coverage import (
+    load_fetch_coverage,
+    save_fetch_coverage,
 )
 
 if TYPE_CHECKING:
@@ -118,6 +122,8 @@ class FetchResult:
     error: str | None = None
     rows_fetched: int = 0
     rows_from_cache: int = 0
+    complete: bool = True
+    coverage_verified: bool = False
 
     @property
     def total_rows(self) -> int:
@@ -127,10 +133,15 @@ class FetchResult:
     @property
     def success(self) -> bool:
         """Whether the operation succeeded."""
-        return self.status in (
-            FetchStatus.SUCCESS,
-            FetchStatus.FROM_CACHE,
-            FetchStatus.PARTIAL,
+        return (
+            self.complete
+            and self.error is None
+            and self.status
+            in (
+                FetchStatus.SUCCESS,
+                FetchStatus.FROM_CACHE,
+                FetchStatus.PARTIAL,
+            )
         )
 
 
@@ -147,6 +158,12 @@ class CacheConfig:
     executor_workers: int = 4
     validate_instruments: bool = True
     auto_register_instruments: bool = True
+    # Explicit market calendars avoid interpreting holidays as missing data.
+    exchange_calendars: dict[str, str] = field(default_factory=dict)
+    # Optional exact expected bar timestamps, e.g. for an instrument-specific session.
+    expected_timestamps: (
+        Callable[[str, date, date, Granularity], pd.DatetimeIndex] | None
+    ) = None
 
 
 # =============================================================================
@@ -365,7 +382,7 @@ class InstrumentRegistry:
 
     def register_instrument(
         self,
-        conn: psycopg.Connection,
+        conn: psycopg.Connection[dict[str, Any]],
         symbol: str,
         ric: str | None = None,
     ) -> int:
@@ -429,52 +446,99 @@ class DateGap:
         return (self.end - self.start).days + 1
 
 
+def _clamp_frame(df: pd.DataFrame, start: date, end: date) -> pd.DataFrame:
+    """Restrict rows to inclusive requested dates without changing their timezone."""
+    if df.empty:
+        return df
+    dates = pd.to_datetime(df.index).date
+    return df.loc[(dates >= start) & (dates <= end)]
+
+
 def detect_gaps(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     symbol: str,
     start_date: date,
     end_date: date,
     granularity: Granularity,
+    *,
+    cached_data: pd.DataFrame | None = None,
+    expected_timestamps: pd.DatetimeIndex | None = None,
+    exchange_calendar: str | None = None,
+    covered_ranges: list[tuple[date, date]] | None = None,
+    refresh_mutable: bool = True,
 ) -> list[DateGap]:
+    """Find missing coverage, never infer trading sessions from weekdays alone.
+
+    Daily Treasury futures use the CME calendar. Other markets can supply an
+    exchange calendar, or exact expected timestamps for intraday bars. Without
+    a known schedule, use successful request intervals (including empty results),
+    never min/max rows. Absent coverage metadata, refetch the request.
+    All returned gaps are clamped to the requested range.
     """
-    Detect gaps in stored data for a symbol at a specific granularity.
+    if start_date > end_date:
+        raise ValueError("start_date must be <= end_date")
+    if expected_timestamps is None and granularity == Granularity.DAILY:
+        root = re.sub(r"c\d+$", "", symbol)
+        if exchange_calendar is None and (
+            symbol in TREASURY_FUTURES_MAPPING
+            or root in TREASURY_FUTURES_MAPPING.values()
+        ):
+            exchange_calendar = "CME"
+        if exchange_calendar:
+            import exchange_calendars as xcals
 
-    Key: Granularity isolation - daily data does NOT satisfy 5min requests.
-    Each granularity is stored and queried separately.
+            calendar = xcals.get_calendar(exchange_calendar)
+            expected_timestamps = calendar.sessions_in_range(start_date, end_date)
 
-    Args:
-        conn: Database connection.
-        symbol: Instrument symbol.
-        start_date: Requested start date.
-        end_date: Requested end date.
-        granularity: Requested data granularity.
+    today = datetime.now(UTC).date()
+    if expected_timestamps is not None:
+        if cached_data is None:
+            cached_data = load_timeseries(
+                conn, symbol, start_date, end_date, granularity
+            )
+        expected = pd.DatetimeIndex(pd.to_datetime(expected_timestamps, utc=True))
+        expected = expected[(expected.date >= start_date) & (expected.date <= end_date)]
+        if not refresh_mutable:
+            # Post-fetch completeness only judges closed dates. An open session
+            # or future trading day cannot yet have a complete set of bars.
+            expected = expected[expected.date < today]
+        actual = pd.DatetimeIndex(pd.to_datetime(cached_data.index, utc=True))
+        if granularity == Granularity.DAILY:
+            expected, actual = expected.normalize(), actual.normalize()
+        missing = set(expected.difference(actual).date)
+        if refresh_mutable and end_date >= today:
+            missing.update(pd.date_range(max(start_date, today), end_date).date)
+        missing_days = sorted(missing)
+        gaps: list[DateGap] = []
+        for day in missing_days:
+            if gaps and day == gaps[-1].end + timedelta(days=1):
+                gaps[-1].end = day
+            else:
+                gaps.append(DateGap(start=day, end=day))
+        return gaps
 
-    Returns:
-        List of DateGap objects representing missing date ranges.
-    """
-    gaps: list[DateGap] = []
-
-    # Query stored range for THIS granularity specifically
-    stored_min, stored_max = get_data_range(conn, symbol, granularity)
-
-    # Case 1: No data at all for this granularity
-    if stored_min is None or stored_max is None:
-        return [DateGap(start=start_date, end=end_date)]
-
-    # Case 2: Request starts before stored data
-    if start_date < stored_min:
-        # End gap one day before stored data to avoid overlap
-        gap_end = stored_min - timedelta(days=1)
-        if gap_end >= start_date:
-            gaps.append(DateGap(start=start_date, end=gap_end))
-
-    # Case 3: Request ends after stored data
-    if end_date > stored_max:
-        # Start gap one day after stored data to avoid overlap
-        gap_start = stored_max + timedelta(days=1)
-        if gap_start <= end_date:
-            gaps.append(DateGap(start=gap_start, end=end_date))
-
+    # Subtract the UNION of covered intervals, retaining all disjoint holes.
+    # A cursor also merges overlapping/adjacent ranges without database rewrites.
+    if covered_ranges is None:
+        instrument_id = get_instrument_id(conn, symbol)
+        covered_ranges = (
+            load_fetch_coverage(conn, instrument_id, granularity, start_date, end_date)
+            if instrument_id is not None
+            else []
+        )
+    cursor = start_date
+    gaps = []
+    for covered_start, covered_end in sorted(covered_ranges):
+        covered_end = min(covered_end, today - timedelta(days=1))
+        if covered_end < cursor or covered_start > end_date:
+            continue
+        if covered_start > cursor:
+            gaps.append(DateGap(cursor, covered_start - timedelta(days=1)))
+        if covered_end >= end_date:
+            return gaps
+        cursor = max(cursor, covered_end + timedelta(days=1))
+    if cursor <= end_date:
+        gaps.append(DateGap(cursor, end_date))
     return gaps
 
 
@@ -526,7 +590,7 @@ class DataCache:
         # Per-RIC locks to prevent duplicate fetches for same RIC+granularity
         self._fetch_locks: dict[tuple[str, Granularity], asyncio.Lock] = {}
 
-        # Pre-initialize the database to avoid concurrent schema creation issues
+        # Check connectivity only; schema provisioning is an explicit operator step.
         with storage.get_connection():
             pass
 
@@ -669,11 +733,44 @@ class DataCache:
             if instrument_id is None and self.config.auto_register_instruments:
                 instrument_id = self.registry.register_instrument(conn, ric)
 
-            # Detect gaps at THIS granularity
-            gaps = detect_gaps(conn, ric, start_date, end_date, granularity)
-
-            # Load cached data
-            cached_df = load_timeseries(conn, ric, start_date, end_date, granularity)
+            # Load once, then assess coverage using the instrument's actual schedule.
+            cached_df = _clamp_frame(
+                load_timeseries(conn, ric, start_date, end_date, granularity),
+                start_date,
+                end_date,
+            )
+            expected = (
+                self.config.expected_timestamps(ric, start_date, end_date, granularity)
+                if self.config.expected_timestamps
+                else None
+            )
+            exchange_calendar = self.config.exchange_calendars.get(ric)
+            known_schedule = expected is not None or (
+                granularity == Granularity.DAILY
+                and (
+                    exchange_calendar is not None
+                    or ric in TREASURY_FUTURES_MAPPING
+                    or re.sub(r"c\d+$", "", ric) in TREASURY_FUTURES_MAPPING.values()
+                )
+            )
+            coverage = (
+                load_fetch_coverage(
+                    conn, instrument_id, granularity, start_date, end_date
+                )
+                if instrument_id is not None and not known_schedule
+                else []
+            )
+            gaps = detect_gaps(
+                conn,
+                ric,
+                start_date,
+                end_date,
+                granularity,
+                cached_data=cached_df,
+                expected_timestamps=expected,
+                exchange_calendar=exchange_calendar,
+                covered_ranges=coverage,
+            )
             rows_from_cache = len(cached_df) if not cached_df.empty else 0
 
             # If no gaps, return cached data
@@ -683,23 +780,32 @@ class DataCache:
                     status=FetchStatus.FROM_CACHE,
                     data=cached_df,
                     rows_from_cache=rows_from_cache,
+                    coverage_verified=known_schedule,
                 )
 
             # Fetch missing data
             rows_fetched = 0
             fetched_dfs: list[pd.DataFrame] = []
+            errors: list[str] = []
+            completed_gaps: list[DateGap] = []
 
             for gap in gaps:
                 try:
-                    df = self._fetch_from_lseg(ric, gap.start, gap.end, granularity)
+                    df = _clamp_frame(
+                        self._fetch_from_lseg(ric, gap.start, gap.end, granularity),
+                        gap.start,
+                        gap.end,
+                    )
                     if not df.empty:
                         # Save to database
                         if instrument_id is not None:
                             save_timeseries(conn, instrument_id, df, granularity)
                         fetched_dfs.append(df)
                         rows_fetched += len(df)
+                    completed_gaps.append(gap)
                 except DataRetrievalError as e:
                     logger.warning(f"Failed to fetch {ric} for gap {gap}: {e}")
+                    errors.append(f"{gap.start}..{gap.end}: {e}")
 
             # Combine cached and fetched data
             all_dfs = [cached_df] + fetched_dfs if not cached_df.empty else fetched_dfs
@@ -710,15 +816,42 @@ class DataCache:
             else:
                 combined = pd.DataFrame()
 
+            # A known schedule can establish completeness even after an empty
+            # provider response. Unknown calendars cannot prove interior coverage.
+            if not errors and known_schedule:
+                remaining = detect_gaps(
+                    conn,
+                    ric,
+                    start_date,
+                    end_date,
+                    granularity,
+                    cached_data=combined,
+                    expected_timestamps=expected,
+                    exchange_calendar=exchange_calendar,
+                    refresh_mutable=False,
+                )
+                if remaining:
+                    errors.append("Requested coverage remains incomplete after fetch")
+
+            # Unknown schedules use provider-success evidence, including valid
+            # empty results. Never persist known-incomplete or failed requests.
+            if instrument_id is not None and not (known_schedule and errors):
+                for gap in completed_gaps:
+                    save_fetch_coverage(
+                        conn, instrument_id, granularity, gap.start, gap.end
+                    )
+
             # Determine status
-            if rows_fetched > 0 and rows_from_cache > 0:
+            if errors:
+                status = FetchStatus.FAILED
+            elif rows_fetched > 0 and rows_from_cache > 0:
                 status = FetchStatus.PARTIAL
             elif rows_fetched > 0:
                 status = FetchStatus.SUCCESS
             elif rows_from_cache > 0:
                 status = FetchStatus.FROM_CACHE
             else:
-                status = FetchStatus.FAILED
+                status = FetchStatus.SUCCESS  # Successful empty provider response
 
             return FetchResult(
                 ric=ric,
@@ -726,6 +859,9 @@ class DataCache:
                 data=combined,
                 rows_fetched=rows_fetched,
                 rows_from_cache=rows_from_cache,
+                coverage_verified=known_schedule and not errors,
+                complete=not errors,
+                error="; ".join(errors) if errors else None,
             )
 
     def _fetch_from_lseg(

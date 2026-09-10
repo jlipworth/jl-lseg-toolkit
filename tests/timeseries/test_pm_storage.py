@@ -148,7 +148,11 @@ class TestUpsertCandlestick:
         count = upsert_candlesticks(conn, candles)
 
         assert count == 3
-        assert cursor.execute.call_count == 3
+        cursor.execute.assert_not_called()
+        cursor.executemany.assert_called_once()
+        sql, rows = cursor.executemany.call_args.args
+        assert "ON CONFLICT" in sql
+        assert list(rows) == [candle.model_dump() for candle in candles]
 
 
 class TestQueryOperations:
@@ -197,3 +201,22 @@ class TestQueryOperations:
         assert len(result) == 1
         params = cursor.execute.call_args[0][1]
         assert params["event_ticker"] == "KXFED-26JAN"
+
+
+def test_empty_candlestick_batch_does_not_open_cursor():
+    conn, cursor = _mock_conn()
+    assert upsert_candlesticks(conn, []) == 0
+    conn.cursor.assert_not_called()
+
+
+def test_large_candlestick_batch_uses_one_cursor_and_dispatch():
+    conn, cursor = _mock_conn()
+    candles = [
+        Candlestick(market_id=i, ts=datetime(2026, 1, 1, tzinfo=UTC))
+        for i in range(200)
+    ]
+    assert upsert_candlesticks(conn, candles) == 200
+    conn.cursor.assert_called_once()
+    cursor.execute.assert_not_called()
+    cursor.executemany.assert_called_once()
+    assert len(list(cursor.executemany.call_args.args[1])) == 200

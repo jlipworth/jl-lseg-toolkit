@@ -305,7 +305,7 @@ def discover_fed_markets(
     return extract_event_markets(events)
 
 
-def _get_fomc_meeting_id_map(conn: psycopg.Connection | None) -> dict:
+def _get_fomc_meeting_id_map(conn: psycopg.Connection[dict[str, Any]] | None) -> dict:
     """Build a date -> meeting id lookup for dry-run linkage suggestions."""
     if conn is None:
         return {}
@@ -317,7 +317,7 @@ def _get_fomc_meeting_id_map(conn: psycopg.Connection | None) -> dict:
 
 
 def discover_fed_event_summaries(
-    conn: psycopg.Connection | None = None,
+    conn: psycopg.Connection[dict[str, Any]] | None = None,
     client: PolymarketClient | None = None,
     *,
     queries: Iterable[str] = FED_DISCOVERY_QUERIES,
@@ -518,7 +518,7 @@ def parse_markets(
 
 
 def backfill(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     *,
     max_pages: int | None = None,
 ) -> dict:
@@ -561,7 +561,7 @@ def backfill(
 
 
 def backfill_fed_discovery(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     *,
     queries: Iterable[str] = FED_DISCOVERY_QUERIES,
     limit_per_type: int = 10,
@@ -610,7 +610,7 @@ def backfill_fed_discovery(
 
 
 def daily_refresh(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     *,
     limit: int | None = None,
     max_pages: int | None = None,
@@ -677,7 +677,7 @@ def daily_refresh(
 
 
 def _get_polymarket_markets_for_candles(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     *,
     platform_id: int,
     status: str | None = None,
@@ -706,7 +706,7 @@ def _get_polymarket_markets_for_candles(
 
 
 def _filter_condition_groups_missing_candles(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     condition_groups: dict[str, list[dict[str, Any]]],
 ) -> dict[str, list[dict[str, Any]]]:
     """Skip conditions where every stored token row already has at least one candle."""
@@ -748,7 +748,7 @@ def _group_markets_by_condition(
 
 
 def backfill_candlesticks(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     *,
     status: str | None = None,
     missing_only: bool = True,
@@ -816,7 +816,7 @@ def backfill_candlesticks(
 
 
 def backfill_with_candlesticks(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     *,
     metadata_max_pages: int | None = None,
     candle_status: str | None = None,
@@ -846,7 +846,9 @@ def backfill_with_candlesticks(
     return summary
 
 
-def cleanup_stale_active_statuses(conn: psycopg.Connection) -> dict[str, int]:
+def cleanup_stale_active_statuses(
+    conn: psycopg.Connection[dict[str, Any]],
+) -> dict[str, int]:
     """Mark clearly stale Polymarket active rows as closed/settled.
 
     This targets rows already stored in TSDB where:

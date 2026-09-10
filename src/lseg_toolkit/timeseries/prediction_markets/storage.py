@@ -1,5 +1,7 @@
 """Storage operations for prediction market data."""
 
+from typing import Any
+
 import psycopg
 from psycopg.rows import dict_row
 
@@ -10,7 +12,7 @@ from lseg_toolkit.timeseries.prediction_markets.models import (
 )
 
 
-def upsert_series(conn: psycopg.Connection, series: Series) -> int:
+def upsert_series(conn: psycopg.Connection[dict[str, Any]], series: Series) -> int:
     """
     Insert or update a prediction market series.
 
@@ -38,7 +40,7 @@ def upsert_series(conn: psycopg.Connection, series: Series) -> int:
         return result["id"] if result else 0
 
 
-def upsert_market(conn: psycopg.Connection, market: Market) -> int:
+def upsert_market(conn: psycopg.Connection[dict[str, Any]], market: Market) -> int:
     """
     Insert or update a prediction market contract.
 
@@ -115,11 +117,7 @@ def upsert_market(conn: psycopg.Connection, market: Market) -> int:
         return result["id"] if result else 0
 
 
-def upsert_candlestick(conn: psycopg.Connection, candle: Candlestick) -> None:
-    """Insert or update a single candlestick record."""
-    with conn.cursor() as cur:
-        cur.execute(
-            """
+CANDLESTICK_UPSERT_SQL = """
             INSERT INTO pm_candlesticks (
                 market_id, ts, price_open, price_high, price_low,
                 price_close, price_mean, yes_bid_close, yes_ask_close,
@@ -139,7 +137,16 @@ def upsert_candlestick(conn: psycopg.Connection, candle: Candlestick) -> None:
                 yes_ask_close = EXCLUDED.yes_ask_close,
                 volume = EXCLUDED.volume,
                 open_interest = EXCLUDED.open_interest
-            """,
+            """
+
+
+def upsert_candlestick(
+    conn: psycopg.Connection[dict[str, Any]], candle: Candlestick
+) -> None:
+    """Insert or update a single candlestick record."""
+    with conn.cursor() as cur:
+        cur.execute(
+            CANDLESTICK_UPSERT_SQL,
             {
                 "market_id": candle.market_id,
                 "ts": candle.ts,
@@ -157,7 +164,7 @@ def upsert_candlestick(conn: psycopg.Connection, candle: Candlestick) -> None:
 
 
 def upsert_candlesticks(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     candles: list[Candlestick],
 ) -> int:
     """
@@ -166,13 +173,20 @@ def upsert_candlesticks(
     Returns:
         Number of records upserted.
     """
-    for candle in candles:
-        upsert_candlestick(conn, candle)
+    if not candles:
+        return 0
+    # executemany lets psycopg pipeline the batch instead of a cursor and
+    # synchronous execute per candle. Keep Python values (not JSON strings).
+    with conn.cursor() as cur:
+        cur.executemany(
+            CANDLESTICK_UPSERT_SQL,
+            (candle.model_dump() for candle in candles),
+        )
     return len(candles)
 
 
 def get_platform_by_name(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     name: str,
 ) -> dict | None:
     """Get a platform by name."""
@@ -185,7 +199,7 @@ def get_platform_by_name(
 
 
 def get_markets_by_series(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     series_id: int,
     status: str | None = None,
 ) -> list[dict]:
@@ -219,7 +233,7 @@ def get_markets_by_series(
 
 
 def get_markets_by_event(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     event_ticker: str,
 ) -> list[dict]:
     """
@@ -247,7 +261,7 @@ def get_markets_by_event(
 
 
 def get_candlesticks(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     market_id: int,
 ) -> list[dict]:
     """

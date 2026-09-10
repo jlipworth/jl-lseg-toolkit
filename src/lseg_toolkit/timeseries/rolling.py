@@ -8,6 +8,7 @@ discrete contracts using various roll methods and adjustments.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
@@ -15,6 +16,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from lseg_toolkit.exceptions import RollCalculationError
+from lseg_toolkit.timeseries.constants import FUTURES_MONTH_TO_INT
 from lseg_toolkit.timeseries.enums import ContinuousType, RollMethod
 from lseg_toolkit.timeseries.models import RollEvent
 
@@ -71,6 +73,43 @@ def label_continuous_data(
     return result
 
 
+def _ordered_contracts(contracts_data: dict[str, pd.DataFrame]) -> list[str]:
+    """Order contracts by delivery month, never by the lexical RIC spelling.
+
+    One-digit live RIC years are resolved against the last observation year;
+    expired RIC decade suffixes take precedence when supplied.
+    """
+
+    def key(ric: str) -> tuple[int, int, str]:
+        match = re.fullmatch(r".+?([FGHJKMNQUVXZ])(\d{1,2})(?:\^(\d))?", ric)
+        df = contracts_data[ric]
+        if match:
+            month, suffix, decade = match.groups()
+            year = int(suffix)
+            if len(suffix) == 2:
+                year += 2000
+            elif decade is not None:
+                year += 2000 + 10 * int(decade)
+            else:
+                reference = (
+                    pd.Timestamp(df.index.max()).year
+                    if not df.empty
+                    else date.today().year
+                )
+                year += (reference // 10) * 10
+                if year < reference - 5:
+                    year += 10
+                elif year > reference + 5:
+                    year -= 10
+            return year, FUTURES_MONTH_TO_INT[month], ric
+        if df.empty:
+            return 9999, 12, ric
+        last = pd.Timestamp(df.index.max())
+        return last.year, last.month, ric
+
+    return sorted(contracts_data, key=key)
+
+
 def build_continuous(
     contracts_data: dict[str, pd.DataFrame],
     roll_method: RollMethod = RollMethod.VOLUME_SWITCH,
@@ -94,12 +133,13 @@ def build_continuous(
     Raises:
         RollCalculationError: If roll calculation fails.
     """
+    contracts_data = {ric: df for ric, df in contracts_data.items() if not df.empty}
     if not contracts_data:
         raise RollCalculationError("No contract data provided")
 
     if len(contracts_data) < 2:
         # Single contract - return as-is with no rolls
-        ric = list(contracts_data.keys())[0]
+        ric = _ordered_contracts(contracts_data)[0]
         df = contracts_data[ric].copy()
         df["source_contract"] = ric
         df["adjustment_factor"] = 1.0
@@ -119,11 +159,14 @@ def build_continuous(
 
     if not roll_dates:
         logger.warning("No roll dates detected, using first contract only")
-        ric = list(contracts_data.keys())[0]
+        ric = _ordered_contracts(contracts_data)[0]
         df = contracts_data[ric].copy()
         df["source_contract"] = ric
         df["adjustment_factor"] = 1.0
         return df, []
+
+    if any(a[0] >= b[0] for a, b in zip(roll_dates, roll_dates[1:], strict=False)):
+        raise RollCalculationError("Roll dates must increase with contract expiry")
 
     # Build roll events
     roll_events = _build_roll_events(contracts_data, roll_dates, roll_method.value)
@@ -157,7 +200,7 @@ def _detect_roll_dates_volume(
     Returns:
         List of (roll_date, from_contract, to_contract) tuples.
     """
-    contracts = sorted(contracts_data.keys())
+    contracts = _ordered_contracts(contracts_data)
     if len(contracts) < 2:
         return []
 
@@ -237,7 +280,7 @@ def _detect_roll_dates_fixed(
     Returns:
         List of (roll_date, from_contract, to_contract) tuples.
     """
-    contracts = sorted(contracts_data.keys())
+    contracts = _ordered_contracts(contracts_data)
     if len(contracts) < 2:
         return []
 
@@ -281,7 +324,7 @@ def _detect_roll_dates_expiry(
     Returns:
         List of (roll_date, from_contract, to_contract) tuples.
     """
-    contracts = sorted(contracts_data.keys())
+    contracts = _ordered_contracts(contracts_data)
     if len(contracts) < 2:
         return []
 
@@ -401,7 +444,7 @@ def _stitch_unadjusted(
     Returns DataFrame with raw prices (will have jumps at rolls).
     """
     if not roll_events:
-        ric = list(contracts_data.keys())[0]
+        ric = _ordered_contracts(contracts_data)[0]
         df = contracts_data[ric].copy()
         df["source_contract"] = ric
         df["adjustment_factor"] = 1.0
@@ -461,7 +504,7 @@ def _apply_ratio_adjustment(
     to eliminate roll gaps while preserving returns.
     """
     if not roll_events:
-        ric = list(contracts_data.keys())[0]
+        ric = _ordered_contracts(contracts_data)[0]
         df = contracts_data[ric].copy()
         df["source_contract"] = ric
         df["adjustment_factor"] = 1.0
@@ -542,7 +585,7 @@ def _apply_difference_adjustment(
     Historical prices have roll gaps added/subtracted.
     """
     if not roll_events:
-        ric = list(contracts_data.keys())[0]
+        ric = _ordered_contracts(contracts_data)[0]
         df = contracts_data[ric].copy()
         df["source_contract"] = ric
         df["adjustment_factor"] = 1.0

@@ -76,7 +76,7 @@ class InstrumentGroup(StrEnum):
 class JobSchedule(BaseModel):
     """Schedule definition for an extraction job."""
 
-    cron: str = Field(..., description="Cron expression (e.g., '0 18 * * 1-5')")
+    cron: str = Field(..., description="Cron expression (e.g., '0 18 * * mon-fri')")
     timezone: str = Field(default="America/New_York", description="Timezone for cron")
 
 

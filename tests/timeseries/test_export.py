@@ -292,3 +292,92 @@ class TestExportSymbol:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+@pytest.mark.parametrize("granularity", [Granularity.DAILY, Granularity.HOURLY])
+def test_export_preserves_quote_fields_and_time_key(tmp_path, granularity):
+    from lseg_toolkit.timeseries.export import _write_parquet
+
+    frame = pd.DataFrame(
+        {"bid": [1.1, 1.2], "ask": [1.2, 1.3]},
+        index=pd.date_range("2026-01-02 10:00", periods=2, freq="h", tz="UTC"),
+    )
+    target = tmp_path / "quotes.parquet"
+    _write_parquet(frame, target, granularity)
+    actual = pq.read_table(target).to_pandas()
+    time_key = "date" if granularity == Granularity.DAILY else "timestamp"
+    assert actual.columns.tolist() == [time_key, "bid", "ask"]
+    assert actual.bid.tolist() == [1.1, 1.2]
+    assert not actual[time_key].isna().any()
+    assert frame.index.name is None
+    if granularity == Granularity.HOURLY:
+        assert actual.timestamp.iloc[0] == pd.Timestamp("2026-01-02 10:00")
+
+
+def test_export_failed_write_preserves_previous_file(tmp_path):
+    from lseg_toolkit.timeseries.export import _write_parquet
+
+    target = tmp_path / "quotes.parquet"
+    target.write_bytes(b"previous complete file")
+    frame = pd.DataFrame({"close": [1.0]}, index=pd.to_datetime(["2026-01-02"]))
+    with patch(
+        "lseg_toolkit.timeseries.export.pq.write_table",
+        side_effect=OSError("disk full"),
+    ):
+        with pytest.raises(OSError, match="disk full"):
+            _write_parquet(frame, target, Granularity.DAILY)
+    assert target.read_bytes() == b"previous complete file"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_export_metadata_empty_files_really_exist(tmp_path):
+    from lseg_toolkit.timeseries.export import export_metadata
+
+    with patch("lseg_toolkit.timeseries.export.get_connection") as connection:
+        connection.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.fetchall.return_value = []
+        paths = export_metadata(output_dir=str(tmp_path))
+    for path in paths.values():
+        assert path.is_file()
+        assert pq.read_table(path).num_rows == 0
+
+
+def test_export_passes_config_and_escapes_symbol_path(tmp_path):
+    from lseg_toolkit.timeseries.config import DatabaseConfig
+    from lseg_toolkit.timeseries.export import export_to_parquet
+
+    config = DatabaseConfig()
+    frame = pd.DataFrame({"rate": [3.0]}, index=pd.to_datetime(["2026-01-02"]))
+    with (
+        patch("lseg_toolkit.timeseries.export.get_connection") as connection,
+        patch(
+            "lseg_toolkit.timeseries.export.get_instrument",
+            return_value={"symbol": "../../escape", "asset_class": "ois"},
+        ),
+        patch(
+            "lseg_toolkit.timeseries.export.load_timeseries", return_value=frame
+        ) as load,
+    ):
+        paths = export_to_parquet(
+            output_dir=str(tmp_path), symbol="../../escape", config=config
+        )
+    connection.assert_called_once_with(config=config, db_path=None)
+    assert len(paths) == 1
+    assert paths[0].is_relative_to(tmp_path)
+    assert "%2F" in paths[0].name
+    assert load.call_args.args[1] == "../../escape"
+
+
+def test_intraday_export_intervals_do_not_overwrite(tmp_path):
+    from lseg_toolkit.timeseries.export import _export_instrument
+
+    frame = pd.DataFrame({"bid": [1.1]}, index=pd.to_datetime(["2026-01-02 10:00"]))
+    instrument = {"symbol": "EURUSD", "asset_class": "fx_spot"}
+    with patch("lseg_toolkit.timeseries.export.load_timeseries", return_value=frame):
+        minute = _export_instrument(
+            MagicMock(), instrument, tmp_path, Granularity.MINUTE_1, None, None, False
+        )
+        hourly = _export_instrument(
+            MagicMock(), instrument, tmp_path, Granularity.HOURLY, None, None, False
+        )
+    assert minute[0] != hourly[0]
+    assert minute[0].is_file() and hourly[0].is_file()

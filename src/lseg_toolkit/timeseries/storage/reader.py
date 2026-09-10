@@ -8,6 +8,7 @@ with support for all data shapes (OHLCV, Quote, Rate, Bond, Fixing).
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import Any
 
 import pandas as pd
 import psycopg
@@ -17,7 +18,7 @@ from lseg_toolkit.timeseries.enums import DataShape, Granularity
 
 
 def load_timeseries(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     symbol: str,
     start_date: date | None = None,
     end_date: date | None = None,
@@ -97,7 +98,7 @@ def load_timeseries(
 
 
 def _execute_to_dataframe(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     query: str,
     params: list,
     index_col: str = "ts",
@@ -106,7 +107,7 @@ def _execute_to_dataframe(
     """Execute query and return DataFrame with index."""
     with conn.cursor() as cur:
         cur.execute(query, params)
-        columns = [desc[0] for desc in cur.description]
+        columns = [desc[0] for desc in (cur.description or [])]
         rows = cur.fetchall()
 
     if not rows:
@@ -120,7 +121,7 @@ def _execute_to_dataframe(
 
 
 def _load_ohlcv_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     start_date: date | None,
     end_date: date | None,
@@ -149,7 +150,7 @@ def _load_ohlcv_data(
 
 
 def _load_quote_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     start_date: date | None,
     end_date: date | None,
@@ -177,7 +178,7 @@ def _load_quote_data(
 
 
 def _load_rate_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     start_date: date | None,
     end_date: date | None,
@@ -205,7 +206,7 @@ def _load_rate_data(
 
 
 def _load_bond_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     start_date: date | None,
     end_date: date | None,
@@ -236,7 +237,7 @@ def _load_bond_data(
 
 
 def _load_fixing_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     start_date: date | None,
     end_date: date | None,
@@ -268,7 +269,7 @@ def _load_fixing_data(
 
 
 def get_data_range(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     symbol: str,
     granularity: Granularity = Granularity.DAILY,
     data_shape: DataShape | None = None,
@@ -375,7 +376,7 @@ def get_data_range(
     return None, None
 
 
-def get_data_coverage(conn: psycopg.Connection) -> pd.DataFrame:
+def get_data_coverage(conn: psycopg.Connection[dict[str, Any]]) -> pd.DataFrame:
     """
     Get data coverage summary from the view.
 
@@ -394,7 +395,9 @@ def get_data_coverage(conn: psycopg.Connection) -> pd.DataFrame:
     )
 
 
-def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
+def get_instrument(
+    conn: psycopg.Connection[dict[str, Any]], symbol: str
+) -> dict | None:
     """
     Get instrument details by symbol.
 
@@ -420,7 +423,9 @@ def get_instrument(conn: psycopg.Connection, symbol: str) -> dict | None:
     return dict(result) if result else None
 
 
-def get_instrument_by_id(conn: psycopg.Connection, instrument_id: int) -> dict | None:
+def get_instrument_by_id(
+    conn: psycopg.Connection[dict[str, Any]], instrument_id: int
+) -> dict | None:
     """
     Get instrument details by ID.
 
@@ -447,7 +452,7 @@ def get_instrument_by_id(conn: psycopg.Connection, instrument_id: int) -> dict |
 
 
 def list_instruments(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     asset_class: str | None = None,
     data_shape: str | None = None,
 ) -> pd.DataFrame:

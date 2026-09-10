@@ -15,7 +15,7 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import psycopg
@@ -55,7 +55,7 @@ class SaveContext:
     @classmethod
     def for_instrument(
         cls,
-        conn: psycopg.Connection,
+        conn: psycopg.Connection[dict[str, Any]],
         instrument_id: int,
         granularity: Granularity = Granularity.DAILY,
         **kwargs,
@@ -142,7 +142,7 @@ def _format_copy_value(value) -> str:
 
 
 def _bulk_copy(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     table: str,
     columns: list[str],
     buffer: io.StringIO,
@@ -178,7 +178,7 @@ def _bulk_copy(
 
 
 def _copy_with_upsert(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     table: str,
     columns: list[str],
     buffer: io.StringIO,
@@ -188,10 +188,10 @@ def _copy_with_upsert(
     COPY with upsert using staging table pattern.
 
     This is the recommended approach for bulk upserts:
-    1. Create unlogged staging table
+    1. Create session-local temporary staging table
     2. COPY data into staging
     3. INSERT ... ON CONFLICT from staging
-    4. Truncate staging (reused for next batch)
+    4. Drop staging automatically at transaction commit
 
     Args:
         conn: PostgreSQL connection.
@@ -210,18 +210,20 @@ def _copy_with_upsert(
         return 0
 
     staging_table = f"_staging_{table}"
+    staging_identifier = sql.Identifier("pg_temp", staging_table)
 
-    with conn.cursor() as cur:
+    with conn.transaction(), conn.cursor() as cur:
         # Recreate staging table from the current target schema. This avoids
         # schema drift when new columns are added to the target table.
-        cur.execute(
-            sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(staging_table))
-        )
+        cur.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(staging_identifier))
 
-        # Create unlogged staging table
+        # Session-local tables avoid cross-connection DDL/data races. Qualify
+        # references so an old public staging table is never dropped or reused.
         cur.execute(
-            sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
-                sql.Identifier(staging_table),
+            sql.SQL(
+                "CREATE TEMP TABLE {} (LIKE {} INCLUDING DEFAULTS) ON COMMIT DROP"
+            ).format(
+                staging_identifier,
                 sql.Identifier(table),
             )
         )
@@ -229,7 +231,7 @@ def _copy_with_upsert(
         # COPY into staging
         with cur.copy(
             sql.SQL("COPY {} ({}) FROM STDIN").format(
-                sql.Identifier(staging_table),
+                staging_identifier,
                 sql.SQL(", ").join(sql.Identifier(c) for c in columns),
             )
         ) as copy:
@@ -255,7 +257,7 @@ def _copy_with_upsert(
                     sql.Identifier(table),
                     sql.SQL(", ").join(sql.Identifier(c) for c in columns),
                     sql.SQL(", ").join(sql.Identifier(c) for c in columns),
-                    sql.Identifier(staging_table),
+                    staging_identifier,
                     sql.SQL(", ").join(sql.Identifier(c) for c in conflict_columns),
                     update_clause,
                 )
@@ -273,7 +275,7 @@ def _copy_with_upsert(
                     sql.Identifier(table),
                     sql.SQL(", ").join(sql.Identifier(c) for c in columns),
                     sql.SQL(", ").join(sql.Identifier(c) for c in columns),
-                    sql.Identifier(staging_table),
+                    staging_identifier,
                     sql.SQL(", ").join(sql.Identifier(c) for c in conflict_columns),
                 )
             )
@@ -282,7 +284,7 @@ def _copy_with_upsert(
 
 
 def save_timeseries(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     data: pd.DataFrame,
     granularity: Granularity = Granularity.DAILY,
@@ -368,7 +370,7 @@ def save_timeseries(
 
 
 def _save_ohlcv_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     data: pd.DataFrame,
     granularity: Granularity,
@@ -445,7 +447,7 @@ def _save_ohlcv_data(
 
 
 def _save_quote_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     data: pd.DataFrame,
     granularity: Granularity,
@@ -506,7 +508,7 @@ def _save_quote_data(
 
 
 def _save_rate_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     data: pd.DataFrame,
     granularity: Granularity,
@@ -576,7 +578,7 @@ def _save_rate_data(
 
 
 def _save_bond_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     data: pd.DataFrame,
     granularity: Granularity,
@@ -663,7 +665,7 @@ def _save_bond_data(
 
 
 def _save_fixing_data(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument_id: int,
     data: pd.DataFrame,
     upsert: bool,

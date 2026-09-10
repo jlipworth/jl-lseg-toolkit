@@ -39,9 +39,9 @@ check:  ## Run all checks before commit (lint + format + tests)
 	@echo ""
 	@echo "All checks passed! Safe to commit."
 
-ci-local:  ## Mirror Woodpecker CI locally using a frozen test-only environment
+ci-local:  ## Mirror Woodpecker CI locally using a frozen runtime-and-test environment
 	@echo "==> Syncing frozen lint/typecheck environment at $(CI_LOCAL_VENV)..."
-	UV_PROJECT_ENVIRONMENT=$(CI_LOCAL_VENV) uv sync --frozen --only-group test
+	UV_PROJECT_ENVIRONMENT=$(CI_LOCAL_VENV) uv sync --frozen --group test --no-default-groups
 	@echo ""
 	@echo "==> Running ruff linter..."
 	$(CI_LOCAL_VENV)/bin/ruff check src/ tests/
@@ -53,7 +53,7 @@ ci-local:  ## Mirror Woodpecker CI locally using a frozen test-only environment
 	MYPYPATH=src $(CI_LOCAL_VENV)/bin/mypy src/
 	@echo ""
 	@echo "==> Syncing frozen test environment..."
-	UV_PROJECT_ENVIRONMENT=$(CI_LOCAL_VENV) uv sync --frozen
+	UV_PROJECT_ENVIRONMENT=$(CI_LOCAL_VENV) uv sync --frozen --group test --no-default-groups
 	@echo ""
 	@echo "==> Running unit-test CI suite..."
 	$(CI_LOCAL_VENV)/bin/pytest tests/ -m "not integration" --no-cov -v

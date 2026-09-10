@@ -1,41 +1,44 @@
 # .woodpecker/ci.yml
 # Main test pipeline - runs on push and pull requests
 
+# Image digests verified with docker buildx imagetools inspect (2026-09-10).
+# Refresh manually after review: Renovate currently manages Python only.
+
 when:
   event: [push, pull_request, manual]
   branch: master
 
 steps:
   - name: lint
-    image: jlipworth/jl-lseg-toolkit-ci:latest
+    image: jlipworth/jl-lseg-toolkit-ci:latest@sha256:62c71eb2c355432dfb5bdd23bb570f524482d0d749e0317979d2c944135f9784
     pull: true
     environment:
       UV_PROJECT_ENVIRONMENT: /tmp/venv
     commands:
-      - uv sync --frozen --only-group test
+      - uv sync --frozen --group test --no-default-groups
       - /tmp/venv/bin/ruff check src/ tests/
       - /tmp/venv/bin/ruff format --check src/ tests/
 
   - name: typecheck
-    image: jlipworth/jl-lseg-toolkit-ci:latest
+    image: jlipworth/jl-lseg-toolkit-ci:latest@sha256:62c71eb2c355432dfb5bdd23bb570f524482d0d749e0317979d2c944135f9784
     pull: true
     environment:
       UV_PROJECT_ENVIRONMENT: /tmp/venv
     commands:
-      - uv sync --frozen --only-group test
+      - uv sync --frozen --group test --no-default-groups
       - MYPYPATH=src /tmp/venv/bin/mypy src/
 
   - name: test
-    image: jlipworth/jl-lseg-toolkit-ci:latest
+    image: jlipworth/jl-lseg-toolkit-ci:latest@sha256:62c71eb2c355432dfb5bdd23bb570f524482d0d749e0317979d2c944135f9784
     pull: true
     environment:
       UV_PROJECT_ENVIRONMENT: /tmp/venv
     commands:
-      - uv sync --frozen
+      - uv sync --frozen --group test --no-default-groups
       - /tmp/venv/bin/pytest tests/ -m "not integration" --no-cov -v
 
   - name: notify-success
-    image: appleboy/drone-discord
+    image: appleboy/drone-discord:latest@sha256:476966c0b54fa5fe624ff08f90022b3b90f652bcc00918b0c7a14012de55994d
     depends_on: [lint, typecheck, test]
     when:
       - status: success
@@ -50,7 +53,7 @@ steps:
         {{build.link}}
 
   - name: notify-failure
-    image: appleboy/drone-discord
+    image: appleboy/drone-discord:latest@sha256:476966c0b54fa5fe624ff08f90022b3b90f652bcc00918b0c7a14012de55994d
     depends_on: [lint, typecheck, test]
     when:
       - status: failure
