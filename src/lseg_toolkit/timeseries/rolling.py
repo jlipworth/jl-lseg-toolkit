@@ -168,6 +168,15 @@ def build_continuous(
     if any(a[0] >= b[0] for a, b in zip(roll_dates, roll_dates[1:], strict=False)):
         raise RollCalculationError("Roll dates must increase with contract expiry")
 
+    ordered = _ordered_contracts(contracts_data)
+    expected_edges = list(zip(ordered, ordered[1:], strict=False))
+    if [(front, back) for _, front, back in roll_dates] != expected_edges[
+        : len(roll_dates)
+    ]:
+        raise RollCalculationError(
+            "Disconnected roll chain; cannot skip a contract transition"
+        )
+
     # Build roll events
     roll_events = _build_roll_events(contracts_data, roll_dates, roll_method.value)
 

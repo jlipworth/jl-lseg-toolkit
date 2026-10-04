@@ -159,3 +159,48 @@ def test_failed_scheduler_chunk_does_not_record_coverage(monkeypatch):
             2,
         )
     coverage.assert_not_called()
+
+
+def test_none_scheduler_response_is_a_failure_without_coverage(monkeypatch):
+    job = ExtractionJob(1, MagicMock(), SchedulerConfig())
+    spec = InstrumentSpec("EURUSD", "EUR=", AssetClass.FX_SPOT, DataShape.QUOTE)
+    monkeypatch.setattr(job, "_fetch_timeseries", lambda *args: None)
+    coverage = MagicMock()
+    monkeypatch.setattr(jobs, "save_fetch_coverage", coverage)
+    with pytest.raises(ValueError, match="No provider response"):
+        job._fetch_gap(
+            MagicMock(),
+            spec,
+            7,
+            date(2026, 1, 5),
+            date(2026, 1, 7),
+            Granularity.DAILY,
+            30,
+        )
+    coverage.assert_not_called()
+
+
+def test_incomplete_scheduler_coverage_does_not_advance_watermark(monkeypatch):
+    from lseg_toolkit.timeseries.cache import DateGap
+
+    conn = MagicMock()
+    job = ExtractionJob(1, MagicMock(), SchedulerConfig())
+    spec = InstrumentSpec("ZN", "TYc1", AssetClass.BOND_FUTURES, DataShape.OHLCV)
+    monkeypatch.setattr(jobs, "get_instrument_state", lambda *args: None)
+    gap = DateGap(date(2026, 1, 5), date(2026, 1, 7))
+    detector = MagicMock(return_value=[gap])
+    monkeypatch.setattr(jobs, "detect_gaps", detector)
+    monkeypatch.setattr(job, "_fetch_gap", lambda *args: 1)
+    state = MagicMock()
+    monkeypatch.setattr(jobs, "upsert_instrument_state", state)
+    result = job._extract_instrument(
+        conn,
+        spec,
+        7,
+        {"granularity": "daily", "lookback_days": 5, "max_chunk_days": 30},
+    )
+    assert not result.success
+    assert "coverage remains incomplete" in result.error
+    assert state.call_args.kwargs["success"] is False
+    assert "last_date" not in state.call_args.kwargs
+    assert detector.call_args.kwargs["refresh_mutable"] is False

@@ -263,3 +263,77 @@ def test_live_and_future_contracts_do_not_have_expired_suffix():
     assert get_bond_contract_chain(
         "ZN", date(2026, 9, 1), date(2026, 9, 9), as_of=date(2026, 9, 10)
     ) == ["TYU26", "TYZ26"]
+
+
+def test_disconnected_volume_roll_chain_is_rejected():
+    from lseg_toolkit.exceptions import RollCalculationError
+    from lseg_toolkit.timeseries.rolling import build_continuous
+
+    dates = pd.date_range("2026-01-05", periods=3)
+    data = {
+        "TYH26": pd.DataFrame({"close": [100] * 3, "volume": [100] * 3}, index=dates),
+        "TYM26": pd.DataFrame({"close": [101] * 3, "volume": [10] * 3}, index=dates),
+        "TYU26": pd.DataFrame({"close": [102] * 3, "volume": [5, 20, 30]}, index=dates),
+    }
+    # H never crosses to M, but M crosses to U. Starting at M would silently
+    # discard H and misidentify the front contract.
+    with pytest.raises(RollCalculationError, match="Disconnected roll chain"):
+        build_continuous(data)
+
+
+def test_truncated_continuous_history_is_rejected_before_storage():
+    p = pipeline(continuous=True)
+    front = pd.DataFrame(
+        {"close": [100], "volume": [100]}, index=pd.to_datetime(["2026-01-05"])
+    )
+    back = pd.DataFrame(
+        {"close": [101, 101], "volume": [1, 100]},
+        index=pd.to_datetime(["2026-01-05", "2026-01-06"]),
+    )
+    # With no observed crossover, the old implementation returned only H's
+    # first day, called storage, and reported success despite a missing tail.
+    with (
+        patch.object(p, "_store_timeseries", return_value=success()) as store,
+        patch("lseg_toolkit.timeseries.pipeline.get_connection") as connection,
+    ):
+        result = p._build_and_store_continuous("ZN", {"TYH26": front, "TYM26": back})
+    assert not result.success
+    assert "drops observed dates" in result.error
+    store.assert_not_called()
+    connection.assert_not_called()
+
+
+@pytest.mark.parametrize("symbol", ["ZN", "TYc1"])
+def test_missing_optional_contract_cannot_hide_closed_session_holes(symbol):
+    p = pipeline(symbols=[symbol], continuous=True)
+    p.config.start_date = date(2026, 1, 5)
+    p.config.end_date = date(2026, 1, 7)
+    front = pd.DataFrame(
+        {"close": [100.0], "volume": [100.0]}, index=pd.to_datetime(["2026-01-05"])
+    )
+    with (
+        patch.object(p, "_store_timeseries", return_value=success()) as store,
+        patch("lseg_toolkit.timeseries.pipeline.get_connection") as connection,
+    ):
+        result = p._build_and_store_continuous(symbol, {"TYH26": front})
+    assert not result.success
+    assert "missing closed CME sessions" in result.error
+    store.assert_not_called()
+    connection.assert_not_called()
+
+
+def test_complete_closed_sessions_store_without_optional_roll():
+    p = pipeline(continuous=True)
+    p.config.start_date = date(2026, 1, 5)
+    p.config.end_date = date(2026, 1, 7)
+    front = pd.DataFrame(
+        {"close": [100.0] * 3, "volume": [100.0] * 3},
+        index=pd.date_range("2026-01-05", periods=3),
+    )
+    with (
+        patch.object(p, "_store_timeseries", return_value=success()) as store,
+        patch("lseg_toolkit.timeseries.pipeline.get_connection"),
+    ):
+        result = p._build_and_store_continuous("ZN", {"TYH26": front})
+    assert result.success
+    store.assert_called_once()

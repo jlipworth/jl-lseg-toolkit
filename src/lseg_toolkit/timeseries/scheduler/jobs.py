@@ -276,6 +276,21 @@ class ExtractionJob:
                     )
                     total_rows += rows
 
+                # Do not move the watermark past closed-session holes. For
+                # unknown calendars this verifies successful request coverage;
+                # for Treasury futures it verifies actual daily observations.
+                if detect_gaps(
+                    conn,
+                    spec.symbol,
+                    start_date,
+                    end_date,
+                    granularity,
+                    refresh_mutable=False,
+                ):
+                    raise ValueError(
+                        "Requested coverage remains incomplete after fetch"
+                    )
+
                 # Update state on success
                 upsert_instrument_state(
                     conn, self.job_id, instrument_id, success=True, last_date=end_date
@@ -340,7 +355,10 @@ class ExtractionJob:
 
             df = self._fetch_timeseries(spec, current, chunk_end, granularity)
 
-            if df is not None and not df.empty:
+            if df is None:
+                raise ValueError(f"No provider response for {spec.symbol}")
+
+            if not df.empty:
                 # Save to database
                 rows = save_timeseries(
                     conn,

@@ -477,6 +477,11 @@ def detect_gaps(
     """
     if start_date > end_date:
         raise ValueError("start_date must be <= end_date")
+    today = datetime.now(UTC).date()
+    if not refresh_mutable:
+        end_date = min(end_date, today - timedelta(days=1))
+        if start_date > end_date:
+            return []
     if expected_timestamps is None and granularity == Granularity.DAILY:
         root = re.sub(r"c\d+$", "", symbol)
         if exchange_calendar is None and (
@@ -490,7 +495,6 @@ def detect_gaps(
             calendar = xcals.get_calendar(exchange_calendar)
             expected_timestamps = calendar.sessions_in_range(start_date, end_date)
 
-    today = datetime.now(UTC).date()
     if expected_timestamps is not None:
         if cached_data is None:
             cached_data = load_timeseries(

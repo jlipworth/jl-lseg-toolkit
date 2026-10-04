@@ -10,7 +10,7 @@ import logging
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,7 +18,8 @@ import pandas as pd
 
 from lseg_toolkit.timeseries.client import get_client
 from lseg_toolkit.timeseries.config import TimeSeriesConfig
-from lseg_toolkit.timeseries.enums import AssetClass, RollMethod
+from lseg_toolkit.timeseries.constants import TREASURY_FUTURES_MAPPING
+from lseg_toolkit.timeseries.enums import AssetClass, Granularity, RollMethod
 from lseg_toolkit.timeseries.export import export_to_parquet
 from lseg_toolkit.timeseries.fed_funds import (
     fetch_fed_funds_daily,
@@ -376,6 +377,37 @@ class TimeSeriesExtractionPipeline:
                     continuous_type=self.config.continuous_type,
                     roll_days_before=self.config.roll_days_before,
                 )
+
+            # A nonempty chain alone does not prove the stitched output covers
+            # its observations. Missing crossovers can silently truncate a tail.
+            observed_dates = {
+                day
+                for df in data.values()
+                for day in pd.to_datetime(df.index).date
+                if self.config.start_date <= day <= self.config.end_date
+            }
+            output_dates = set(pd.to_datetime(continuous_df.index).date)
+            if observed_dates - output_dates:
+                raise ValueError(
+                    "Continuous history drops observed dates; incomplete roll coverage"
+                )
+
+            if self.config.granularity == Granularity.DAILY and (
+                symbol.upper() in TREASURY_FUTURES_MAPPING
+                or symbol in {f"{root}c1" for root in TREASURY_FUTURES_MAPPING.values()}
+            ):
+                import exchange_calendars as xcals
+
+                sessions = xcals.get_calendar("CME").sessions_in_range(
+                    self.config.start_date, self.config.end_date
+                )
+                expected_dates = {
+                    day for day in sessions.date if day < datetime.now(UTC).date()
+                }
+                if expected_dates - output_dates:
+                    raise ValueError(
+                        "Continuous history is missing closed CME sessions"
+                    )
 
             # Store to database
             result = self._store_timeseries(

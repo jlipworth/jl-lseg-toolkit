@@ -438,3 +438,37 @@ def test_known_schedule_refreshes_today_without_requiring_future_bars():
         )
         == []
     )
+
+
+def test_postfetch_unknown_schedule_ignores_mutable_dates():
+    from datetime import UTC, datetime, timedelta
+
+    from lseg_toolkit.timeseries.cache import detect_gaps
+    from lseg_toolkit.timeseries.enums import Granularity
+
+    today = datetime.now(UTC).date()
+    yesterday = today - timedelta(days=1)
+    assert (
+        detect_gaps(
+            object(),
+            "EUR=",
+            yesterday,
+            today + timedelta(days=1),
+            Granularity.HOURLY,
+            covered_ranges=[(yesterday, yesterday)],
+            refresh_mutable=False,
+        )
+        == []
+    )
+    assert (
+        detect_gaps(
+            object(),
+            "EUR=",
+            today,
+            today,
+            Granularity.HOURLY,
+            covered_ranges=[],
+            refresh_mutable=False,
+        )
+        == []
+    )
