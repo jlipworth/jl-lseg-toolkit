@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 if TYPE_CHECKING:
+    from typing import Any
+
     import psycopg
 
 # Default path to CME CF lookup table
@@ -272,7 +274,7 @@ class ConversionFactorFetcher:
     - Database storage and retrieval
     """
 
-    def __init__(self, conn: psycopg.Connection | None = None):
+    def __init__(self, conn: psycopg.Connection[dict[str, Any]] | None = None):
         """
         Initialize the fetcher.
 
@@ -469,10 +471,10 @@ class ConversionFactorFetcher:
             rows = cur.fetchall()
             return [
                 {
-                    "bond_cusip": row[0],
-                    "conversion_factor": row[1],
-                    "source": row[2],
-                    "effective_date": row[3],
+                    "bond_cusip": row["bond_cusip"],
+                    "conversion_factor": row["conversion_factor"],
+                    "source": row["source"],
+                    "effective_date": row["effective_date"],
                 }
                 for row in rows
             ]

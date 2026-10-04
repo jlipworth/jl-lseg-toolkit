@@ -19,6 +19,8 @@ import lseg.data as rd
 import pandas as pd
 
 if TYPE_CHECKING:
+    from typing import Any
+
     import psycopg
 
 from lseg_toolkit.timeseries.constants import (
@@ -65,7 +67,7 @@ class BondBasisExtractor:
         result = extractor.extract_futures("TY", start_date, end_date)
     """
 
-    def __init__(self, conn: psycopg.Connection):
+    def __init__(self, conn: psycopg.Connection[dict[str, Any]]):
         """
         Initialize extractor.
 

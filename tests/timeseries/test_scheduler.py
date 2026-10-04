@@ -9,14 +9,12 @@ Tests cover:
 
 from __future__ import annotations
 
-import os
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pandas as pd
 import pytest
 
-from lseg_toolkit.timeseries.config import DatabaseConfig
 from lseg_toolkit.timeseries.enums import AssetClass, DataShape, Granularity
 from lseg_toolkit.timeseries.scheduler.config import SchedulerConfig
 from lseg_toolkit.timeseries.scheduler.default_jobs import ensure_ff_strip_jobs
@@ -185,55 +183,43 @@ class TestDefaultJobs:
         mock_create_job.assert_not_called()
 
 
-@pytest.mark.skipif(
-    not pytest.importorskip("psycopg", reason="psycopg not installed"),
-    reason="PostgreSQL tests require psycopg",
-)
+@pytest.mark.integration
 class TestJobCRUD:
-    """Tests for job CRUD operations.
+    """Database CRUD tests use only a disposable, explicitly created container.
 
-    These tests require a PostgreSQL database. Set POSTGRES_* env vars or skip.
+    Run with ``pytest -m integration tests/timeseries/test_scheduler.py`` and
+    Docker available. Ambient production database credentials are never read.
     """
 
     @pytest.fixture
-    def db_config(self):
-        """Get database config from environment."""
-        configured = any(
-            os.getenv(var)
-            for var in (
-                "TSDB_HOST",
-                "TSDB_PORT",
-                "TSDB_DATABASE",
-                "TSDB_USER",
-                "TSDB_PASSWORD",
-                "POSTGRES_HOST",
-                "POSTGRES_PORT",
-                "POSTGRES_DB",
-                "POSTGRES_USER",
-                "POSTGRES_PASSWORD",
-                "PGHOST",
-                "PGPORT",
-                "PGDATABASE",
-                "PGUSER",
-                "PGPASSWORD",
-            )
-        )
-        if not configured:
-            pytest.skip(
-                "No database configured - set TSDB_*, POSTGRES_*, or PG* env vars"
-            )
+    def db_conn(self):
+        import psycopg
+        from psycopg.rows import dict_row
+        from testcontainers.postgres import PostgresContainer
 
-        config = DatabaseConfig.from_env()
-        return config
+        from lseg_toolkit.timeseries.storage.pg_schema import SCHEMA_SQL
 
-    @pytest.fixture
-    def db_conn(self, db_config):
-        """Get database connection."""
-        from lseg_toolkit.timeseries.storage import get_connection, init_db
-
-        init_db(db_config)
-        with get_connection(config=db_config) as conn:
-            yield conn
+        # Explicit values prevent testcontainers inheriting POSTGRES_* secrets.
+        # Per-test container teardown removes even explicitly committed rows.
+        with PostgresContainer(
+            "postgres:16-alpine",
+            username="scheduler_test",
+            password="scheduler_test",
+            dbname="scheduler_test",
+            driver=None,
+        ) as postgres:
+            with psycopg.connect(
+                postgres.get_connection_url(), row_factory=dict_row
+            ) as conn:
+                # CRUD uses ordinary PostgreSQL tables, not hypertables. Reuse
+                # production table DDL without installing the Timescale extension.
+                conn.execute(
+                    SCHEMA_SQL.replace(
+                        "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;", ""
+                    )
+                )
+                conn.commit()
+                yield conn
 
     def test_create_job(self, db_conn):
         """Test creating a new job."""
@@ -245,7 +231,7 @@ class TestJobCRUD:
             name=job_name,
             instrument_group="benchmark_fixings",
             granularity="daily",
-            schedule_cron="0 18 * * 1-5",
+            schedule_cron="0 18 * * mon-fri",
         )
         db_conn.commit()
 
@@ -496,5 +482,43 @@ def test_rate_decision_job_specs_use_consistent_cron_and_lookback():
 
     for spec in RATE_DECISION_JOB_SPECS:
         assert spec.granularity == "daily"
-        assert spec.schedule_cron == "0 22 * * 1-5"
+        assert spec.schedule_cron == "0 22 * * mon-fri"
         assert spec.lookback_days == 365
+
+
+class TestDisposableDatabaseSafety:
+    def test_crud_tests_are_integration_only(self):
+        assert any(mark.name == "integration" for mark in TestJobCRUD.pytestmark)
+
+    @patch("lseg_toolkit.timeseries.config.DatabaseConfig.from_env")
+    @patch("psycopg.connect")
+    @patch("testcontainers.postgres.PostgresContainer")
+    def test_fixture_ignores_ambient_database_and_cleans_up(
+        self, container_class, connect, from_env, monkeypatch
+    ):
+        monkeypatch.setenv("PGHOST", "production.invalid")
+        monkeypatch.setenv("POSTGRES_PASSWORD", "must-not-be-used")
+        from_env.side_effect = AssertionError("Must not load production database")
+        container = container_class.return_value.__enter__.return_value
+        container.get_connection_url.return_value = "postgresql://disposable-test"
+        conn = connect.return_value.__enter__.return_value
+        fixture = TestJobCRUD.db_conn.__wrapped__(None)
+        assert next(fixture) is conn
+        container_class.assert_called_once_with(
+            "postgres:16-alpine",
+            username="scheduler_test",
+            password="scheduler_test",
+            dbname="scheduler_test",
+            driver=None,
+        )
+        assert connect.call_args.args == ("postgresql://disposable-test",)
+        from_env.assert_not_called()
+        assert (
+            "CREATE TABLE IF NOT EXISTS scheduler_jobs"
+            in conn.execute.call_args.args[0]
+        )
+        assert "CREATE EXTENSION" not in conn.execute.call_args.args[0]
+        with pytest.raises(StopIteration):
+            next(fixture)
+        container_class.return_value.__exit__.assert_called_once()
+        connect.return_value.__exit__.assert_called_once()

@@ -16,12 +16,13 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from functools import wraps
 from typing import TypeVar
 
 import lseg.data as rd
 import pandas as pd
 
-from lseg_toolkit.client.session import SessionManager
+from lseg_toolkit.client.session import SESSION_LOCK, SessionManager
 from lseg_toolkit.exceptions import (
     DataRetrievalError,
     DataValidationError,
@@ -31,6 +32,20 @@ from lseg_toolkit.timeseries.constants import VALID_INTERVALS
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# LSEG's default session is process-global. Serialize calls and lifecycle changes;
+# per-client locks alone cannot protect the shared SDK session.
+_request_lock = SESSION_LOCK
+_last_request_time = 0.0
+
+
+def _serialized[**P, R](method: Callable[P, R]) -> Callable[P, R]:
+    @wraps(method)
+    def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
+        with _request_lock:
+            return method(*args, **kwargs)
+
+    return wrapped
 
 
 @dataclass
@@ -72,12 +87,15 @@ class LSEGDataClient:
     _last_request_time: float = field(default=0.0, init=False, repr=False)
     _session: SessionManager | None = field(default=None, init=False, repr=False)
 
+    @_serialized
     def _rate_limit(self) -> None:
         """Enforce rate limiting between requests."""
-        elapsed = time.time() - self._last_request_time
+        global _last_request_time
+        elapsed = time.monotonic() - _last_request_time
         if elapsed < self.config.rate_limit_delay:
             time.sleep(self.config.rate_limit_delay - elapsed)
-        self._last_request_time = time.time()
+        _last_request_time = time.monotonic()
+        self._last_request_time = _last_request_time
 
     def _retry_with_backoff(
         self,
@@ -169,6 +187,7 @@ class LSEGDataClient:
                 f"Invalid interval '{interval}'. Valid options: {VALID_INTERVALS}"
             )
 
+    @_serialized
     def _ensure_session(self) -> None:
         """
         Ensure LSEG session is open, opening it if necessary.
@@ -176,9 +195,23 @@ class LSEGDataClient:
         Uses SessionManager for consistent session handling across the toolkit.
         Auto-opens on first use.
         """
-        if self._session is None:
+        if self._session is None or not self._session.is_open:
             self._session = SessionManager(auto_open=True)
 
+    @_serialized
+    def close(self) -> None:
+        """Close this client's session; subsequent requests reopen it lazily."""
+        if self._session is not None:
+            self._session.close_session()
+            self._session = None
+
+    def __enter__(self) -> LSEGDataClient:
+        return self
+
+    def __exit__(self, *args) -> None:
+        self.close()
+
+    @_serialized
     def get_history(
         self,
         rics: str | list[str],
@@ -315,6 +348,7 @@ class LSEGDataClient:
         # Combine results
         return pd.concat(all_results)
 
+    @_serialized
     def get_data(
         self,
         rics: str | list[str],
@@ -411,6 +445,7 @@ class LSEGDataClient:
 _default_client: LSEGDataClient | None = None
 
 
+@_serialized
 def get_client(config: ClientConfig | None = None) -> LSEGDataClient:
     """
     Get the default LSEG data client (singleton).
@@ -428,7 +463,10 @@ def get_client(config: ClientConfig | None = None) -> LSEGDataClient:
     return _default_client
 
 
+@_serialized
 def reset_client() -> None:
     """Reset the singleton client (useful for testing)."""
     global _default_client
+    if _default_client is not None:
+        _default_client.close()
     _default_client = None

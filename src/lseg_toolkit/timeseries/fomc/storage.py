@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -15,7 +16,9 @@ from lseg_toolkit.timeseries.fomc.models import FOMCMeeting
 logger = logging.getLogger(__name__)
 
 
-def upsert_fomc_meeting(conn: psycopg.Connection, meeting: FOMCMeeting) -> int:
+def upsert_fomc_meeting(
+    conn: psycopg.Connection[dict[str, Any]], meeting: FOMCMeeting
+) -> int:
     """Insert or update a single FOMC meeting record."""
     with conn.cursor() as cur:
         cur.execute(
@@ -72,7 +75,7 @@ def upsert_fomc_meeting(conn: psycopg.Connection, meeting: FOMCMeeting) -> int:
 
 
 def upsert_fomc_meetings(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     meetings: list[FOMCMeeting],
 ) -> int:
     """Insert or update multiple FOMC meeting records."""
@@ -85,7 +88,7 @@ def upsert_fomc_meetings(
 
 
 def sync_fomc_meetings(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     api_key: str | None = None,
     allow_missing_rate_history: bool = True,
 ) -> int:
@@ -102,7 +105,7 @@ def sync_fomc_meetings(
 
 
 def get_fomc_meetings(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     start_date: date | None = None,
     end_date: date | None = None,
     decision: str | None = None,
@@ -136,7 +139,7 @@ def get_fomc_meetings(
 
 
 def get_fomc_meeting_by_date(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     meeting_date: date,
 ) -> dict | None:
     """Get a single FOMC meeting by date."""
@@ -148,7 +151,7 @@ def get_fomc_meeting_by_date(
         return cur.fetchone()
 
 
-def get_next_fomc_meeting(conn: psycopg.Connection) -> dict | None:
+def get_next_fomc_meeting(conn: psycopg.Connection[dict[str, Any]]) -> dict | None:
     """Get the next upcoming FOMC meeting."""
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -162,7 +165,7 @@ def get_next_fomc_meeting(conn: psycopg.Connection) -> dict | None:
         return cur.fetchone()
 
 
-def get_meeting_count(conn: psycopg.Connection) -> int:
+def get_meeting_count(conn: psycopg.Connection[dict[str, Any]]) -> int:
     """Get total count of FOMC meetings in database."""
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT COUNT(*) AS meeting_count FROM fomc_meetings")
@@ -170,7 +173,9 @@ def get_meeting_count(conn: psycopg.Connection) -> int:
         return int(result["meeting_count"]) if result else 0
 
 
-def get_meeting_date_range(conn: psycopg.Connection) -> tuple[date | None, date | None]:
+def get_meeting_date_range(
+    conn: psycopg.Connection[dict[str, Any]],
+) -> tuple[date | None, date | None]:
     """Get earliest and latest meeting dates in database."""
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(

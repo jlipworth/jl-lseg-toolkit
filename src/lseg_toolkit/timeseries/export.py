@@ -7,15 +7,20 @@ format for C++/Rust interoperability.
 
 from __future__ import annotations
 
-import sqlite3
+import os
+import tempfile
 from datetime import date
 from pathlib import Path
+from typing import Any
+from urllib.parse import quote
 
 import pandas as pd
+import psycopg
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from lseg_toolkit.exceptions import StorageError
+from lseg_toolkit.timeseries.config import DatabaseConfig
 from lseg_toolkit.timeseries.enums import AssetClass, Granularity
 from lseg_toolkit.timeseries.storage import (
     get_connection,
@@ -89,7 +94,7 @@ ROLL_EVENTS_SCHEMA = pa.schema(
 
 
 def export_to_parquet(
-    db_path: str,
+    db_path: str | None = None,
     output_dir: str = "data/parquet",
     symbol: str | None = None,
     asset_class: AssetClass | None = None,
@@ -97,12 +102,15 @@ def export_to_parquet(
     start_date: date | None = None,
     end_date: date | None = None,
     partition_by_year: bool = True,
+    *,
+    config: DatabaseConfig | None = None,
 ) -> list[Path]:
     """
     Export time series data to Parquet files.
 
     Args:
-        db_path: Path to SQLite database.
+        db_path: Deprecated legacy path (ignored); use config or environment.
+        config: PostgreSQL configuration; defaults to environment.
         output_dir: Directory for Parquet output.
         symbol: Optional symbol to export (exports all if None).
         asset_class: Optional asset class filter.
@@ -122,7 +130,7 @@ def export_to_parquet(
 
     exported_files: list[Path] = []
 
-    with get_connection(db_path) as conn:
+    with get_connection(config=config, db_path=db_path) as conn:
         # Get instruments to export
         instruments: list[dict] = []
         if symbol:
@@ -152,7 +160,7 @@ def export_to_parquet(
 
 
 def _export_instrument(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     instrument: dict,
     output_path: Path,
     granularity: Granularity,
@@ -161,17 +169,22 @@ def _export_instrument(
     partition_by_year: bool,
 ) -> list[Path]:
     """Export a single instrument to Parquet."""
-    symbol = instrument["symbol"]
-    asset_class = instrument["asset_class"]
+    symbol = quote(str(instrument["symbol"]), safe="")
+    if symbol in {".", ".."}:
+        symbol = symbol.replace(".", "%2E")
+    asset_class = AssetClass(instrument["asset_class"]).value
 
     # Load data
-    df = load_timeseries(conn, symbol, start_date, end_date, granularity)
+    df = load_timeseries(conn, instrument["symbol"], start_date, end_date, granularity)
     if df.empty:
         return []
 
     # Build output path
     granularity_dir = "daily" if granularity == Granularity.DAILY else "intraday"
     base_path = output_path / granularity_dir / asset_class
+    if granularity != Granularity.DAILY:
+        # Different bar sizes must not overwrite one another.
+        base_path = base_path / granularity.value
 
     exported: list[Path] = []
 
@@ -196,45 +209,50 @@ def _export_instrument(
 
 def _write_parquet(df: pd.DataFrame, file_path: Path, granularity: Granularity) -> None:
     """Write DataFrame to Parquet with proper schema."""
-    # Reset index to make date/timestamp a column
+    # Preserve every data shape (quotes/rates/bonds as well as OHLCV).
+    # Normalize the time key rather than dropping an unnamed intraday index.
+    df = df.copy()
+    time_column = "date" if granularity == Granularity.DAILY else "timestamp"
+    timestamps = pd.to_datetime(df.index)
+    df.index = timestamps
+    df.index.name = time_column
     df = df.reset_index()
-
-    # Rename index column
-    if "date" not in df.columns and "timestamp" not in df.columns:
-        df.rename(columns={df.columns[0]: "date"}, inplace=True)
-
-    # Convert date column to proper type
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"]).dt.date
-
-    # Select schema
-    schema = (
-        OHLCV_DAILY_SCHEMA
-        if granularity == Granularity.DAILY
-        else OHLCV_INTRADAY_SCHEMA
-    )
-
-    # Filter to schema columns that exist
-    schema_cols = [f.name for f in schema]
-    df = df[[c for c in df.columns if c in schema_cols]]
-
-    # Write with compression
+    if granularity == Granularity.DAILY:
+        df[time_column] = df[time_column].dt.date
+    elif timestamps.tz is not None:
+        # Interop schema uses UTC-naive microseconds, never local wall time.
+        df[time_column] = df[time_column].dt.tz_convert("UTC").dt.tz_localize(None)
     table = pa.Table.from_pandas(df, preserve_index=False)
-    pq.write_table(
-        table,
-        file_path,
-        compression="snappy",
-        use_dictionary=True,
-        write_statistics=True,
-    )
+    # Atomic replacement prevents interrupted exports leaving corrupt output.
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=file_path.parent, suffix=".parquet.tmp")
+    os.close(fd)
+    try:
+        pq.write_table(
+            table,
+            temporary,
+            compression="snappy",
+            use_dictionary=True,
+            write_statistics=True,
+            coerce_timestamps="us",
+        )
+        os.replace(temporary, file_path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
-def export_metadata(db_path: str, output_dir: str = "data/parquet") -> dict[str, Path]:
+def export_metadata(
+    db_path: str | None = None,
+    output_dir: str = "data/parquet",
+    *,
+    config: DatabaseConfig | None = None,
+) -> dict[str, Path]:
     """
     Export metadata tables to Parquet.
 
     Args:
-        db_path: Path to SQLite database.
+        db_path: Deprecated legacy path (ignored); use config or environment.
+        config: PostgreSQL configuration; defaults to environment.
         output_dir: Directory for Parquet output.
 
     Returns:
@@ -248,7 +266,7 @@ def export_metadata(db_path: str, output_dir: str = "data/parquet") -> dict[str,
 
     exported: dict[str, Path] = {}
 
-    with get_connection(db_path) as conn:
+    with get_connection(config=config, db_path=db_path) as conn:
         # Export instruments
         instruments_path = output_path / "instruments.parquet"
         _export_instruments_metadata(conn, instruments_path)
@@ -262,32 +280,34 @@ def export_metadata(db_path: str, output_dir: str = "data/parquet") -> dict[str,
     return exported
 
 
-def _export_instruments_metadata(conn: sqlite3.Connection, file_path: Path) -> None:
+def _export_instruments_metadata(
+    conn: psycopg.Connection[dict[str, Any]], file_path: Path
+) -> None:
     """Export instruments table to Parquet."""
-    df = pd.read_sql_query(
-        "SELECT id, symbol, name, asset_class, lseg_ric FROM instruments ORDER BY symbol",
-        conn,
-    )
-    if df.empty:
-        return
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, symbol, name, asset_class, lseg_ric FROM instruments ORDER BY symbol"
+        )
+        df = pd.DataFrame(cur.fetchall(), columns=INSTRUMENT_SCHEMA.names)
 
     table = pa.Table.from_pandas(df, schema=INSTRUMENT_SCHEMA, preserve_index=False)
     pq.write_table(table, file_path, compression="snappy")
 
 
-def _export_roll_events_metadata(conn: sqlite3.Connection, file_path: Path) -> None:
+def _export_roll_events_metadata(
+    conn: psycopg.Connection[dict[str, Any]], file_path: Path
+) -> None:
     """Export roll events with symbol join to Parquet."""
-    df = pd.read_sql_query(
-        """
+    with conn.cursor() as cur:
+        cur.execute("""
         SELECT i.symbol, r.roll_date, r.from_contract, r.to_contract,
                r.from_price, r.to_price, r.price_gap, r.adjustment_factor,
                r.roll_method
         FROM roll_events r
         JOIN instruments i ON r.continuous_id = i.id
         ORDER BY i.symbol, r.roll_date
-        """,
-        conn,
-    )
+        """)
+        df = pd.DataFrame(cur.fetchall(), columns=ROLL_EVENTS_SCHEMA.names)
     if df.empty:
         # Write empty file with schema
         table = pa.Table.from_pydict(
@@ -307,16 +327,19 @@ def _export_roll_events_metadata(conn: sqlite3.Connection, file_path: Path) -> N
 
 
 def export_symbol(
-    db_path: str,
+    db_path: str | None,
     symbol: str,
     output_dir: str = "data/parquet",
     granularity: Granularity = Granularity.DAILY,
+    *,
+    config: DatabaseConfig | None = None,
 ) -> Path:
     """
     Export a single symbol to Parquet (no partitioning).
 
     Args:
-        db_path: Path to SQLite database.
+        db_path: Deprecated legacy path (ignored); use config or environment.
+        config: PostgreSQL configuration; defaults to environment.
         symbol: Symbol to export.
         output_dir: Output directory.
         granularity: Data granularity.
@@ -333,23 +356,30 @@ def export_symbol(
         symbol=symbol,
         granularity=granularity,
         partition_by_year=False,
+        config=config,
     )
     if not files:
         raise StorageError(f"No data to export for {symbol}")
     return files[0]
 
 
-def export_all(db_path: str, output_dir: str = "data/parquet") -> dict[str, list[Path]]:
+def export_all(
+    db_path: str | None = None,
+    output_dir: str = "data/parquet",
+    *,
+    config: DatabaseConfig | None = None,
+) -> dict[str, list[Path]]:
     """
     Export all data and metadata to Parquet.
 
     Args:
-        db_path: Path to SQLite database.
+        db_path: Deprecated legacy path (ignored); use config or environment.
+        config: PostgreSQL configuration; defaults to environment.
         output_dir: Output directory.
 
     Returns:
         Dict with 'data' and 'metadata' keys containing file lists.
     """
-    data_files = export_to_parquet(db_path, output_dir)
-    metadata = export_metadata(db_path, output_dir)
+    data_files = export_to_parquet(db_path, output_dir, config=config)
+    metadata = export_metadata(db_path, output_dir, config=config)
     return {"data": data_files, "metadata": list(metadata.values())}

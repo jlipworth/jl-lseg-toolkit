@@ -18,8 +18,10 @@ from lseg_toolkit.exceptions import DataRetrievalError, InstrumentNotFoundError
 from lseg_toolkit.timeseries.client import LSEGDataClient, get_client
 from lseg_toolkit.timeseries.constants import (
     ALL_FUTURES_MAPPING,
+    ASIAN_BOND_FUTURES_MAPPING,
     BOND_COLUMN_MAPPING,
     COLUMN_MAPPING,
+    EUROPEAN_FUTURES_MAPPING,
     FUTURES_OHLCV_FIELDS,
     FX_SPOT_FIELDS,
     FX_SPOT_RICS,
@@ -27,6 +29,7 @@ from lseg_toolkit.timeseries.constants import (
     RATE_COLUMN_MAPPING,
     SOVEREIGN_YIELD_FIELDS,
     STIR_FUTURES_RICS,
+    TREASURY_FUTURES_MAPPING,
     USD_OIS_FIELDS,
     UST_YIELD_FIELDS,
     get_fra_ric,
@@ -154,6 +157,52 @@ def get_continuous_ric(cme_symbol: str, rank: int = 1) -> str:
         lseg_root = ALL_FUTURES_MAPPING[symbol_upper]
         return f"{lseg_root}c{rank}"
     raise InstrumentNotFoundError(f"Unknown CME symbol: {cme_symbol}")
+
+
+def get_bond_contract_chain(
+    symbol: str, start_date: date, end_date: date, *, as_of: date | None = None
+) -> list[str]:
+    """Enumerate quarterly bond contracts covering a requested history window.
+
+    Include the following delivery quarter because volume can move to it before
+    the end of the requested window. Explicit discrete RICs remain singletons.
+    Non-bond roots are rejected rather than guessing their delivery schedules.
+    """
+    mapping = {
+        **TREASURY_FUTURES_MAPPING,
+        **EUROPEAN_FUTURES_MAPPING,
+        **ASIAN_BOND_FUTURES_MAPPING,
+    }
+    root = mapping.get(symbol.upper())
+    if root is None:
+        if re.fullmatch(r".+[FGHJKMNQUVXZ]\d{1,2}(?:\^\d)?", symbol):
+            return [symbol]
+        if CONTINUOUS_RIC_PATTERN.fullmatch(symbol):
+            candidate, rank = symbol.rsplit("c", 1)
+            if rank != "1":
+                raise InstrumentNotFoundError(
+                    "Custom continuous building supports front-month roots only"
+                )
+            if candidate in mapping.values():
+                root = candidate
+        if root is None:
+            raise InstrumentNotFoundError(
+                f"No quarterly bond contract schedule for {symbol}"
+            )
+    first_quarter = start_date.year * 4 + (start_date.month - 1) // 3
+    last_quarter = end_date.year * 4 + (end_date.month - 1) // 3 + 1
+    as_of = as_of or date.today()
+    contracts = []
+    for quarter in range(first_quarter, last_quarter + 1):
+        year, quarter_index = divmod(quarter, 4)
+        ric = f"{root}{'HMUZ'[quarter_index]}{year % 100:02d}"
+        # Expired LSEG futures retain both year digits plus a decade suffix.
+        # Only label definitely expired delivery months; current-month contracts
+        # may still be trading and must keep their live RIC.
+        if (year, (quarter_index + 1) * 3) < (as_of.year, as_of.month):
+            ric += f"^{year // 10 % 10}"
+        contracts.append(ric)
+    return contracts
 
 
 def get_discrete_ric(cme_symbol: str, month_code: str, year: int) -> str:
@@ -868,20 +917,9 @@ def _split_multi_ric_response(
         return {}
 
     results: dict[str, pd.DataFrame] = {}
-    ric_to_key = {v: k for k, v in key_to_ric.items()}
-    all_rics = list(key_to_ric.values())
-
-    # Single RIC case
-    if len(all_rics) == 1:
-        key = list(key_to_ric.keys())[0]
-        results[key] = df
-        logger.info(f"Fetched {len(df)} rows for {key}")
-        return results
-
     # Multi-RIC with 'Instrument' column
     if "Instrument" in df.columns:
-        for ric in all_rics:
-            key = ric_to_key.get(ric, ric)
+        for key, ric in key_to_ric.items():
             ric_df = df[df["Instrument"] == ric].drop(columns=["Instrument"])
             if not ric_df.empty:
                 results[key] = ric_df
@@ -891,8 +929,7 @@ def _split_multi_ric_response(
     # Multi-RIC with MultiIndex (date, ric)
     if isinstance(df.index, pd.MultiIndex):
         level_values = df.index.get_level_values(1)
-        for ric in all_rics:
-            key = ric_to_key.get(ric, ric)
+        for key, ric in key_to_ric.items():
             if ric in level_values:
                 try:
                     xs_result = df.xs(ric, level=1)
@@ -912,8 +949,7 @@ def _split_multi_ric_response(
     # Multi-RIC with MultiIndex columns (ric, field)
     if isinstance(df.columns, pd.MultiIndex):
         rics_in_data = df.columns.get_level_values(0).unique()
-        for ric in all_rics:
-            key = ric_to_key.get(ric, ric)
+        for key, ric in key_to_ric.items():
             if ric in rics_in_data:
                 # Extract columns for this RIC and flatten
                 ric_data = df[ric].copy()
@@ -926,10 +962,7 @@ def _split_multi_ric_response(
                     logger.info(f"Fetched {len(ric_df)} rows for {key}")
         return results
 
-    # Fallback: single format, return for first key
-    if not df.empty:
-        key = list(key_to_ric.keys())[0]
-        results[key] = df
-        logger.info(f"Fetched {len(df)} rows")
-
-    return results
+    # A flat frame without instrument identity is safe only for one distinct RIC.
+    if len(set(key_to_ric.values())) == 1:
+        return {key: df.copy() for key in key_to_ric}
+    raise DataRetrievalError("Multi-RIC response has no instrument identifiers")

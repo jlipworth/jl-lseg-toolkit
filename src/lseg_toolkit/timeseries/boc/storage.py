@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -13,7 +14,9 @@ from lseg_toolkit.timeseries.boc.models import BoCMeeting
 logger = logging.getLogger(__name__)
 
 
-def upsert_boc_meeting(conn: psycopg.Connection, meeting: BoCMeeting) -> int:
+def upsert_boc_meeting(
+    conn: psycopg.Connection[dict[str, Any]], meeting: BoCMeeting
+) -> int:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -68,7 +71,9 @@ def upsert_boc_meeting(conn: psycopg.Connection, meeting: BoCMeeting) -> int:
         return result["id"] if result else 0
 
 
-def upsert_boc_meetings(conn: psycopg.Connection, meetings: list[BoCMeeting]) -> int:
+def upsert_boc_meetings(
+    conn: psycopg.Connection[dict[str, Any]], meetings: list[BoCMeeting]
+) -> int:
     count = 0
     for m in meetings:
         upsert_boc_meeting(conn, m)
@@ -78,7 +83,7 @@ def upsert_boc_meetings(conn: psycopg.Connection, meetings: list[BoCMeeting]) ->
 
 
 def sync_boc_meetings(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     allow_missing_rate_history: bool = True,
 ) -> int:
     from lseg_toolkit.timeseries.boc.fetcher import fetch_boc_meetings
@@ -90,7 +95,7 @@ def sync_boc_meetings(
 
 
 def get_boc_meetings(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> list[dict]:
@@ -111,7 +116,7 @@ def get_boc_meetings(
         return list(cur.fetchall())
 
 
-def get_meeting_count(conn: psycopg.Connection) -> int:
+def get_meeting_count(conn: psycopg.Connection[dict[str, Any]]) -> int:
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT COUNT(*) AS meeting_count FROM boc_meetings")
         result = cur.fetchone()

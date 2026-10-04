@@ -64,7 +64,7 @@ class SchedulerConfig:
                 os.getenv("SCHEDULER_FAILURE_THRESHOLD", "5")
             ),
             intraday_retention_days=int(
-                os.getenv("SCHEDULER_INTRADAY_RETENTION", "90")
+                os.getenv("SCHEDULER_INTRADAY_RETENTION", "365")
             ),
             default_lookback_days=int(os.getenv("SCHEDULER_LOOKBACK_DAYS", "5")),
             default_max_chunk_days=int(os.getenv("SCHEDULER_MAX_CHUNK_DAYS", "30")),

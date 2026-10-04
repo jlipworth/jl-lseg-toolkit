@@ -8,6 +8,7 @@ including extraction logs and batch progress records.
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 import psycopg
 
@@ -17,7 +18,7 @@ from .instruments import get_instrument_id
 
 
 def log_extraction(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     symbol: str,
     start_date: date,
     end_date: date,
@@ -52,7 +53,7 @@ def log_extraction(
 
 
 def create_extraction_progress(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     asset_class: str,
     instrument: str,
     start_date: date,
@@ -82,12 +83,15 @@ def create_extraction_progress(
             """,
             [asset_class, instrument, start_date, end_date],
         )
-        progress_id = cur.fetchone()["id"]
+        result = cur.fetchone()
+        if result is None:
+            raise RuntimeError("INSERT RETURNING id produced no row")
+        progress_id = result["id"]
     return progress_id
 
 
 def update_extraction_progress(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     progress_id: int,
     status: str,
     rows_fetched: int | None = None,
@@ -134,7 +138,7 @@ def update_extraction_progress(
 
 
 def get_extraction_progress(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     asset_class: str | None = None,
     instrument: str | None = None,
     status: str | None = None,
@@ -168,5 +172,4 @@ def get_extraction_progress(
 
     with conn.cursor() as cur:
         cur.execute(query, params)
-        columns = [desc[0] for desc in cur.description]
-        return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+        return list(cur.fetchall())

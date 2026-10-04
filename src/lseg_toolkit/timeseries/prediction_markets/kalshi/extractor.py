@@ -7,6 +7,7 @@ Follows FK dependency order: platform → series → markets → candlesticks.
 import logging
 import re
 from datetime import UTC, datetime
+from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -131,7 +132,7 @@ def parse_candlestick(raw: dict, market_id: int) -> Candlestick:
 
 
 def link_fomc_meeting(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     close_time: datetime,
 ) -> int | None:
     """
@@ -150,7 +151,7 @@ def link_fomc_meeting(
 
 
 def _process_markets(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     client: KalshiClient,
     platform_id: int,
     series_ticker: str,
@@ -185,7 +186,7 @@ def _process_markets(
 
 
 def _fetch_candlesticks_for_markets(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     client: KalshiClient,
     series_ticker: str,
     market_tickers: list[str],
@@ -231,7 +232,7 @@ def _fetch_candlesticks_for_markets(
 
 
 def _filter_markets_missing_candlesticks(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[dict[str, Any]],
     market_tickers: list[str],
     market_ids: list[int],
 ) -> tuple[list[str], list[int]]:
@@ -267,7 +268,7 @@ def _filter_markets_missing_candlesticks(
     return (missing_tickers, missing_ids)
 
 
-def backfill(conn: psycopg.Connection) -> dict:
+def backfill(conn: psycopg.Connection[dict[str, Any]]) -> dict:
     """
     Historical backfill: fetch all settled markets and their candlesticks.
 
@@ -340,7 +341,7 @@ def backfill(conn: psycopg.Connection) -> dict:
     return summary
 
 
-def daily_refresh(conn: psycopg.Connection) -> dict:
+def daily_refresh(conn: psycopg.Connection[dict[str, Any]]) -> dict:
     """
     Daily refresh: update active markets and fetch today's candlesticks.
 

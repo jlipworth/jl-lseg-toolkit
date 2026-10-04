@@ -5,6 +5,7 @@ Handles opening, closing, and context management for LSEG data sessions.
 """
 
 import logging
+import threading
 import warnings
 
 import lseg.data as rd
@@ -13,6 +14,10 @@ from ..exceptions import SessionError
 from .config import load_app_key
 
 logger = logging.getLogger(__name__)
+
+# All toolkit session owners share LSEG's process-global default session.
+SESSION_LOCK = threading.RLock()
+_session_users = 0
 
 # Suppress FutureWarnings from LSEG library about pandas replace() downcasting
 # These warnings come from lseg.data._tools._dataframe.py:192 and are not in our control
@@ -54,6 +59,19 @@ class SessionManager:
         To create a config file with your app key, run:
             uv run lseg-setup
         """
+        global _session_users
+        with SESSION_LOCK:
+            if self._session_opened:
+                return
+            if _session_users:
+                _session_users += 1
+                self._session_opened = True
+                return
+            self._open_default_session()
+            _session_users = 1
+
+    def _open_default_session(self):
+        """Open the SDK session while holding SESSION_LOCK."""
         if not self._session_opened:
             try:
                 # Load app key from config files (returns None if not found)
@@ -79,10 +97,16 @@ class SessionManager:
 
     def close_session(self):
         """Close LSEG Data session."""
-        if self._session_opened:
+        global _session_users
+        with SESSION_LOCK:
+            if not getattr(self, "_session_opened", False):
+                return
+            self._session_opened = False
+            _session_users = max(0, _session_users - 1)
+            if _session_users:
+                return
             try:
                 rd.close_session()
-                self._session_opened = False
             except Exception as e:
                 logger.warning(f"Error closing LSEG session: {e}")
 

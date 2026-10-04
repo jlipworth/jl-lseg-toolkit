@@ -7,6 +7,8 @@ including TimescaleDB hypertable configuration and compression policies.
 
 from __future__ import annotations
 
+from typing import Any
+
 import psycopg
 
 from lseg_toolkit.exceptions import StorageError
@@ -301,6 +303,18 @@ CREATE TABLE IF NOT EXISTS roll_events (
 CREATE INDEX IF NOT EXISTS idx_roll_events_continuous ON roll_events(continuous_id, roll_date DESC);
 
 -- Data extraction metadata
+-- Successful requests, including valid empty intervals. Rows alone cannot prove
+-- that all dates/bars between their MIN/MAX timestamps have been requested.
+CREATE TABLE IF NOT EXISTS fetch_coverage (
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+    granularity TEXT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (instrument_id, granularity, start_date, end_date),
+    CHECK (start_date <= end_date)
+);
+
 CREATE TABLE IF NOT EXISTS extraction_log (
     id SERIAL PRIMARY KEY,
     instrument_id INTEGER NOT NULL REFERENCES instruments(id),
@@ -760,7 +774,7 @@ ALTER TABLE IF EXISTS timeseries_ohlcv
 """
 
 
-def init_schema(conn: psycopg.Connection) -> None:
+def init_schema(conn: psycopg.Connection[dict[str, Any]]) -> None:
     """
     Initialize the TimescaleDB schema.
 
@@ -799,7 +813,7 @@ def init_schema(conn: psycopg.Connection) -> None:
         raise StorageError(f"Failed to initialize schema: {e}") from e
 
 
-def check_timescaledb(conn: psycopg.Connection) -> bool:
+def check_timescaledb(conn: psycopg.Connection[dict[str, Any]]) -> bool:
     """
     Check if TimescaleDB extension is available.
 

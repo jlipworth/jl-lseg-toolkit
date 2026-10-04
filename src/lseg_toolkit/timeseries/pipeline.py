@@ -10,16 +10,17 @@ import logging
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from lseg_toolkit.client import SessionManager
 from lseg_toolkit.timeseries.client import get_client
 from lseg_toolkit.timeseries.config import TimeSeriesConfig
-from lseg_toolkit.timeseries.enums import AssetClass
+from lseg_toolkit.timeseries.constants import TREASURY_FUTURES_MAPPING
+from lseg_toolkit.timeseries.enums import AssetClass, Granularity, RollMethod
+from lseg_toolkit.timeseries.export import export_to_parquet
 from lseg_toolkit.timeseries.fed_funds import (
     fetch_fed_funds_daily,
     fetch_fed_funds_hourly,
@@ -32,6 +33,7 @@ from lseg_toolkit.timeseries.fetch import (
     fetch_fx,
     fetch_govt_yields,
     fetch_ois,
+    get_bond_contract_chain,
     parse_govt_yield_symbol,
     resolve_ric,
 )
@@ -104,7 +106,7 @@ class TimeSeriesExtractionPipeline:
     1. Resolve symbols to LSEG RICs
     2. Fetch time series data
     3. Build continuous contracts (optional)
-    4. Store to SQLite
+    4. Store to TimescaleDB
     5. Export to Parquet (optional)
     """
 
@@ -118,7 +120,6 @@ class TimeSeriesExtractionPipeline:
         """
         self.config = config
         self.verbose = verbose
-        self.session: SessionManager | None = None
 
     def run(self) -> PipelineResult:
         """
@@ -132,10 +133,6 @@ class TimeSeriesExtractionPipeline:
 
         if self.verbose:
             self._print_config()
-
-        # Open LSEG session
-        with timer("Opening LSEG session", self.verbose):
-            self.session = SessionManager()
 
         try:
             # Determine asset class (auto-detect if not specified)
@@ -163,18 +160,33 @@ class TimeSeriesExtractionPipeline:
             result.results = extraction_results
             result.total_rows = sum(r.rows_fetched for r in extraction_results)
 
-            # Export to Parquet if requested
-            # Note: Parquet export is deprecated pending refactor to PostgreSQL
             if self.config.export_parquet:
-                logger.warning(
-                    "Parquet export is temporarily disabled during PostgreSQL migration"
-                )
+                for extraction in result.results:
+                    if not extraction.success:
+                        continue
+                    try:
+                        files = export_to_parquet(
+                            output_dir=self.config.parquet_dir,
+                            symbol=extraction.symbol,
+                            granularity=self.config.granularity,
+                            # Export the stored history, not just this fetch window:
+                            # replacing a yearly partition must not truncate older rows.
+                        )
+                        if not files:
+                            raise RuntimeError("No Parquet files produced")
+                        result.parquet_files.extend(files)
+                        if len(files) == 1:
+                            extraction.parquet_path = files[0]
+                    except Exception as exc:
+                        extraction.success = False
+                        extraction.error = (
+                            f"Data stored, but Parquet export failed: {exc}"
+                        )
 
             result.db_path = None
 
         finally:
-            if self.session:
-                self.session.close_session()
+            get_client().close()
 
         result.elapsed_seconds = time.time() - start_time
 
@@ -292,30 +304,64 @@ class TimeSeriesExtractionPipeline:
         """Extract futures data."""
         results: list[ExtractionResult] = []
 
-        with timer("Fetching futures data", self.verbose):
-            data = fetch_futures(
-                self.config.symbols,
-                self.config.start_date,
-                self.config.end_date,
-                self.config.granularity,
-                continuous=not self.config.continuous,  # If continuous, we fetch discrete
-            )
-
         if self.config.continuous:
-            # Build continuous contracts
             for symbol in self.config.symbols:
-                result = self._build_and_store_continuous(symbol, data)
+                try:
+                    if self.config.roll_method != RollMethod.VOLUME_SWITCH:
+                        raise ValueError(
+                            "Pipeline continuous extraction supports volume_switch only; "
+                            "expiry/first-notice/fixed-day rolling requires verified "
+                            "exchange expiry metadata, not the end of a fetch window."
+                        )
+                    contracts = get_bond_contract_chain(
+                        symbol, self.config.start_date, self.config.end_date
+                    )
+                    data = fetch_futures(
+                        contracts,
+                        self.config.start_date,
+                        self.config.end_date,
+                        self.config.granularity,
+                        continuous=False,
+                    )
+                    # The extra following quarter is optional; every contract
+                    # covering the requested window must be present.
+                    required = contracts[:-1] if len(contracts) > 1 else contracts
+                    missing = [
+                        ric for ric in required if ric not in data or data[ric].empty
+                    ]
+                    if missing:
+                        raise ValueError(
+                            "Incomplete contract chain; missing: " + ", ".join(missing)
+                        )
+                    result = self._build_and_store_continuous(symbol, data)
+                except Exception as exc:
+                    result = ExtractionResult(
+                        symbol=symbol,
+                        rows_fetched=0,
+                        start_date=None,
+                        end_date=None,
+                        success=False,
+                        error=str(exc),
+                    )
                 results.append(result)
         else:
-            # Store discrete contracts
-            for symbol, df in data.items():
-                result = self._store_timeseries(
-                    symbol=symbol,
-                    df=df,
-                    asset_class=AssetClass.BOND_FUTURES,
-                    ric=resolve_ric(symbol, AssetClass.BOND_FUTURES),
+            with timer("Fetching futures data", self.verbose):
+                data = fetch_futures(
+                    self.config.symbols,
+                    self.config.start_date,
+                    self.config.end_date,
+                    self.config.granularity,
+                    continuous=True,
                 )
-                results.append(result)
+            for symbol in self.config.symbols:
+                results.append(
+                    self._store_timeseries(
+                        symbol=symbol,
+                        df=data.get(symbol, pd.DataFrame()),
+                        asset_class=AssetClass.BOND_FUTURES,
+                        ric=resolve_ric(symbol, AssetClass.BOND_FUTURES),
+                    )
+                )
 
         return results
 
@@ -329,7 +375,39 @@ class TimeSeriesExtractionPipeline:
                     data,
                     roll_method=self.config.roll_method,
                     continuous_type=self.config.continuous_type,
+                    roll_days_before=self.config.roll_days_before,
                 )
+
+            # A nonempty chain alone does not prove the stitched output covers
+            # its observations. Missing crossovers can silently truncate a tail.
+            observed_dates = {
+                day
+                for df in data.values()
+                for day in pd.to_datetime(df.index).date
+                if self.config.start_date <= day <= self.config.end_date
+            }
+            output_dates = set(pd.to_datetime(continuous_df.index).date)
+            if observed_dates - output_dates:
+                raise ValueError(
+                    "Continuous history drops observed dates; incomplete roll coverage"
+                )
+
+            if self.config.granularity == Granularity.DAILY and (
+                symbol.upper() in TREASURY_FUTURES_MAPPING
+                or symbol in {f"{root}c1" for root in TREASURY_FUTURES_MAPPING.values()}
+            ):
+                import exchange_calendars as xcals
+
+                sessions = xcals.get_calendar("CME").sessions_in_range(
+                    self.config.start_date, self.config.end_date
+                )
+                expected_dates = {
+                    day for day in sessions.date if day < datetime.now(UTC).date()
+                }
+                if expected_dates - output_dates:
+                    raise ValueError(
+                        "Continuous history is missing closed CME sessions"
+                    )
 
             # Store to database
             result = self._store_timeseries(
@@ -339,6 +417,9 @@ class TimeSeriesExtractionPipeline:
                 ric=resolve_ric(symbol, AssetClass.BOND_FUTURES),
                 continuous_type=self.config.continuous_type.value,
             )
+
+            if not result.success:
+                return result
 
             # Store roll events
             with get_connection() as conn:
@@ -380,7 +461,8 @@ class TimeSeriesExtractionPipeline:
                 self.config.granularity,
             )
 
-        for pair, df in data.items():
+        for pair in self.config.symbols:
+            df = data.get(pair, pd.DataFrame())
             result = self._store_timeseries(
                 symbol=pair,
                 df=df,
@@ -408,7 +490,8 @@ class TimeSeriesExtractionPipeline:
                 self.config.end_date,
             )
 
-        for tenor, df in data.items():
+        for tenor in self.config.symbols:
+            df = data.get(tenor, pd.DataFrame())
             symbol = f"USD{tenor}OIS"
             result = self._store_timeseries(
                 symbol=symbol,
@@ -434,8 +517,9 @@ class TimeSeriesExtractionPipeline:
                 self.config.end_date,
             )
 
-        for configured_symbol, df in data.items():
+        for configured_symbol in self.config.symbols:
             country, tenor, symbol, ric = parse_govt_yield_symbol(configured_symbol)
+            df = data.get(symbol, pd.DataFrame())
             result = self._store_timeseries(
                 symbol=symbol,
                 df=df,
@@ -463,7 +547,8 @@ class TimeSeriesExtractionPipeline:
                 self.config.end_date,
             )
 
-        for tenor, df in data.items():
+        for tenor in self.config.symbols:
+            df = data.get(tenor, pd.DataFrame())
             symbol = f"USD{tenor}F"
             result = self._store_timeseries(
                 symbol=symbol,

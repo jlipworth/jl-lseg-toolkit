@@ -13,7 +13,7 @@ from __future__ import annotations
 import threading
 import warnings
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -25,12 +25,14 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 # Module-level connection pool (singleton) with thread-safe access
-_pool: ConnectionPool | None = None
+_pool: ConnectionPool[psycopg.Connection[dict[str, Any]]] | None = None
 _pool_config: DatabaseConfig | None = None
 _pool_lock = threading.Lock()
 
 
-def get_pool(config: DatabaseConfig | None = None) -> ConnectionPool:
+def get_pool(
+    config: DatabaseConfig | None = None,
+) -> ConnectionPool[psycopg.Connection[dict[str, Any]]]:
     """
     Get or create the connection pool (thread-safe).
 
@@ -83,6 +85,7 @@ def get_pool(config: DatabaseConfig | None = None) -> ConnectionPool:
             )
             _pool_config = config
 
+        assert _pool is not None
         return _pool
 
 
@@ -112,7 +115,7 @@ def get_connection(
     use_pool: bool = True,
     # Legacy parameter for backwards compatibility
     db_path: str | None = None,
-) -> Generator[psycopg.Connection]:
+) -> Generator[psycopg.Connection[dict[str, Any]]]:
     """
     Context manager for database connection.
 

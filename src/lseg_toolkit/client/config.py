@@ -88,9 +88,11 @@ def _load_config_file(config_path: Path) -> str | None:
         with open(config_path) as f:
             config = json.load(f)
 
-        app_key = config.get("app_key", "").strip()
-        if app_key:
-            return app_key
+        if not isinstance(config, dict):
+            return None
+        app_key = config.get("app_key")
+        if isinstance(app_key, str) and app_key.strip():
+            return app_key.strip()
 
     except (OSError, json.JSONDecodeError, KeyError):
         # Silently ignore config file errors - will fall back to default
