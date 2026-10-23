@@ -25,7 +25,6 @@ steps:
   - name: notify-renovate
     image: appleboy/drone-discord:latest@sha256:476966c0b54fa5fe624ff08f90022b3b90f652bcc00918b0c7a14012de55994d
     depends_on:
-      - node --version
       - renovate
     settings:
       webhook_id:
