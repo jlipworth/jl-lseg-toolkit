@@ -72,3 +72,18 @@ Please keep docs aligned with current behavior. In particular, avoid:
 - outdated schema/table names
 - private hostnames, internal paths, or maintainer-only secret-manager examples
 - “plan” language in docs for features that have already merged
+
+## CI image maintenance
+
+The test jobs use the Python-only image in `ci/Dockerfile`; Renovate runs in a
+separate image pinned in `.woodpecker/renovate.yml`. Renovate currently manages
+Python dependencies only, so review and refresh its image manually. Before a
+refresh, execute `node --version` in the selected immutable image on both
+`linux/amd64` and `linux/arm64`, check the applicable Node security release,
+and run `renovate-config-validator renovate.json`. Keep the version and index
+digest together; the scheduled job prints its Node version before scanning.
+
+On October 23, 2026, Renovate 44.181.0 was verified with Node 24.22.1 on both
+architectures. The pinned toolkit test image reports Python 3.13.12 and has no
+Node executable in PATH or under `/usr/local`, `/usr/bin`, or `/opt` on amd64.
+The Node remediation therefore updates only the Renovate job.
