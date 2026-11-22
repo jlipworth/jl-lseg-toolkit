@@ -6,8 +6,6 @@
   "assignees": ["@jlipworth"],
   "timezone": "America/New_York",
 
-  "schedule": ["before 6am on monday"],
-
   "packageRules": [
     {
       "description": "Group dev dependencies",
@@ -24,7 +22,6 @@
   "enabledManagers": ["pep621"],
 
   "prConcurrentLimit": 5,
-  "prCreation": "not-pending",
   "prHourlyLimit": 2,
 
   "vulnerabilityAlerts": {

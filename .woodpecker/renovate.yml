@@ -18,6 +18,10 @@ steps:
       RENOVATE_REPOSITORIES: jlipworth/jl-lseg-toolkit
       RENOVATE_GIT_AUTHOR: "Renovate Bot <renovate@noreply.github.com>"
       LOG_LEVEL: info
+      # Exit non-zero when the repo run ends in a known error state (e.g.
+      # repository-changed -> 6), so a broken run turns the step red instead
+      # of passing silently. Experimental option; see Renovate self-hosted docs.
+      RENOVATE_EXIT_CODE_FOR_ERRORS: "true"
     commands:
       - node --version
       - renovate
@@ -26,12 +30,14 @@ steps:
     image: appleboy/drone-discord:latest@sha256:476966c0b54fa5fe624ff08f90022b3b90f652bcc00918b0c7a14012de55994d
     depends_on:
       - renovate
+    when:
+      status: [success, failure]
     settings:
       webhook_id:
         from_secret: discord_id
       webhook_token:
         from_secret: discord_token
       message: >
-        Renovate completed for {{repo.name}}
-        Check for new dependency update PRs
+        Renovate {{build.status}} for {{repo.name}}
+        Check for new dependency update PRs (or the failure log)
         {{build.link}}
